@@ -1,5 +1,52 @@
 const STEM_ORDER = ["vocals", "drums", "bass", "guitar", "piano", "other"];
 
+export class MixerSession {
+  constructor(tracks) {
+    if (tracks.length !== STEM_ORDER.length) {
+      throw new Error(`Expected ${STEM_ORDER.length} mixer tracks`);
+    }
+    this.tracks = tracks;
+    this.gains = tracks.map(() => 1);
+    this.mutes = tracks.map(() => false);
+    this.solos = tracks.map(() => false);
+    this.apply();
+  }
+
+  setGain(index, gain) {
+    this.assertIndex(index);
+    const value = Number(gain);
+    this.gains[index] = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+    this.apply();
+  }
+
+  setMute(index, muted) {
+    this.assertIndex(index);
+    this.mutes[index] = Boolean(muted);
+    this.apply();
+  }
+
+  setSolo(index, solo) {
+    this.assertIndex(index);
+    this.solos[index] = Boolean(solo);
+    this.apply();
+  }
+
+  assertIndex(index) {
+    if (!Number.isInteger(index) || index < 0 || index >= this.tracks.length) {
+      throw new RangeError("Mixer track index is out of range");
+    }
+  }
+
+  apply() {
+    const hasSolo = this.solos.some(Boolean);
+    this.tracks.forEach((track, index) => {
+      const audible = !this.mutes[index] && (!hasSolo || this.solos[index]);
+      track.volume = audible ? this.gains[index] : 0;
+      track.muted = false;
+    });
+  }
+}
+
 export class SynchronizedTransport {
   constructor(tracks, {
     requestFrame = (callback) => requestAnimationFrame(callback),

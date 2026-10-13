@@ -108,6 +108,12 @@ h3 { margin: 0; font: 650 17px Manrope, sans-serif; overflow-wrap: anywhere; }
 .playback-panel input[type="range"] { width: 100%; accent-color: var(--accent); }
 .playback-panel audio { display: none; }
 .playback-error { color: var(--danger); }
+.mixer-list { display: grid; gap: 7px; padding-top: 10px; border-top: 1px solid var(--line); }
+.mixer-row { display: grid; grid-template-columns: 90px minmax(70px, 1fr) 54px 54px; align-items: center; gap: 10px; }
+.mixer-name { color: #dbe3dd; font-size: 12px; }
+.mixer-row input[type="range"] { width: 100%; }
+.mixer-toggle { display: flex; align-items: center; gap: 5px; margin: 0; color: var(--muted); font-size: 11px; font-weight: 500; }
+.mixer-toggle input { accent-color: var(--accent); }
 @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
 
 footer { display: flex; justify-content: space-between; gap: 16px; padding: 27px 2px 35px; color: #65736b; font-size: 11px; }
@@ -124,6 +130,7 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 27px
   footer { flex-direction: column; gap: 7px; }
   .job-row { align-items: flex-start; flex-direction: column; gap: 6px; }
   .project-list { grid-template-columns: 1fr; }
+  .mixer-row { grid-template-columns: 72px minmax(50px, 1fr) 48px 48px; gap: 7px; }
   .asset-row { align-items: flex-start; flex-direction: column; gap: 8px; }
   .asset-available, .asset-missing { text-align: left; }
 }

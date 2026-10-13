@@ -76,6 +76,14 @@
 - **Stage 16 risks/boundaries:** browsers can reject individual `play()` promises or report differing durations; seek must clamp to the shortest known duration and a failed start must pause every track. No real media, network downloads, or browser E2E are used in tests. Mixer controls remain stage 17.
 - **Stage 16 implementation plan:** add a standalone tested synchronized transport module; wire available project stem asset IDs into six audio elements and shared controls; document actual checks before commit.
 - **Stage 16 status:** completed.
+- **Stage 17 plan/check matrix:** (a) each stem has an independent 0–100% gain; (b) mute is independent per track; (c) one or several solo tracks play while other tracks are suppressed; (d) clearing solo restores gain/mute state; (e) mixer changes do not alter shared playback position; (f) verify UI wiring, targeted/full offline suite, and diff checks.
+- **Stage 17 risks/boundaries:** browser audio volume is bounded to 0–1 and mute/solo must compose without losing the selected gain. Mixer state is in-memory only and resets when the project view is reopened; no DB or audio file is changed.
+- **Stage 17 implementation plan:** add a pure `MixerSession` to the playback module and six compact row controls, then test it with fake media elements.
+- **Stage 17 status:** completed.
+- **Stage 17 result:** added six session-only channel strips with independent gain sliders, mute, and multi-solo. `MixerSession` composes gain/mute/solo directly onto each audio element's volume; clearing the last solo restores each track's gain and mute choice. Reopening a project recreates default mixer state; nothing is persisted or changes audio files.
+- **Stage 17 checks:** `node --test tests/test_playback.mjs` passed (7 tests); targeted `pytest -q tests/test_project_library.py tests/test_web.py` passed (6 passed); full `pytest -q` passed (112 passed, 1 opt-in live test skipped); both JS syntax checks and `git diff --check` passed. Tests use fake media elements and verify position preservation.
+- **Stage 17 boundaries:** no browser E2E or real audio was run. Controls affect only the current page session and reset when the project is reopened.
+- **Next action:** implement safe, repeatable project deletion in stage 18.
 
 ## Completed stages
 

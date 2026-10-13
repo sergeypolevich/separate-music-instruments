@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { SynchronizedTransport } from "../web/playback.mjs";
+import { MixerSession, SynchronizedTransport } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -9,6 +9,8 @@ class FakeAudio {
     this.paused = true;
     this.pauseCalls = 0;
     this.playCalls = 0;
+    this.volume = 1;
+    this.muted = false;
     this.rejectPlay = false;
   }
   play() {
@@ -68,4 +70,40 @@ test("a rejected play pauses every track and reports the failure", async () => {
   tracks[3].rejectPlay = true;
   await assert.rejects(transport.play(), /blocked/);
   assert.ok(tracks.every((track) => track.paused));
+});
+
+test("mixer gain is independent and clamps to the browser volume range", () => {
+  const { tracks } = makeTransport();
+  const mixer = new MixerSession(tracks);
+  mixer.setGain(0, 0.35);
+  mixer.setGain(1, 1.5);
+  assert.equal(tracks[0].volume, 0.35);
+  assert.equal(tracks[1].volume, 1);
+  assert.equal(tracks[2].volume, 1);
+});
+
+test("mute, multiple solo, and clearing solo compose with each track gain", () => {
+  const { tracks } = makeTransport();
+  const mixer = new MixerSession(tracks);
+  mixer.setGain(0, 0.4);
+  mixer.setGain(1, 0.7);
+  mixer.setMute(0, true);
+  mixer.setSolo(1, true);
+  mixer.setSolo(2, true);
+  assert.deepEqual(tracks.map((track) => track.volume), [0, 0.7, 1, 0, 0, 0]);
+  mixer.setSolo(2, false);
+  mixer.setSolo(1, false);
+  assert.deepEqual(tracks.map((track) => track.volume), [0, 0.7, 1, 1, 1, 1]);
+  mixer.setMute(0, false);
+  assert.equal(tracks[0].volume, 0.4);
+});
+
+test("mixer updates preserve the current shared playback position", async () => {
+  const { tracks, transport } = makeTransport();
+  const mixer = new MixerSession(tracks);
+  await transport.play();
+  transport.seek(3.25);
+  mixer.setGain(4, 0.2);
+  mixer.setSolo(4, true);
+  assert.deepEqual(tracks.map((track) => track.currentTime), [3.25, 3.25, 3.25, 3.25, 3.25, 3.25]);
 });
