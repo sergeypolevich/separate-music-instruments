@@ -135,6 +135,7 @@ class BatchOrchestrator:
                     )
                 if request.kind is SourceKind.VIDEO_URL and audio.source.url != request.value:
                     raise AdapterError("Downloader returned a different video", FailureCategory.PERMANENT)
+                self.repository.update_project_source(job_id, audio.source.source_id, audio.source.title)
                 asset = self._retry(
                     job_id, lambda: self.storage.save_audio(job_id, audio), owner_id, receipt.batch_id
                 )

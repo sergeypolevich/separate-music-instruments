@@ -28,6 +28,13 @@ const progressSection = document.querySelector("#progress-section");
 const batchTitle = document.querySelector("#batch-title");
 const batchStatus = document.querySelector("#batch-status");
 const jobList = document.querySelector("#job-list");
+const projectList = document.querySelector("#project-list");
+const projectDetail = document.querySelector("#project-detail");
+const detailTitle = document.querySelector("#detail-title");
+const detailStatus = document.querySelector("#detail-status");
+const detailInput = document.querySelector("#detail-input");
+const detailModel = document.querySelector("#detail-model");
+const assetList = document.querySelector("#asset-list");
 let pollingTimer = null;
 
 async function requestJson(url, options = {}) {
@@ -87,12 +94,93 @@ function renderBatch(batch) {
   progressSection.hidden = false;
 }
 
+function renderProjects(projects) {
+  if (projects.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Здесь появятся обработанные и текущие проекты.";
+    projectList.replaceChildren(empty);
+    return;
+  }
+  projectList.replaceChildren(...projects.map((project) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "project-card";
+    button.setAttribute("aria-label", `Открыть проект ${project.title || project.input_value}`);
+    const name = document.createElement("span");
+    name.className = "project-name";
+    name.textContent = project.title || project.input_value;
+    const status = document.createElement("span");
+    status.className = "project-state";
+    status.textContent = stateLabels[project.job_status] || project.job_status;
+    button.append(name, status);
+    button.addEventListener("click", () => openProject(project.project_id));
+    return button;
+  }));
+}
+
+function assetLabel(asset) {
+  if (asset.asset_type === "source_audio") return "Исходное аудио";
+  return asset.stem_name ? `Стем: ${asset.stem_name}` : "Стем";
+}
+
+function renderProject(project) {
+  detailTitle.textContent = project.title || project.input_value;
+  detailStatus.dataset.status = project.job.status;
+  detailStatus.textContent = stateLabels[project.job.status] || project.job.status;
+  detailInput.textContent = project.input_value;
+  const options = project.job.separation_options;
+  detailModel.textContent = options
+    ? `Модель: ${options.model_name} · ${options.device}`
+    : "Параметры обработки не сохранены";
+  assetList.replaceChildren(...project.assets.map((asset) => {
+    const row = document.createElement("div");
+    row.className = "asset-row";
+    const name = document.createElement("span");
+    name.textContent = assetLabel(asset);
+    const availability = document.createElement("span");
+    availability.className = asset.available ? "asset-available" : "asset-missing";
+    availability.textContent = asset.available
+      ? `${asset.media_format || "файл"} · ${Math.ceil(asset.byte_size / 1024)} КБ`
+      : "Файл не найден";
+    row.append(name, availability);
+    return row;
+  }));
+  if (project.assets.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-state";
+    empty.textContent = "Файлы для этого проекта ещё не сохранены.";
+    assetList.append(empty);
+  }
+  projectDetail.hidden = false;
+}
+
+async function openProject(projectId) {
+  try {
+    const project = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`);
+    renderProject(project);
+  } catch (error) {
+    setMessage(error.message, true);
+  }
+}
+
+async function loadProjects() {
+  try {
+    const projects = await requestJson("/api/v1/projects");
+    renderProjects(projects);
+  } catch (error) {
+    setMessage(error.message, true);
+  }
+}
+
 async function refreshBatch(batchId) {
   try {
     const batch = await requestJson(`/api/v1/batches/${encodeURIComponent(batchId)}`);
     renderBatch(batch);
     if (["queued", "processing"].includes(batch.status)) {
       pollingTimer = window.setTimeout(() => refreshBatch(batchId), 1200);
+    } else {
+      await loadProjects();
     }
   } catch (error) {
     setMessage(error.message, true);
@@ -147,3 +235,5 @@ form.addEventListener("submit", async (event) => {
 });
 
 loadModels();
+loadProjects();
+document.querySelector("#refresh-projects").addEventListener("click", loadProjects);

@@ -285,6 +285,8 @@ class JobRepository(Protocol):
 
     def list_batches(self, owner_id: str, limit: int = 50) -> Sequence[BatchView]: ...
 
+    def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None: ...
+
     def transition_job(
         self,
         job_id: UUID,

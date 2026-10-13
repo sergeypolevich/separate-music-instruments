@@ -72,6 +72,31 @@
         <div id="job-list" class="job-list"></div>
       </section>
 
+      <section class="library-section" aria-labelledby="library-title">
+        <div class="panel-heading library-heading">
+          <div>
+            <p class="eyebrow">ВАША КОЛЛЕКЦИЯ</p>
+            <h2 id="library-title">Проекты</h2>
+          </div>
+          <button id="refresh-projects" class="quiet-button" type="button" aria-label="Обновить проекты">↻</button>
+        </div>
+        <div id="project-list" class="project-list" aria-live="polite">
+          <p class="empty-state">Здесь появятся обработанные и текущие проекты.</p>
+        </div>
+        <section id="project-detail" class="project-detail" aria-live="polite" hidden>
+          <div class="detail-heading">
+            <div>
+              <p class="eyebrow">ПРОЕКТ</p>
+              <h3 id="detail-title"></h3>
+            </div>
+            <span id="detail-status" class="status-pill"></span>
+          </div>
+          <p id="detail-input" class="detail-input"></p>
+          <div id="detail-model" class="detail-model"></div>
+          <div id="asset-list" class="asset-list"></div>
+        </section>
+      </section>
+
       <footer>
         <span>Audio Stems</span>
         <span>Обработка выполняется на этом компьютере</span>
