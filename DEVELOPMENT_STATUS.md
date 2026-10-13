@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 8 — SQLite models (next; stage 7 input normalization completed).
+- **Current stage:** 9 — Job states and orchestration (next; stage 8 metadata persistence completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 7 source-normalization changes are uncommitted; stage 6 commit `0383d34` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 8 SQLite persistence is uncommitted; stage 7 commit `cff49f9` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 7 targeted source/baseline tests passed (28 passed); full `pytest -q` passed (59 passed, 1 opt-in live E2E skipped); `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 8 targeted `pytest -q tests/test_metadata.py` passed (3 passed); full `pytest -q` passed (62 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -23,7 +23,12 @@
 - **Stage 7 result:** added `YouTubeSourceAdapter` for query/direct URL normalization and wired the CLI so direct video links bypass search and are passed unchanged to `YouTube`. URL validation requires HTTPS, an allowlisted exact host, and a supported video path; malformed or URL-like unsupported input raises a categorized validation error.
 - **Stage 7 checks:** source/CLI targeted tests passed (28 passed); full `pytest -q` passed (59 passed, 1 opt-in live test skipped). Tests prove first-result search compatibility, direct URL exactness/no search, allowed YouTube URL forms, and rejection of bad schemes/hosts/credentials/ports/paths.
 - **Stage 7 boundaries:** tests use fake source/download adapters only; no network. WebM preference and fallback remain unchanged.
-- **Next action:** run final diff check, commit and push stage 7, then add SQLite metadata models and persistence tests in stage 8.
+- **Stage 8 plan/check matrix:** (a) create clients, projects, batches, jobs, assets, and events with foreign-key relationships; (b) reconnect to the same temporary SQLite file and read persisted records; (c) verify status events and owner-scoped reads; (d) ensure assets store relative keys and metadata only, with no media BLOB columns; (e) verify migration application is repeatable; (f) targeted/full offline suites and diff check.
+- **Stage 8 risks/boundaries:** use temporary database files only; no audio payloads, secrets, or user files in tests. This stage persists metadata/models; job transition policy and batch execution remain stage 9.
+- **Stage 8 result:** added a versioned SQLite migration and repository models for clients, projects, batches, jobs, media assets, and job events. Persistent records use UUIDs, foreign keys, owner-scoped queries, and relative storage keys; media bytes are not stored in SQLite. SQLite uses the standard library, with no new package requirement.
+- **Stage 8 checks:** targeted metadata tests passed (3 passed); full `pytest -q` passed (62 passed, 1 opt-in live test skipped). Tests reopen the database, verify linked records/events/owner scope, validate foreign keys and migration repeatability, and inspect the schema for absence of media BLOB fields.
+- **Stage 8 boundaries:** schema and repository only; lifecycle transition policy and worker orchestration are stage 9. Tests use temporary database files; no app-wide database file was created.
+- **Next action:** run final diff check, commit and push stage 8, then implement explicit job transitions and two-phase batch execution in stage 9.
 
 ## Completed stages
 
