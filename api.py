@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 from pathlib import Path
-from typing import Annotated, Protocol, Sequence
+from typing import Annotated, Iterator, Protocol, Sequence
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from fastapi.staticfiles import StaticFiles
 
@@ -31,6 +32,7 @@ from local_storage import LocalMediaStorage
 from metadata import ProjectRecord, SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
+from waveform import WaveformError, waveform_data
 
 
 _OWNER_ID = "local"
@@ -49,6 +51,7 @@ class ApiRepository(Protocol):
     def list_projects(self, owner_id: str) -> Sequence[ProjectRecord]: ...
     def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None: ...
     def list_assets(self, job_id: UUID, owner_id: str) -> Sequence[MediaAsset]: ...
+    def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None: ...
 
 
 class BatchSubmission(BaseModel):
@@ -70,6 +73,42 @@ def _job_payload(job) -> dict[str, object]:
         "error_summary": job.error_summary,
         "input_value": job.input_value,
     }
+
+
+def _parse_byte_range(value: str | None, size: int) -> tuple[int, int, bool]:
+    if value is None:
+        return 0, max(0, size - 1), False
+    try:
+        unit, interval = value.strip().split("=", 1)
+        if unit != "bytes" or "," in interval or size <= 0:
+            raise ValueError
+        first, last = interval.split("-", 1)
+        if not first:
+            suffix_length = int(last)
+            if suffix_length <= 0:
+                raise ValueError
+            start = max(0, size - suffix_length)
+            end = size - 1
+        else:
+            start = int(first)
+            end = min(int(last), size - 1) if last else size - 1
+            if start < 0 or end < start or start >= size:
+                raise ValueError
+        return start, end, True
+    except (ValueError, TypeError) as exc:
+        raise ValueError("Requested byte range is not satisfiable") from exc
+
+
+def _file_chunks(path: Path, start: int, length: int, chunk_size: int = 64 * 1024) -> Iterator[bytes]:
+    with path.open("rb") as source:
+        source.seek(start)
+        remaining = length
+        while remaining:
+            chunk = source.read(min(chunk_size, remaining))
+            if not chunk:
+                break
+            remaining -= len(chunk)
+            yield chunk
 
 
 def create_app(
@@ -104,7 +143,11 @@ def create_app(
         detail = exc.detail if isinstance(exc.detail, dict) else {}
         code = detail.get("code", "http_error")
         message = detail.get("message", "Request could not be completed")
-        return JSONResponse(status_code=exc.status_code, content={"error": {"code": code, "message": message}})
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"error": {"code": code, "message": message}},
+            headers=exc.headers,
+        )
 
     @app.get("/api/v1/health")
     def health() -> dict[str, str]:
@@ -268,6 +311,80 @@ def create_app(
             },
             "assets": assets,
         }
+
+    @app.get("/api/v1/assets/{asset_id}/waveform")
+    def get_waveform(asset_id: UUID, levels: int = Query(default=512, ge=1, le=2048)) -> dict[str, object]:
+        asset = repository.get_asset(asset_id, _OWNER_ID)
+        if asset is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
+        if (asset.media_format or "").lower() != "wav":
+            raise HTTPException(
+                status_code=415,
+                detail={"code": "unsupported_waveform_format", "message": "Waveform data is available for WAV assets"},
+            )
+        try:
+            path = storage.resolve_path(asset.storage_key)
+            if not path.is_file():
+                raise FileNotFoundError
+            data = waveform_data(path, levels)
+        except FileNotFoundError as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "asset_unavailable", "message": "Asset file is not available"},
+            ) from exc
+        except (AdapterError, OSError) as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "asset_unavailable", "message": "Asset file is not available"},
+            ) from exc
+        except WaveformError as exc:
+            raise HTTPException(
+                status_code=422,
+                detail={"code": "invalid_waveform_source", "message": str(exc)},
+            ) from exc
+        return {"asset_id": str(asset.asset_id), **data}
+
+    @app.get("/api/v1/assets/{asset_id}")
+    def stream_asset(asset_id: UUID, request: Request):
+        asset = repository.get_asset(asset_id, _OWNER_ID)
+        if asset is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
+        try:
+            path = storage.resolve_path(asset.storage_key)
+            size = path.stat().st_size
+            if not path.is_file():
+                raise FileNotFoundError
+        except (AdapterError, OSError, FileNotFoundError) as exc:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "asset_unavailable", "message": "Asset file is not available"},
+            ) from exc
+        range_value = request.headers.get("range")
+        try:
+            start, end, partial = _parse_byte_range(range_value, size)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=416,
+                detail={"code": "invalid_range", "message": str(exc)},
+                headers={"Content-Range": f"bytes */{size}"},
+            ) from exc
+        length = end - start + 1 if size else 0
+        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+        headers = {
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(length),
+            "X-Content-Type-Options": "nosniff",
+        }
+        response_status = 200
+        if partial:
+            headers["Content-Range"] = f"bytes {start}-{end}/{size}"
+            response_status = 206
+        return StreamingResponse(
+            _file_chunks(path, start, length),
+            status_code=response_status,
+            media_type=media_type,
+            headers=headers,
+        )
 
     web_root = Path(__file__).with_name("web")
 

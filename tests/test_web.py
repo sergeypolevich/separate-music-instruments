@@ -58,6 +58,7 @@ def test_ui_covers_persisted_job_states_and_renders_every_sibling_safely():
     assert "batch.jobs.map" in source
     assert "textContent" in source
     assert "/api/v1/batches/" in source
+    assert "/waveform?levels=128" in source
 
 
 def test_ui_progress_data_keeps_a_failed_job_visible_beside_a_successful_one(tmp_path):

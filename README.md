@@ -67,6 +67,10 @@ or supported YouTube URLs and returns `202` with batch/job IDs. Use
 `/api/v1/jobs/{id}/events` for persisted progress; `/api/v1/projects` lists
 saved projects and `/api/v1/models` lists model options. Errors use an
 `error.code` and safe `error.message` response. The API never accepts file paths.
+Project details provide opaque asset IDs. `GET /api/v1/assets/{asset_id}` streams
+an available asset and supports single byte-range requests. The corresponding
+`/waveform` endpoint returns bounded PCM WAV peak levels so the page does not
+need to download an entire audio file just to draw its waveform.
 
 The Demucs adapter exposes its model names and supported inference parameters.
 Jobs store the selected model, device, and parameters in SQLite, and pass that
