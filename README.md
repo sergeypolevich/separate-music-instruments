@@ -29,3 +29,12 @@ py -m pytest
 
 The application can still be started directly with the Python interpreter, but
 that bypasses the dependency check. Use `py run.py` for normal startup.
+
+Before reusing an existing audio file, the application checks its container
+signature (for example, the WebM or MP4 header). This catches empty and plainly
+corrupt cache files, but it does not decode the audio or guarantee that Demucs
+can process every file. Invalid cached files are preserved under
+`_demucs_temp/_recovery/` and the downloader can fetch a replacement. If a file
+passes the header check but Demucs rejects it, move that source audio out of the
+`Music` folder and rerun the track; the original is not deleted by this
+fallback.

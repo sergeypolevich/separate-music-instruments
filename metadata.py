@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 
 from contracts import (
     AdapterError,
+    BatchStatus,
     BatchReceipt,
     FailureCategory,
     JobEvent,
@@ -22,6 +23,31 @@ from contracts import (
     SourceKind,
     SourceRequest,
 )
+
+
+_ALLOWED_JOB_TRANSITIONS = {
+    JobStatus.QUEUED: {JobStatus.SEARCHING, JobStatus.DOWNLOADING, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.SEARCHING: {JobStatus.DOWNLOADING, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.DOWNLOADING: {JobStatus.DOWNLOADED, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.DOWNLOADED: {JobStatus.SEPARATING, JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.SEPARATING: {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
+    JobStatus.FAILED: {JobStatus.QUEUED},
+    JobStatus.COMPLETED: set(),
+    JobStatus.CANCELLED: set(),
+}
+_ALLOWED_BATCH_TRANSITIONS = {
+    BatchStatus.QUEUED: {BatchStatus.PROCESSING, BatchStatus.CANCELLED},
+    BatchStatus.PROCESSING: {
+        BatchStatus.COMPLETED,
+        BatchStatus.PARTIAL,
+        BatchStatus.FAILED,
+        BatchStatus.CANCELLED,
+    },
+    BatchStatus.COMPLETED: set(),
+    BatchStatus.PARTIAL: set(),
+    BatchStatus.FAILED: set(),
+    BatchStatus.CANCELLED: set(),
+}
 
 
 @dataclass(frozen=True)
@@ -110,6 +136,7 @@ class SqliteMetadataStore:
             status=JobStatus(row["status"]),
             current_stage=row["current_stage"],
             error_summary=row["error_summary"],
+            retry_count=row["retry_count"],
         )
 
     @staticmethod
@@ -147,7 +174,7 @@ class SqliteMetadataStore:
                 ).fetchone()
                 if existing:
                     jobs = connection.execute("SELECT id FROM jobs WHERE batch_id = ? ORDER BY rowid", (existing["id"],)).fetchall()
-                    return BatchReceipt(UUID(existing["id"]), tuple(UUID(row["id"]) for row in jobs))
+                    return BatchReceipt(UUID(existing["id"]), tuple(UUID(row["id"]) for row in jobs), owner_id)
 
             batch_id = uuid4()
             methods = {source.kind for source in sources}
@@ -188,7 +215,7 @@ class SqliteMetadataStore:
                     ),
                 )
                 job_ids.append(job_id)
-        return BatchReceipt(batch_id, tuple(job_ids))
+        return BatchReceipt(batch_id, tuple(job_ids), owner_id)
 
     def transition_job(
         self,
@@ -203,6 +230,9 @@ class SqliteMetadataStore:
             row = connection.execute("SELECT * FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
             if row is None:
                 raise AdapterError("Job was not found", FailureCategory.NOT_FOUND)
+            current_status = JobStatus(row["status"])
+            if status not in _ALLOWED_JOB_TRANSITIONS[current_status]:
+                raise ValueError(f"Invalid job transition: {current_status.value} -> {status.value}")
             connection.execute(
                 "UPDATE jobs SET status = ?, current_stage = ?, error_summary = ?, updated_at = ? WHERE id = ?",
                 (status.value, stage, error_summary, now, str(job_id)),
@@ -224,6 +254,44 @@ class SqliteMetadataStore:
             updated = connection.execute("SELECT * FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
             assert updated is not None
             return self._job_view(updated)
+
+    def transition_batch(
+        self,
+        batch_id: UUID,
+        status: BatchStatus,
+        result_summary: str | None = None,
+    ) -> None:
+        with self._connection() as connection:
+            existing = connection.execute("SELECT status FROM batches WHERE id = ?", (str(batch_id),)).fetchone()
+            if existing is None:
+                raise AdapterError("Batch was not found", FailureCategory.NOT_FOUND)
+            current_status = BatchStatus(existing["status"])
+            if status not in _ALLOWED_BATCH_TRANSITIONS[current_status]:
+                raise ValueError(f"Invalid batch transition: {current_status.value} -> {status.value}")
+            cursor = connection.execute(
+                "UPDATE batches SET status = ?, result_summary = ?, updated_at = ? WHERE id = ?",
+                (status.value, result_summary, _utc_now(), str(batch_id)),
+            )
+            assert cursor.rowcount == 1
+
+    def record_retry(self, job_id: UUID, attempt: int) -> None:
+        with self._connection() as connection:
+            row = connection.execute("SELECT batch_id, owner_id FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
+            if row is None:
+                raise AdapterError("Job was not found", FailureCategory.NOT_FOUND)
+            connection.execute(
+                "UPDATE jobs SET retry_count = retry_count + 1, updated_at = ? WHERE id = ?",
+                (_utc_now(), str(job_id)),
+            )
+            connection.execute(
+                """INSERT INTO job_events
+                   (id, batch_id, job_id, name, occurred_at, details_json, actor_id)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    str(uuid4()), row["batch_id"], str(job_id), "retry_scheduled", _utc_now(),
+                    json.dumps({"attempt": attempt}), row["owner_id"],
+                ),
+            )
 
     def get_job(self, job_id: UUID, owner_id: str) -> JobView | None:
         with self._connection() as connection:

@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 9 — Job states and orchestration (next; stage 8 metadata persistence completed).
+- **Current stage:** 9 — Job states and orchestration (in progress).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 8 SQLite persistence is uncommitted; stage 7 commit `cff49f9` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 9 orchestration and transition changes are uncommitted; stage 8 commit `0421da2` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 8 targeted `pytest -q tests/test_metadata.py` passed (3 passed); full `pytest -q` passed (62 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 9 targeted storage/jobs/baseline/contracts tests passed (39 passed); full `pytest -q` passed (71 passed, 1 opt-in live E2E skipped); `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -27,8 +27,14 @@
 - **Stage 8 risks/boundaries:** use temporary database files only; no audio payloads, secrets, or user files in tests. This stage persists metadata/models; job transition policy and batch execution remain stage 9.
 - **Stage 8 result:** added a versioned SQLite migration and repository models for clients, projects, batches, jobs, media assets, and job events. Persistent records use UUIDs, foreign keys, owner-scoped queries, and relative storage keys; media bytes are not stored in SQLite. SQLite uses the standard library, with no new package requirement.
 - **Stage 8 checks:** targeted metadata tests passed (3 passed); full `pytest -q` passed (62 passed, 1 opt-in live test skipped). Tests reopen the database, verify linked records/events/owner scope, validate foreign keys and migration repeatability, and inspect the schema for absence of media BLOB fields.
-- **Stage 8 boundaries:** schema and repository only; lifecycle transition policy and worker orchestration are stage 9. Tests use temporary database files; no app-wide database file was created.
-- **Next action:** run final diff check, commit and push stage 8, then implement explicit job transitions and two-phase batch execution in stage 9.
+- **Stage 8 boundaries:** schema and repository only at that checkpoint; stage 9 now enforces lifecycle transitions. Tests use temporary database files; no app-wide database file was created.
+- **Stage 9 plan/check matrix:** (a) enforce documented job transition graph and persist every transition; (b) retry only transient adapter errors and persist retry counts; (c) attempt all source resolution/download work before any separation; (d) keep processing after per-job download/separation failures and report partial batch success; (e) validate all six non-empty stems before completion and cleanup; (f) reuse complete stem sets; (g) targeted/full offline suite and diff check.
+- **Stage 9 risks/boundaries:** deterministic fakes only; no API/worker process in this stage. Error summaries must be user-safe, unexpected item failures must not abort siblings, and no real network/model work runs by default.
+- **Stage 9 result:** SQLite job and batch state transitions are validated and persisted; retries are limited to transient categorized errors and increment persisted retry counts; `BatchOrchestrator` completes all download attempts before separation, continues after per-item failures, returns partial batch status, validates all six non-empty stems, and registers/reuses complete stem sets.
+- **Stage 9 checks:** targeted storage/jobs/baseline/contracts tests passed (39 passed); full `pytest -q` passed (71 passed, 1 opt-in live test skipped); `git diff --check` passed. Tests cover invalid transitions, retry counts/delays, permanent errors not retried, download-before-separation, sibling isolation, partial outcomes, incomplete-output preservation, complete-set reuse, and invalid audio quarantine/re-download.
+- **Stage 9 audio validation limit:** reuse checks known container signatures and non-empty files; it does not decode samples. Invalid cached files are preserved in `_demucs_temp/_recovery/`. README documents moving an audio file aside when it passes signature validation but fails in Demucs.
+- **Stage 9 boundaries:** orchestration is callable with fakes and SQLite but is not yet run in a separate worker process; cancellation/restart recovery remain stage 11. Existing CLI behavior remains the compatibility path.
+- **Next action:** commit and push stage 9, then expose Demucs model capabilities/options through the separator contract in stage 10.
 
 ## Completed stages
 
