@@ -53,7 +53,9 @@ class PytubeDownloader(Downloader):
 
     def download(self, source: VideoCandidate) -> DownloadedAudio:
         try:
-            video = YouTube(source.url, "WEB")
+            # Use pytubefix's default client and fallback chain. Pinning WEB can
+            # require a generated PoToken and brittle player-JS decryption.
+            video = YouTube(source.url)
             stream = (
                 video.streams.filter(only_audio=True, mime_type="audio/webm")
                 .order_by("abr").desc().first()

@@ -57,13 +57,15 @@ def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):
                         raise
                     time.sleep(0.05)
             page = client.get("/")
-            script = client.get("/static/app.js")
+            script = client.get("/app.js")
+            playback = client.get("/playback.mjs")
+            styles = client.get("/app.css")
             projects = client.get("/api/v1/projects")
             batch = client.post("/api/v1/batches", json={"inputs": ["Smoke test query"]})
 
             assert health.status_code == 200 and health.json() == {"status": "ok"}
             assert page.status_code == 200 and 'id="check-updates"' in page.text
-            assert script.status_code == projects.status_code == 200
+            assert script.status_code == styles.status_code == playback.status_code == projects.status_code == 200
             assert projects.json() == []
             assert batch.status_code == 202 and len(batch.json()["job_ids"]) == 1
             stored = repository.get_batch(UUID(batch.json()["batch_id"]), "local")

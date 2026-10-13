@@ -62,3 +62,20 @@ def test_launcher_rejects_unknown_arguments(monkeypatch):
     monkeypatch.setattr(run, "in_project_venv", lambda: True)
 
     assert run.main(["--unknown"]) == 2
+
+
+def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch):
+    calls = []
+    monkeypatch.setattr(run, "in_project_venv", lambda: True)
+    monkeypatch.setattr(run, "install_runtime_dependencies", lambda: None)
+    monkeypatch.setattr(
+        run.subprocess, "run",
+        lambda args, **kwargs: calls.append((args, kwargs)) or type("Result", (), {"returncode": 0})(),
+    )
+
+    assert run.main(["--app"]) == 0
+    assert calls[0][0] == [run.sys.executable, str(run.DESKTOP)]
+
+
+def test_launcher_usage_includes_app_mode():
+    assert "--app" in run.USAGE

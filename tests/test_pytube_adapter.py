@@ -69,7 +69,7 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     observed = {}
     monkeypatch.setattr(
         "pytube_adapter.YouTube",
-        lambda url, client: observed.update(url=url, client=client) or FakeYoutube(
+        lambda url, client=None: observed.update(url=url, client=client) or FakeYoutube(
             url, client, streams=FakeStreams(selected)
         ),
     )
@@ -81,6 +81,7 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     downloaded = downloader.download(VideoCandidate("direct-id", "direct-id", exact))
 
     assert observed["url"] == exact
+    assert observed["client"] is None  # Let pytubefix use its current default/fallback policy.
     assert downloaded.source.url == exact
     assert downloaded.media_format == "webm"
     assert storage.validate_audio_file(downloaded.path, "webm")
@@ -91,7 +92,7 @@ def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp
     fallback = FakeStream("m4a", data=b"0000ftypM4A ")
     monkeypatch.setattr(
         "pytube_adapter.YouTube",
-        lambda url, client: FakeYoutube(url, client, streams=FakeStreams(fallback)),
+        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fallback)),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)

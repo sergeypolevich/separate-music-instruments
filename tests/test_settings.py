@@ -17,6 +17,7 @@ def test_settings_defaults_preserve_current_cli_behavior(tmp_path):
     assert settings.log_level == "INFO"
     assert settings.log_max_bytes == 10 * 1024 * 1024
     assert settings.log_backup_count == 5
+    assert settings.api_port == 8000
 
 
 def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
@@ -46,8 +47,19 @@ def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
         {"AUDIO_STEMS_LOG_MAX_BYTES": "not-an-integer"},
         {"AUDIO_STEMS_ALLOWED_SOURCE_HOSTS": "youtube.com/path"},
         {"AUDIO_STEMS_AUTH_ENABLED": "true"},
+        {"AUDIO_STEMS_API_PORT": "0"},
+        {"AUDIO_STEMS_API_PORT": "not-a-port"},
     ],
 )
 def test_invalid_settings_are_rejected(environment, tmp_path):
     with pytest.raises(ValueError):
         Settings.load(environ=environment, dotenv_path=tmp_path / "missing.env")
+
+
+def test_api_port_can_be_overridden_for_isolated_local_runs(tmp_path):
+    settings = Settings.load(
+        environ={"AUDIO_STEMS_API_PORT": "8123"},
+        dotenv_path=tmp_path / "missing.env",
+    )
+
+    assert settings.api_port == 8123

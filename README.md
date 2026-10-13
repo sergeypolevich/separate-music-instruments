@@ -2,6 +2,19 @@
 
 ## Run on Windows
 
+After downloading and extracting the GitHub folder, double-click
+`Start Audio Stems.bat`. It prepares Python 3.12 and the project environment
+when needed, starts both the local API and background worker, waits for the API,
+and opens the app in your default browser. The first launch needs internet to
+install Python (if missing) and the runtime dependencies; Demucs model weights
+are downloaded when the first separation runs. The automatically opened window
+shows service logs; close it to stop both services. The app address is
+`http://127.0.0.1:8000`.
+
+The page must be opened from that local address. Opening `web/index.html`
+directly as a file cannot reach the API. For troubleshooting or development,
+the equivalent manual command is `py run.py --app`.
+
 Install Python 3.10 or newer, then run this from the project folder in PowerShell:
 
 ```powershell
@@ -20,7 +33,7 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 The launcher creates and uses `.venv` automatically, so activation is optional
 when starting the app. Edit `.env` only for local settings; keep it out of Git.
 
-The launcher creates a project-local `.venv` on first run, checks for the runtime
+The Python launcher creates a project-local `.venv` on first run, checks for the runtime
 libraries listed in `requirements.txt`, installs them when needed, and starts
 `download_tracks.py`. Demucs and its machine-learning dependencies can take a
 while and use substantial disk space on the first installation. If installation
@@ -40,8 +53,13 @@ py -m pytest -q
 ```
 
 By default, no live YouTube or Demucs smoke tests run. The separate opt-in
-command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -m e2e -s`; it downloads and
-processes the test video and requires authorization to use that source.
+command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It starts the
+API and worker, opens installed Edge or Chrome in a visible browser window, searches
+YouTube for Band — Rock Song, downloads it, runs Demucs, and checks project reopen,
+playback, seek, per-track gain, and mute controls. It needs internet, the
+Playwright test dependency, installed Edge or Chrome, available disk space, and
+several minutes of CPU processing. Run it before every commit as required by
+`skills/audio-stems-development.md`; it never installs an application update.
 
 Run the database-backed worker in a separate PowerShell window:
 

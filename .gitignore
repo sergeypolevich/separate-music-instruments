@@ -2,6 +2,10 @@
 /Music/
 /Stems/
 /_demucs_temp/
+/audio_stems.db
+/audio_stems.db-shm
+/audio_stems.db-wal
+/logs/
 
 # Audio and video files
 *.wav

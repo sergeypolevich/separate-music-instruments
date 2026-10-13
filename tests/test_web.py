@@ -38,9 +38,9 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
     request, _repository = get_app_client(tmp_path)
 
     page = request("GET", "/")
-    script = request("GET", "/static/app.js")
-    styles = request("GET", "/static/app.css")
-    playback = request("GET", "/static/playback.mjs")
+    script = request("GET", "/app.js")
+    styles = request("GET", "/app.css")
+    playback = request("GET", "/playback.mjs")
 
     assert page.status_code == script.status_code == styles.status_code == playback.status_code == 200
     assert "Audio Stems" in page.text
@@ -48,7 +48,12 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
     assert 'id="model"' in page.text
     assert 'id="check-updates"' in page.text
     assert 'id="release-list"' in page.text
-    assert "/static/app.js" in page.text
+    assert 'play.dataset.action = "play"' in script.text
+    assert 'gain.dataset.control = "gain"' in script.text
+    assert 'mute.dataset.control = "mute"' in script.text
+    assert 'href="app.css"' in page.text
+    assert 'src="app.js"' in page.text
+    assert "/static/" not in page.text
     assert "class SynchronizedTransport" in playback.text
     assert "window.confirm" in script.text
     assert "/api/v1/updates/apply" in script.text
