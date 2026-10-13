@@ -211,7 +211,7 @@ async function setupProjectPlayback(assets, setupId) {
 
   playbackPanel.hidden = false;
   try {
-    const { SynchronizedTransport } = await import("/static/playback.mjs");
+    const { MixerSession, SynchronizedTransport } = await import("/static/playback.mjs");
     // The project can change while the module is loading; avoid attaching stale audio.
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -239,6 +239,7 @@ async function setupProjectPlayback(assets, setupId) {
       time.textContent = `${formatTime(seconds)} / ${formatTime(Number(seek.max))}`;
     };
     const transport = new SynchronizedTransport(tracks, { onTimeUpdate: updateTime });
+    const mixer = new MixerSession(tracks);
     activeTransport = transport;
     const buttons = document.createElement("div");
     buttons.className = "playback-buttons";
@@ -255,6 +256,42 @@ async function setupProjectPlayback(assets, setupId) {
     stop.textContent = "Стоп";
     const error = document.createElement("span");
     error.className = "playback-error";
+    const mixerRows = document.createElement("div");
+    mixerRows.className = "mixer-list";
+    const stemLabels = {
+      vocals: "Вокал", drums: "Ударные", bass: "Бас", guitar: "Гитара", piano: "Пианино", other: "Остальное",
+    };
+    stems.forEach((asset, index) => {
+      const row = document.createElement("div");
+      row.className = "mixer-row";
+      const name = document.createElement("span");
+      name.className = "mixer-name";
+      name.textContent = stemLabels[asset.stem_name];
+      const gain = document.createElement("input");
+      gain.type = "range";
+      gain.min = "0";
+      gain.max = "1";
+      gain.step = "0.01";
+      gain.value = "1";
+      gain.setAttribute("aria-label", `Громкость: ${stemLabels[asset.stem_name]}`);
+      gain.addEventListener("input", () => mixer.setGain(index, Number(gain.value)));
+      const muteLabel = document.createElement("label");
+      muteLabel.className = "mixer-toggle";
+      const mute = document.createElement("input");
+      mute.type = "checkbox";
+      mute.setAttribute("aria-label", `Заглушить: ${stemLabels[asset.stem_name]}`);
+      mute.addEventListener("change", () => mixer.setMute(index, mute.checked));
+      muteLabel.append(mute, document.createTextNode("Mute"));
+      const soloLabel = document.createElement("label");
+      soloLabel.className = "mixer-toggle";
+      const solo = document.createElement("input");
+      solo.type = "checkbox";
+      solo.setAttribute("aria-label", `Оставить: ${stemLabels[asset.stem_name]}`);
+      solo.addEventListener("change", () => mixer.setSolo(index, solo.checked));
+      soloLabel.append(solo, document.createTextNode("Solo"));
+      row.append(name, gain, muteLabel, soloLabel);
+      mixerRows.append(row);
+    });
     play.addEventListener("click", async () => {
       error.textContent = "";
       try { await transport.play(); } catch (_reason) {
@@ -272,7 +309,7 @@ async function setupProjectPlayback(assets, setupId) {
       }
     }));
     buttons.append(play, pause, stop);
-    playbackPanel.replaceChildren(heading, buttons, seek, time, error, ...tracks);
+    playbackPanel.replaceChildren(heading, buttons, seek, time, error, mixerRows, ...tracks);
     playbackPanel.hidden = false;
   } catch (_error) {
     heading.textContent = "Не удалось подготовить синхронное воспроизведение.";
