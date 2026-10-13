@@ -5,6 +5,7 @@ must not access the network or execute an ML model.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 from types import SimpleNamespace
@@ -160,6 +161,18 @@ def test_failed_download_is_retried_three_times_and_returns_none(monkeypatch, tm
 
     assert result is None
     assert stream.download_calls == 3
+
+
+def test_download_uses_configured_retry_delays(monkeypatch, tmp_path):
+    stream = FakeStream(fail=True)
+    configure_download_mocks(monkeypatch, tmp_path, preferred=stream)
+    delays = []
+    monkeypatch.setattr(app.time, "sleep", delays.append)
+    monkeypatch.setattr(app, "SETTINGS", replace(app.SETTINGS, retry_count=3, retry_delays=(0.25, 0.5)))
+
+    assert app.download_track("Blur - Song 2") is None
+    assert stream.download_calls == 3
+    assert delays == [0.25, 0.5]
 
 
 def test_batch_downloads_all_items_before_starting_any_separation(monkeypatch, tmp_path):

@@ -4,17 +4,24 @@ import shutil
 import subprocess
 import sys
 import time
+import logging
 
 from pytubefix import Search, YouTube
 
+from logging_setup import configure_logging
+from settings import Settings
+
+
+SETTINGS = Settings.load()
+logger = logging.getLogger("audio_stems")
 
 TRACKS = [
     "Dido - white flag",
 ]
 
-OUTPUT_DIR = Path.home() / "Audio Stems" / "YouTube Audio"
+OUTPUT_DIR = SETTINGS.storage_root
 STEMS_DIR = OUTPUT_DIR / "Stems"
-TEMP_DIR = OUTPUT_DIR / "_demucs_temp"
+TEMP_DIR = SETTINGS.temp_root
 
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 STEMS_DIR.mkdir(parents=True, exist_ok=True)
@@ -50,15 +57,18 @@ def safe_filename(title: str) -> str:
 def download_track(query: str) -> Path | None:
     """Search for the first matching video and download its audio."""
     print(f"\nSearching: {query}")
+    logger.info("Searching for source", extra={"event": "source_search_started"})
 
     try:
         results = Search(query).videos
 
         if not results:
             print("No videos found.")
+            logger.warning("No source candidates found", extra={"event": "source_resolution_failed"})
             return None
 
         yt = YouTube(results[0].watch_url, "WEB")
+        logger.info("Source candidate selected", extra={"event": "source_resolved"})
 
         print(f"Title: {yt.title}")
         print(f"URL: {yt.watch_url}")
@@ -79,6 +89,7 @@ def download_track(query: str) -> Path | None:
 
         if stream is None:
             print("No audio stream found.")
+            logger.warning("Selected source has no audio stream", extra={"event": "audio_download_failed"})
             return None
 
         filename = safe_filename(yt.title) + "." + stream.subtype
@@ -86,15 +97,20 @@ def download_track(query: str) -> Path | None:
 
         if destination.exists() and destination.stat().st_size > 0:
             print(f"File already exists: {destination}")
+            logger.info("Existing audio file reused", extra={"event": "audio_download_reused"})
             return destination
 
         # Retry after temporary failures.
-        for attempt in range(1, 4):
+        for attempt in range(1, SETTINGS.retry_count + 1):
             try:
                 print(
-                    f"Downloading, attempt {attempt}/3; "
+                    f"Downloading, attempt {attempt}/{SETTINGS.retry_count}; "
                     f"format: {stream.subtype}; "
                     f"bitrate: {stream.abr}"
+                )
+                logger.info(
+                    "Audio download attempt started",
+                    extra={"event": "audio_download_started", "attempt": attempt},
                 )
 
                 stream.download(
@@ -104,6 +120,7 @@ def download_track(query: str) -> Path | None:
 
                 if destination.exists() and destination.stat().st_size > 0:
                     print(f"Downloaded: {destination}")
+                    logger.info("Audio download completed", extra={"event": "audio_download_completed"})
                     return destination
 
                 raise RuntimeError("The output file was not created or is empty.")
@@ -113,9 +130,13 @@ def download_track(query: str) -> Path | None:
                     f"Download error: "
                     f"{type(exc).__name__}: {exc}"
                 )
+                logger.exception(
+                    "Audio download attempt failed",
+                    extra={"event": "audio_download_failed", "attempt": attempt},
+                )
 
-                if attempt < 3:
-                    time.sleep(attempt * 3)
+                if attempt < SETTINGS.retry_count and attempt <= len(SETTINGS.retry_delays):
+                    time.sleep(SETTINGS.retry_delays[attempt - 1])
 
         return None
 
@@ -124,6 +145,7 @@ def download_track(query: str) -> Path | None:
             f"Search or stream retrieval error: "
             f"{type(exc).__name__}: {exc}"
         )
+        logger.exception("Source search or resolution failed", extra={"event": "source_resolution_failed"})
         return None
 
 
@@ -145,12 +167,13 @@ def separate_stems(audio_path: Path) -> None:
 
     try:
         print(f"\nSeparating stems: {audio_path.name}")
+        logger.info("Stem separation started", extra={"event": "separation_started"})
 
         command = [
             sys.executable,
             "-m", "demucs",
-            "-n", "htdemucs_6s",
-            "-d", "cpu",
+            "-n", SETTINGS.model_name,
+            "-d", SETTINGS.model_device,
             "-o", str(temp_output),
             str(audio_path),
         ]
@@ -190,17 +213,21 @@ def separate_stems(audio_path: Path) -> None:
                 "Missing stems: "
                 + ", ".join(sorted(missing))
             )
+            logger.error("Stem separation output is incomplete", extra={"event": "separation_failed"})
         else:
             print(f"All stems saved to: {track_stems_dir}")
+            logger.info("Stem separation completed", extra={"event": "separation_completed"})
 
     except subprocess.CalledProcessError as exc:
         print(f"Demucs error, exit code: {exc.returncode}")
+        logger.exception("Demucs process failed", extra={"event": "separation_failed"})
 
     except Exception as exc:
         print(
             f"Separation error: "
             f"{type(exc).__name__}: {exc}"
         )
+        logger.exception("Stem separation failed", extra={"event": "separation_failed"})
 
     finally:
         # Remove temporary data only after all stems have been created.
@@ -212,6 +239,7 @@ def separate_stems(audio_path: Path) -> None:
 
 
 def main() -> None:
+    logger.info("Batch processing started", extra={"event": "batch_created"})
     print(f"Audio files: {OUTPUT_DIR}")
     print(f"Stems: {STEMS_DIR}")
     print(f"Number of tracks: {len(TRACKS)}")
@@ -256,7 +284,9 @@ def main() -> None:
         separate_stems(audio_path)
 
     print("\nProcessing completed.")
+    logger.info("Batch processing finished", extra={"event": "batch_processing_finished"})
 
 
 if __name__ == "__main__":
+    configure_logging(SETTINGS)
     main()
