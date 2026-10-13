@@ -1,0 +1,42 @@
+﻿# Downloaded audio and generated stems
+/YouTube Audio/
+/Stems/
+/_demucs_temp/
+
+# Audio and video files
+*.wav
+*.mp3
+*.webm
+*.m4a
+*.flac
+*.ogg
+*.opus
+*.aac
+*.wma
+*.aiff
+*.aif
+*.mp4
+*.mov
+
+# Python cache and test artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDE and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
