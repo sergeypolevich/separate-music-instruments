@@ -71,6 +71,13 @@ class SeparationResult:
     stems: tuple[StemArtifact, ...]
 
 
+@dataclass(frozen=True)
+class SeparatorModel:
+    name: str
+    stems: tuple[str, ...]
+    parameters: Mapping[str, str]
+
+
 class MediaAssetType(Enum):
     SOURCE_AUDIO = "source_audio"
     STEM = "stem"
@@ -119,6 +126,7 @@ class BatchReceipt:
     batch_id: UUID
     job_ids: tuple[UUID, ...]
     owner_id: str | None = None
+    separation_options: SeparationOptions | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +138,7 @@ class JobView:
     current_stage: str | None = None
     error_summary: str | None = None
     retry_count: int = 0
+    separation_options: SeparationOptions | None = None
 
 
 @dataclass(frozen=True)
@@ -167,7 +176,9 @@ class Downloader(Protocol):
 
 @runtime_checkable
 class StemSeparator(Protocol):
-    """Run a configured separator; raise categorized ``AdapterError`` on failure."""
+    """Describe available models and run one with categorized failures."""
+
+    def available_models(self) -> Sequence[SeparatorModel]: ...
 
     def separate(
         self,
@@ -229,6 +240,7 @@ class JobService(Protocol):
         owner_id: str,
         sources: Sequence[SourceRequest],
         idempotency_key: str | None = None,
+        separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt: ...
 
     def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
@@ -243,6 +255,7 @@ class JobRepository(Protocol):
         owner_id: str,
         sources: Sequence[SourceRequest],
         idempotency_key: str | None = None,
+        separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt: ...
 
     def transition_job(

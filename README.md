@@ -30,6 +30,13 @@ py -m pytest
 The application can still be started directly with the Python interpreter, but
 that bypasses the dependency check. Use `py run.py` for normal startup.
 
+The Demucs adapter exposes its model names and supported inference parameters.
+Jobs store the selected model, device, and parameters in SQLite, and pass that
+saved configuration to the separator. The standalone compatibility command
+continues to use `AUDIO_STEMS_MODEL_NAME` and `AUDIO_STEMS_MODEL_DEVICE` from
+`.env`; defaults remain `htdemucs_6s` on CPU. The future API/UI will expose
+per-job selection through the same saved job configuration.
+
 Before reusing an existing audio file, the application checks its container
 signature (for example, the WebM or MP4 header). This catches empty and plainly
 corrupt cache files, but it does not decode the audio or guarantee that Demucs

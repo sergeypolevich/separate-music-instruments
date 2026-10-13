@@ -10,6 +10,7 @@ from contracts import (
     MediaAssetType,
     SourceKind,
     SourceRequest,
+    SeparationOptions,
 )
 from metadata import SqliteMetadataStore
 
@@ -103,7 +104,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 1
+    assert version == 2
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events"} <= tables
 
@@ -118,3 +119,32 @@ def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
 
     assert store.get_job(job_id, "client-1").status is JobStatus.QUEUED
     assert [event.name for event in store.list_events(job_id, "client-1")] == ["job_created"]
+
+
+def test_job_separation_options_survive_database_reopen(tmp_path):
+    database = tmp_path / "metadata.db"
+    store = SqliteMetadataStore(database)
+    options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2, "overlap": 0.5})
+
+    receipt = store.create_batch(
+        "client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")],
+        separation_options=options,
+    )
+    reopened = SqliteMetadataStore(database)
+    job = reopened.get_job(receipt.job_ids[0], "client-1")
+
+    assert job.separation_options == options
+    assert receipt.separation_options == options
+
+
+def test_idempotent_resubmission_returns_original_separation_options(tmp_path):
+    store = SqliteMetadataStore(tmp_path / "metadata.db")
+    request = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
+    original = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2})
+    changed = SeparationOptions("htdemucs", "cpu", {})
+    first = store.create_batch("client-1", request, "same-key", original)
+
+    repeated = store.create_batch("client-1", request, "same-key", changed)
+
+    assert repeated.batch_id == first.batch_id
+    assert repeated.separation_options == original

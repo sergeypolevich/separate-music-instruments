@@ -22,6 +22,7 @@ from contracts import (
     MediaAssetType,
     SourceKind,
     SourceRequest,
+    SeparationOptions,
 )
 
 
@@ -137,6 +138,10 @@ class SqliteMetadataStore:
             current_stage=row["current_stage"],
             error_summary=row["error_summary"],
             retry_count=row["retry_count"],
+            separation_options=(
+                SeparationOptions(**json.loads(row["separation_options_json"]))
+                if row["separation_options_json"] else None
+            ),
         )
 
     @staticmethod
@@ -157,6 +162,7 @@ class SqliteMetadataStore:
         owner_id: str,
         sources: list[SourceRequest] | tuple[SourceRequest, ...],
         idempotency_key: str | None = None,
+        separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt:
         if not owner_id or not sources:
             raise AdapterError("A batch needs an owner and at least one source", FailureCategory.INVALID_INPUT)
@@ -173,8 +179,17 @@ class SqliteMetadataStore:
                     (owner_id, idempotency_key),
                 ).fetchone()
                 if existing:
-                    jobs = connection.execute("SELECT id FROM jobs WHERE batch_id = ? ORDER BY rowid", (existing["id"],)).fetchall()
-                    return BatchReceipt(UUID(existing["id"]), tuple(UUID(row["id"]) for row in jobs), owner_id)
+                    jobs = connection.execute(
+                        "SELECT id, separation_options_json FROM jobs WHERE batch_id = ? ORDER BY rowid",
+                        (existing["id"],),
+                    ).fetchall()
+                    stored_options = None
+                    if jobs and jobs[0]["separation_options_json"]:
+                        stored_options = SeparationOptions(**json.loads(jobs[0]["separation_options_json"]))
+                    return BatchReceipt(
+                        UUID(existing["id"]), tuple(UUID(row["id"]) for row in jobs), owner_id,
+                        stored_options,
+                    )
 
             batch_id = uuid4()
             methods = {source.kind for source in sources}
@@ -198,11 +213,18 @@ class SqliteMetadataStore:
                 )
                 connection.execute(
                     """INSERT INTO jobs
-                       (id, batch_id, project_id, owner_id, input_type, normalized_source, status, created_at, updated_at)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                       (id, batch_id, project_id, owner_id, input_type, normalized_source, status,
+                        separation_options_json, created_at, updated_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                     (
                         str(job_id), str(batch_id), str(project_id), owner_id,
-                        source.kind.value, source.value, JobStatus.QUEUED.value, now, now,
+                        source.kind.value, source.value, JobStatus.QUEUED.value,
+                        json.dumps({
+                            "model_name": separation_options.model_name,
+                            "device": separation_options.device,
+                            "parameters": dict(separation_options.parameters),
+                        }) if separation_options else None,
+                        now, now,
                     ),
                 )
                 connection.execute(
@@ -215,7 +237,7 @@ class SqliteMetadataStore:
                     ),
                 )
                 job_ids.append(job_id)
-        return BatchReceipt(batch_id, tuple(job_ids), owner_id)
+        return BatchReceipt(batch_id, tuple(job_ids), owner_id, separation_options)
 
     def transition_job(
         self,
