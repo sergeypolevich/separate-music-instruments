@@ -6,14 +6,21 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
+import re
 from typing import Callable, Protocol
+from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 
 _RELEASES_URL = "https://api.github.com/repos/sergeypolevich/separate-music-instruments/releases?per_page=10"
 _RELEASE_PAGE_PREFIX = "https://github.com/sergeypolevich/separate-music-instruments/releases/tag/"
+_RAW_REQUIREMENTS_PREFIX = "https://raw.githubusercontent.com/sergeypolevich/separate-music-instruments/"
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+_MAX_REQUIREMENTS_BYTES = 64 * 1024
 _MAX_NOTES_LENGTH = 20_000
+_REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn"}
+_PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)$")
 
 
 @dataclass(frozen=True)
@@ -27,6 +34,7 @@ class ReleaseNote:
 
 class ReleaseSource(Protocol):
     def fetch_releases(self) -> list[ReleaseNote]: ...
+    def fetch_requirements(self, tag_name: str) -> str: ...
 
 
 class RequirementsInstaller(Protocol):
@@ -77,34 +85,70 @@ class GitHubReleaseClient:
             releases.append(ReleaseNote(tag, name[:200], body[:_MAX_NOTES_LENGTH], url, published_at[:40]))
         return releases
 
+    def fetch_requirements(self, tag_name: str) -> str:
+        if not tag_name or len(tag_name) > 64 or any(
+            char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-" for char in tag_name
+        ):
+            raise ValueError("Release tag has an invalid format")
+        url = f"{_RAW_REQUIREMENTS_PREFIX}{quote(tag_name, safe='')}/requirements.txt"
+        request = Request(url, headers={"User-Agent": "Audio-Stems-Updater"})
+        with self.open_url(request, timeout=10) as response:
+            payload = response.read(_MAX_REQUIREMENTS_BYTES + 1)
+            final_url = response.geturl() if hasattr(response, "geturl") else url
+        if final_url != url:
+            raise ValueError("Requirements manifest redirected away from its trusted release path")
+        if len(payload) > _MAX_REQUIREMENTS_BYTES:
+            raise ValueError("Requirements manifest exceeded the allowed size")
+        try:
+            manifest = payload.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ValueError("Requirements manifest is not valid UTF-8") from exc
+        validate_pinned_requirements(manifest)
+        return manifest
+
 
 class DependencyUpdater:
-    """Run pip only against the app's fixed requirements.txt and interpreter."""
+    """Run pip using a bounded, exactly pinned manifest from a trusted release."""
 
     def __init__(
         self,
         root: Path,
-        requirements: Path,
         *,
         python: str | None = None,
         runner: Callable = subprocess.run,
     ) -> None:
         self.root = root.resolve()
-        self.requirements = requirements.resolve()
-        if not self.requirements.is_relative_to(self.root) or self.requirements.name != "requirements.txt":
-            raise ValueError("Updater only accepts the application requirements.txt")
         self.python = python or sys.executable
         self.runner = runner
 
-    def install(self) -> None:
-        if not self.requirements.is_file():
-            raise FileNotFoundError("Application requirements.txt was not found")
-        self.runner(
-            [self.python, "-m", "pip", "install", "--upgrade", "-r", str(self.requirements)],
-            cwd=self.root,
-            check=True,
-            timeout=1800,
-        )
+    def install(self, manifest: str) -> None:
+        validate_pinned_requirements(manifest)
+        with tempfile.TemporaryDirectory(prefix="audio-stems-update-") as temporary:
+            manifest_path = Path(temporary) / "requirements.txt"
+            manifest_path.write_text(manifest, encoding="utf-8")
+            self.runner(
+                [self.python, "-m", "pip", "install", "--upgrade", "-r", str(manifest_path)],
+                cwd=self.root,
+                check=True,
+                timeout=1800,
+            )
+
+
+def validate_pinned_requirements(manifest: str) -> tuple[str, ...]:
+    packages: list[str] = []
+    for line in manifest.splitlines():
+        requirement = line.split("#", 1)[0].strip()
+        if not requirement:
+            continue
+        match = _PINNED_REQUIREMENT.fullmatch(requirement)
+        if not match:
+            raise ValueError("Release requirements must use exact pinned package versions")
+        packages.append(match.group(1).lower().replace("_", "-"))
+    missing = _REQUIRED_RUNTIME_PACKAGES - set(packages)
+    extra = set(packages) - _REQUIRED_RUNTIME_PACKAGES
+    if missing or extra or len(packages) != len(set(packages)):
+        raise ValueError("Release requirements must contain only the approved runtime packages, each pinned once")
+    return tuple(packages)
 
 
 class UpdateService:
@@ -118,11 +162,24 @@ class UpdateService:
         except Exception as exc:
             raise UpdateCheckError("Release metadata could not be retrieved") from exc
 
+    def can_update(self, release: ReleaseNote) -> bool:
+        try:
+            manifest = self.releases.fetch_requirements(release.tag_name)
+            validate_pinned_requirements(manifest)
+            return True
+        except Exception:
+            return False
+
     def apply(self, tag_name: str, *, confirmed: bool) -> ReleaseNote:
         if confirmed is not True:
             raise PermissionError("Explicit confirmation is required before updating dependencies")
         releases = self.check()
         if not releases or releases[0].tag_name != tag_name:
             raise ValueError("Only the latest stable release can be applied")
-        self.installer.install()
+        try:
+            manifest = self.releases.fetch_requirements(tag_name)
+            validate_pinned_requirements(manifest)
+        except Exception as exc:
+            raise UpdateCheckError("The release has no valid exactly pinned requirements manifest") from exc
+        self.installer.install(manifest)
         return releases[0]

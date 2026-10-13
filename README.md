@@ -146,10 +146,12 @@ if you customized it.
 
 The Updates panel checks the fixed public GitHub repository for stable releases
 only when you click **Проверить**. It displays the release notes and a link to the
-release page. Applying an update requires a second confirmation and runs pip
-against this application's checked-in `requirements.txt` using its current
-Python environment; no client-supplied command or path is accepted. Stop the
-worker before applying an update. The API request waits for pip to finish (up
+release page. Applying an update requires a second confirmation and reads the
+exact `requirements.txt` at that release's fixed GitHub tag. The updater rejects
+manifests unless each approved runtime package has one exact `==` version pin,
+then runs pip with the current project interpreter; no client-supplied command
+or path is accepted. Stop the worker before applying an update. The API request
+waits for pip to finish (up
 to 30 minutes); after success, restart both the API and worker. If installation
 fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
