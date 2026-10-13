@@ -116,6 +116,13 @@ h3 { margin: 0; font: 650 17px Manrope, sans-serif; overflow-wrap: anywhere; }
 .mixer-toggle input { accent-color: var(--accent); }
 .delete-button { min-height: 36px; margin: 0 0 15px; padding: 0 12px; border: 1px solid rgba(255, 131, 120, .4); background: transparent; color: var(--danger); }
 .delete-button:hover { background: rgba(255, 131, 120, .1); }
+.updates-section { margin-top: 42px; padding: 21px; background: rgba(24, 33, 30, .72); border: 1px solid var(--line); border-radius: 13px; }
+.release-list { display: grid; gap: 10px; margin-top: 12px; }
+.release-card { display: grid; gap: 8px; padding: 15px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 10px; }
+.release-card h3, .release-card p { margin: 0; }
+.release-card p, .release-card a { color: var(--muted); font-size: 12px; }
+.release-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
+.release-card button { justify-self: start; }
 @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
 
 footer { display: flex; justify-content: space-between; gap: 16px; padding: 27px 2px 35px; color: #65736b; font-size: 11px; }

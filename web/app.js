@@ -37,6 +37,9 @@ const detailModel = document.querySelector("#detail-model");
 const assetList = document.querySelector("#asset-list");
 const playbackPanel = document.querySelector("#playback-panel");
 const deleteProjectButton = document.querySelector("#delete-project");
+const updatesMessage = document.querySelector("#updates-message");
+const releaseList = document.querySelector("#release-list");
+const checkUpdatesButton = document.querySelector("#check-updates");
 let pollingTimer = null;
 let activeTransport = null;
 let playbackSetupId = 0;
@@ -347,6 +350,70 @@ async function deleteProject() {
   }
 }
 
+function renderReleases(releases) {
+  if (releases.length === 0) {
+    releaseList.replaceChildren();
+    updatesMessage.textContent = "В GitHub пока нет опубликованных стабильных релизов.";
+    return;
+  }
+  updatesMessage.textContent = "Релизы получены из GitHub. Перед обновлением остановите worker.";
+  releaseList.replaceChildren(...releases.map((release, index) => {
+    const card = document.createElement("article");
+    card.className = "release-card";
+    const title = document.createElement("h3");
+    title.textContent = `${release.name} (${release.tag_name})`;
+    const published = document.createElement("p");
+    published.textContent = release.published_at;
+    const notes = document.createElement("p");
+    notes.className = "release-notes";
+    notes.textContent = release.notes || "В этом релизе нет описания.";
+    const link = document.createElement("a");
+    link.href = release.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = "Открыть релиз на GitHub";
+    card.append(title, published, notes, link);
+    if (index === 0) {
+      const apply = document.createElement("button");
+      apply.type = "button";
+      apply.textContent = "Обновить зависимости";
+      apply.addEventListener("click", async () => {
+        const confirmed = window.confirm(
+          `Установить обновления из requirements.txt для релиза ${release.tag_name}? Остановите worker перед продолжением. После установки перезапустите API и worker.`,
+        );
+        if (!confirmed) return;
+        apply.disabled = true;
+        updatesMessage.textContent = "Устанавливаем зависимости…";
+        try {
+          await requestJson("/api/v1/updates/apply", {
+            method: "POST",
+            body: JSON.stringify({ tag_name: release.tag_name, confirmed: true }),
+          });
+          updatesMessage.textContent = "Зависимости обновлены. Перезапустите API и worker.";
+        } catch (error) {
+          updatesMessage.textContent = error.message;
+          apply.disabled = false;
+        }
+      });
+      card.append(apply);
+    }
+    return card;
+  }));
+}
+
+async function checkUpdates() {
+  checkUpdatesButton.disabled = true;
+  updatesMessage.textContent = "Проверяем опубликованные релизы GitHub…";
+  try {
+    const result = await requestJson("/api/v1/updates");
+    renderReleases(result.releases);
+  } catch (error) {
+    updatesMessage.textContent = error.message;
+  } finally {
+    checkUpdatesButton.disabled = false;
+  }
+}
+
 async function loadProjects() {
   try {
     const projects = await requestJson("/api/v1/projects");
@@ -421,3 +488,4 @@ loadModels();
 loadProjects();
 document.querySelector("#refresh-projects").addEventListener("click", loadProjects);
 deleteProjectButton.addEventListener("click", deleteProject);
+checkUpdatesButton.addEventListener("click", checkUpdates);

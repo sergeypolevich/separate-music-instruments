@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import mimetypes
 from pathlib import Path
+import subprocess
 from typing import Annotated, Iterator, Protocol, Sequence
 from uuid import UUID
 
@@ -33,6 +34,7 @@ from metadata import ProjectDeletion, ProjectRecord, SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
 from waveform import WaveformError, waveform_data
+from updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
 
 
 _OWNER_ID = "local"
@@ -64,6 +66,12 @@ class BatchSubmission(BaseModel):
     model_name: Annotated[str | None, Field(max_length=100)] = None
     device: Annotated[str | None, Field(max_length=50)] = None
     parameters: dict[str, _ParameterValue] = Field(default_factory=dict, max_length=10)
+
+
+class UpdateApplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    tag_name: Annotated[str, Field(min_length=1, max_length=64)]
+    confirmed: StrictBool
 
 
 def _job_payload(job) -> dict[str, object]:
@@ -120,11 +128,17 @@ def create_app(
     source_adapter: SourceAdapter | None = None,
     separator: StemSeparator | None = None,
     storage: MediaStorage | None = None,
+    update_service: UpdateService | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
     separator = separator or DemucsSeparator()
     storage = storage or LocalMediaStorage(settings.storage_root, temp_root=settings.temp_root)
+    application_root = Path(__file__).resolve().parent
+    update_service = update_service or UpdateService(
+        GitHubReleaseClient(),
+        DependencyUpdater(application_root, application_root / "requirements.txt"),
+    )
     app = FastAPI(title="Audio Stems API", version="1.0.0")
 
     @app.exception_handler(RequestValidationError)
@@ -166,6 +180,53 @@ def create_app(
             }
             for model in separator.available_models()
         ]
+
+    @app.get("/api/v1/updates")
+    def check_updates() -> dict[str, object]:
+        try:
+            releases = update_service.check()
+        except Exception as exc:
+            logger.exception(
+                "GitHub release check failed",
+                extra={"event": "update_check_failed", "ClientID": _OWNER_ID,
+                       "error_type": type(exc).__name__},
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "update_check_failed", "message": "Could not retrieve release information from GitHub"},
+            ) from exc
+        return {"releases": [release.__dict__ for release in releases]}
+
+    @app.post("/api/v1/updates/apply")
+    def apply_update(body: UpdateApplyRequest) -> dict[str, object]:
+        if not body.confirmed:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "confirmation_required", "message": "Confirm the dependency update before continuing"},
+            )
+        try:
+            release = update_service.apply(body.tag_name, confirmed=True)
+        except UpdateCheckError as exc:
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "update_check_failed", "message": "Could not retrieve release information from GitHub"},
+            ) from exc
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "release_not_available", "message": "That release is not the latest stable version"},
+            ) from exc
+        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+            logger.exception(
+                "Confirmed dependency update failed",
+                extra={"event": "dependency_update_failed", "ClientID": _OWNER_ID,
+                       "tag_name": body.tag_name, "error_type": type(exc).__name__},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail={"code": "dependency_update_failed", "message": "Dependency installation failed; restart was not requested"},
+            ) from exc
+        return {"status": "updated", "tag_name": release.tag_name, "restart_required": True}
 
     @app.post("/api/v1/batches", status_code=status.HTTP_202_ACCEPTED)
     def create_batch(body: BatchSubmission) -> dict[str, object]:

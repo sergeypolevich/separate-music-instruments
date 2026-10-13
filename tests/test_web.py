@@ -46,8 +46,13 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
     assert "Audio Stems" in page.text
     assert 'id="inputs"' in page.text
     assert 'id="model"' in page.text
+    assert 'id="check-updates"' in page.text
+    assert 'id="release-list"' in page.text
     assert "/static/app.js" in page.text
     assert "class SynchronizedTransport" in playback.text
+    assert "window.confirm" in script.text
+    assert "/api/v1/updates/apply" in script.text
+    assert "requirements.txt" in script.text
     assert "http://" not in styles.text and "https://" not in styles.text
 
 

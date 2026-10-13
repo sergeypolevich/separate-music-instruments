@@ -72,6 +72,18 @@ an available asset and supports single byte-range requests. The corresponding
 `/waveform` endpoint returns bounded PCM WAV peak levels so the page does not
 need to download an entire audio file just to draw its waveform.
 
+### Updates
+
+The Updates panel checks the fixed public GitHub repository for stable releases
+only when you click **Проверить**. It displays the release notes and a link to the
+release page. Applying an update requires a second confirmation and runs pip
+against this application's checked-in `requirements.txt` using its current
+Python environment; no client-supplied command or path is accepted. Stop the
+worker before applying an update. The API request waits for pip to finish (up
+to 30 minutes); after success, restart both the API and worker. If installation
+fails, the API reports the failure and you can retry after reviewing the local
+pip output. The updater does not replace application source files.
+
 The Demucs adapter exposes its model names and supported inference parameters.
 Jobs store the selected model, device, and parameters in SQLite, and pass that
 saved configuration to the separator. The standalone compatibility command
