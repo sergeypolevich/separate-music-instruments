@@ -35,7 +35,10 @@ const detailStatus = document.querySelector("#detail-status");
 const detailInput = document.querySelector("#detail-input");
 const detailModel = document.querySelector("#detail-model");
 const assetList = document.querySelector("#asset-list");
+const playbackPanel = document.querySelector("#playback-panel");
 let pollingTimer = null;
+let activeTransport = null;
+let playbackSetupId = 0;
 
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
@@ -145,6 +148,11 @@ async function drawWaveform(canvas, assetId) {
 }
 
 function renderProject(project) {
+  playbackSetupId += 1;
+  if (activeTransport) activeTransport.stop();
+  activeTransport = null;
+  playbackPanel.replaceChildren();
+  playbackPanel.hidden = true;
   detailTitle.textContent = project.title || project.input_value;
   detailStatus.dataset.status = project.job.status;
   detailStatus.textContent = stateLabels[project.job.status] || project.job.status;
@@ -182,7 +190,95 @@ function renderProject(project) {
     empty.textContent = "Файлы для этого проекта ещё не сохранены.";
     assetList.append(empty);
   }
+  setupProjectPlayback(project.assets, playbackSetupId);
   projectDetail.hidden = false;
+}
+
+async function setupProjectPlayback(assets, setupId) {
+  const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
+  const stemsByName = new Map(assets
+    .filter((asset) => asset.asset_type === "stem")
+    .map((asset) => [asset.stem_name, asset]));
+  const stems = stemOrder.map((name) => stemsByName.get(name));
+  const heading = document.createElement("p");
+  heading.className = "playback-message";
+  if (stems.some((asset) => !asset || !asset.available || asset.media_format !== "wav")) {
+    heading.textContent = "Для синхронного воспроизведения нужны все шесть доступных WAV-дорожек.";
+    playbackPanel.append(heading);
+    playbackPanel.hidden = false;
+    return;
+  }
+
+  playbackPanel.hidden = false;
+  try {
+    const { SynchronizedTransport } = await import("/static/playback.mjs");
+    // The project can change while the module is loading; avoid attaching stale audio.
+    if (setupId !== playbackSetupId) return;
+    const tracks = stems.map((asset) => {
+      const audio = document.createElement("audio");
+      audio.preload = "metadata";
+      audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`;
+      audio.setAttribute("aria-label", asset.stem_name);
+      return audio;
+    });
+    const time = document.createElement("span");
+    time.className = "playback-time";
+    const seek = document.createElement("input");
+    seek.type = "range";
+    seek.min = "0";
+    seek.max = "0";
+    seek.step = "0.01";
+    seek.value = "0";
+    seek.setAttribute("aria-label", "Позиция воспроизведения");
+    const formatTime = (seconds) => {
+      const safe = Math.max(0, Math.floor(seconds || 0));
+      return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+    };
+    const updateTime = (seconds) => {
+      seek.value = String(seconds);
+      time.textContent = `${formatTime(seconds)} / ${formatTime(Number(seek.max))}`;
+    };
+    const transport = new SynchronizedTransport(tracks, { onTimeUpdate: updateTime });
+    activeTransport = transport;
+    const buttons = document.createElement("div");
+    buttons.className = "playback-buttons";
+    const play = document.createElement("button");
+    play.type = "button";
+    play.textContent = "Воспроизвести";
+    const pause = document.createElement("button");
+    pause.type = "button";
+    pause.className = "quiet-button";
+    pause.textContent = "Пауза";
+    const stop = document.createElement("button");
+    stop.type = "button";
+    stop.className = "quiet-button";
+    stop.textContent = "Стоп";
+    const error = document.createElement("span");
+    error.className = "playback-error";
+    play.addEventListener("click", async () => {
+      error.textContent = "";
+      try { await transport.play(); } catch (_reason) {
+        error.textContent = "Браузер не разрешил запустить все дорожки.";
+      }
+    });
+    pause.addEventListener("click", () => transport.pause());
+    stop.addEventListener("click", () => transport.stop());
+    seek.addEventListener("input", () => transport.seek(Number(seek.value)));
+    tracks.forEach((audio) => audio.addEventListener("loadedmetadata", () => {
+      const duration = transport.duration;
+      if (duration > 0) {
+        seek.max = String(duration);
+        updateTime(transport.tracks[0].currentTime);
+      }
+    }));
+    buttons.append(play, pause, stop);
+    playbackPanel.replaceChildren(heading, buttons, seek, time, error, ...tracks);
+    playbackPanel.hidden = false;
+  } catch (_error) {
+    heading.textContent = "Не удалось подготовить синхронное воспроизведение.";
+    playbackPanel.replaceChildren(heading);
+    playbackPanel.hidden = false;
+  }
 }
 
 async function openProject(projectId) {

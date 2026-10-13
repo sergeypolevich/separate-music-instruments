@@ -40,12 +40,14 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
     page = request("GET", "/")
     script = request("GET", "/static/app.js")
     styles = request("GET", "/static/app.css")
+    playback = request("GET", "/static/playback.mjs")
 
-    assert page.status_code == script.status_code == styles.status_code == 200
+    assert page.status_code == script.status_code == styles.status_code == playback.status_code == 200
     assert "Audio Stems" in page.text
     assert 'id="inputs"' in page.text
     assert 'id="model"' in page.text
     assert "/static/app.js" in page.text
+    assert "class SynchronizedTransport" in playback.text
     assert "http://" not in styles.text and "https://" not in styles.text
 
 

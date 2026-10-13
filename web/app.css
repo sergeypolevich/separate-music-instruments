@@ -101,6 +101,13 @@ h3 { margin: 0; font: 650 17px Manrope, sans-serif; overflow-wrap: anywhere; }
 .waveform-preview { display: block; width: min(100%, 320px); height: 30px; flex: 1; }
 .asset-available { color: var(--accent); text-align: right; }
 .asset-missing { color: var(--danger); text-align: right; }
+.playback-panel { display: grid; gap: 12px; padding: 15px; margin-bottom: 15px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 11px; }
+.playback-message, .playback-time, .playback-error { margin: 0; color: var(--muted); font-size: 12px; }
+.playback-buttons { display: flex; gap: 9px; }
+.playback-buttons .quiet-button { width: auto; padding: 0 14px; }
+.playback-panel input[type="range"] { width: 100%; accent-color: var(--accent); }
+.playback-panel audio { display: none; }
+.playback-error { color: var(--danger); }
 @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
 
 footer { display: flex; justify-content: space-between; gap: 16px; padding: 27px 2px 35px; color: #65736b; font-size: 11px; }
