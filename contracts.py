@@ -77,6 +77,12 @@ class MediaAssetType(Enum):
 
 
 @dataclass(frozen=True)
+class StorageTarget:
+    storage_key: str
+    path: Path
+
+
+@dataclass(frozen=True)
 class MediaAsset:
     asset_id: UUID
     job_id: UUID
@@ -162,15 +168,39 @@ class StemSeparator(Protocol):
 
 @runtime_checkable
 class MediaStorage(Protocol):
-    """Manage media assets and return opaque relative keys, never client paths."""
+    """Manage media assets and return opaque relative keys, never client paths.
+
+    Reject invalid/traversal keys as ``INVALID_INPUT`` and classify filesystem
+    failures as retryable or permanent ``AdapterError`` instances.
+    """
+
+    def audio_target(self, title: str, extension: str, source_id: str | None = None) -> StorageTarget: ...
+
+    def stem_directory(self, title: str, source_id: str | None = None) -> Path: ...
+
+    def stem_file_target(self, title: str, stem_name: str, source_id: str | None = None) -> StorageTarget: ...
+
+    def temporary_directory(self, title: str) -> Path: ...
+
+    def temporary_model_directory(self, title: str, model_name: str) -> Path: ...
+
+    def stems_complete(self, title: str, expected_stems: Sequence[str], source_id: str | None = None) -> bool: ...
+
+    def remove_temporary_directory(self, title: str) -> None: ...
 
     def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset: ...
 
-    def save_stem(self, job_id: UUID, stem: StemArtifact) -> MediaAsset: ...
+    def save_stem(
+        self,
+        job_id: UUID,
+        track_title: str,
+        source_id: str | None,
+        stem: StemArtifact,
+    ) -> MediaAsset: ...
 
-    def resolve_path(self, asset_id: UUID) -> Path: ...
+    def resolve_path(self, storage_key: str) -> Path: ...
 
-    def delete_job_assets(self, job_id: UUID) -> None: ...
+    def delete_asset(self, storage_key: str) -> None: ...
 
 
 @runtime_checkable

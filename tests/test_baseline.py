@@ -77,6 +77,8 @@ def configure_download_mocks(monkeypatch, tmp_path: Path, *, title="Blur - Song 
     output_dir = tmp_path / "YouTube Audio"
     output_dir.mkdir(parents=True, exist_ok=True)
     monkeypatch.setattr(app, "OUTPUT_DIR", output_dir)
+    monkeypatch.setattr(app, "STEMS_DIR", output_dir / "Stems")
+    monkeypatch.setattr(app, "TEMP_DIR", output_dir / "_demucs_temp")
 
     streams = FakeStreams(preferred, fallback)
     video_urls = urls or ["https://youtube.com/watch?v=fake123"]

@@ -1,14 +1,16 @@
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import sys
 import time
 import logging
+import hashlib
+from urllib.parse import parse_qs, urlparse
 
 from pytubefix import Search, YouTube
 
 from logging_setup import configure_logging
+from local_storage import LocalMediaStorage, safe_filename
 from settings import Settings
 
 
@@ -23,10 +25,6 @@ OUTPUT_DIR = SETTINGS.storage_root
 STEMS_DIR = OUTPUT_DIR / "Stems"
 TEMP_DIR = SETTINGS.temp_root
 
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-STEMS_DIR.mkdir(parents=True, exist_ok=True)
-TEMP_DIR.mkdir(parents=True, exist_ok=True)
-
 STEM_NAMES = [
     "vocals",
     "drums",
@@ -35,23 +33,6 @@ STEM_NAMES = [
     "piano",
     "other",
 ]
-
-
-def safe_filename(title: str) -> str:
-    """Create a safe Windows filename or directory name."""
-    title = re.sub(r'[<>:"/\\|?*]', "_", title)
-    title = re.sub(r"\s+", " ", title).strip().rstrip(". ")
-
-    reserved = {
-        "CON", "PRN", "AUX", "NUL",
-        *(f"COM{i}" for i in range(1, 10)),
-        *(f"LPT{i}" for i in range(1, 10)),
-    }
-
-    if title.upper() in reserved:
-        title = "_" + title
-
-    return title or "untitled"
 
 
 def download_track(query: str) -> Path | None:
@@ -92,8 +73,8 @@ def download_track(query: str) -> Path | None:
             logger.warning("Selected source has no audio stream", extra={"event": "audio_download_failed"})
             return None
 
-        filename = safe_filename(yt.title) + "." + stream.subtype
-        destination = OUTPUT_DIR / filename
+        source_id = _source_id(yt)
+        destination = _local_storage().audio_target(yt.title, stream.subtype, source_id).path
 
         if destination.exists() and destination.stat().st_size > 0:
             print(f"File already exists: {destination}")
@@ -114,8 +95,8 @@ def download_track(query: str) -> Path | None:
                 )
 
                 stream.download(
-                    output_path=str(OUTPUT_DIR),
-                    filename=filename,
+                    output_path=str(destination.parent),
+                    filename=destination.name,
                 )
 
                 if destination.exists() and destination.stat().st_size > 0:
@@ -151,19 +132,17 @@ def download_track(query: str) -> Path | None:
 
 def separate_stems(audio_path: Path) -> None:
     """Separate audio into six stems in a single directory."""
+    storage = _local_storage()
     track_name = safe_filename(audio_path.stem)
-    track_stems_dir = STEMS_DIR / track_name
+    track_stems_dir = storage.stem_directory(track_name)
 
     # Skip processing if all stems already exist.
-    if all(
-        (track_stems_dir / f"{stem}.wav").exists()
-        for stem in STEM_NAMES
-    ):
+    if storage.stems_complete(track_name, STEM_NAMES):
         print("All stems already exist. Skipping separation.")
         return
 
-    temp_output = TEMP_DIR / track_name
-    model_output = temp_output / "htdemucs_6s"
+    temp_output = storage.temporary_directory(track_name)
+    model_output = storage.temporary_model_directory(track_name, SETTINGS.model_name)
 
     try:
         print(f"\nSeparating stems: {audio_path.name}")
@@ -189,8 +168,6 @@ def separate_stems(audio_path: Path) -> None:
             )
 
         demucs_track_dir = candidates[0]
-        track_stems_dir.mkdir(parents=True, exist_ok=True)
-
         found_stems = set()
 
         for stem_file in demucs_track_dir.glob("*.wav"):
@@ -200,7 +177,7 @@ def separate_stems(audio_path: Path) -> None:
                 continue
 
             # Save all stem files directly in the track directory.
-            destination_file = track_stems_dir / f"{stem_name}.wav"
+            destination_file = storage.stem_file_target(track_name, stem_name).path
             shutil.copy2(stem_file, destination_file)
 
             found_stems.add(stem_name)
@@ -231,11 +208,29 @@ def separate_stems(audio_path: Path) -> None:
 
     finally:
         # Remove temporary data only after all stems have been created.
-        if all(
-            (track_stems_dir / f"{stem}.wav").exists()
-            for stem in STEM_NAMES
-        ):
-            shutil.rmtree(temp_output, ignore_errors=True)
+        if storage.stems_complete(track_name, STEM_NAMES):
+            storage.remove_temporary_directory(track_name)
+
+
+def _source_id(video: object) -> str:
+    video_id = getattr(video, "video_id", None)
+    if video_id:
+        return str(video_id)
+
+    url = getattr(video, "watch_url", "")
+    parsed = urlparse(url)
+    query_id = parse_qs(parsed.query).get("v", [None])[0]
+    if query_id:
+        return query_id
+    if parsed.hostname and parsed.hostname.lower() in {"youtu.be", "www.youtu.be"}:
+        short_id = parsed.path.strip("/").split("/", 1)[0]
+        if short_id:
+            return short_id
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
+
+
+def _local_storage() -> LocalMediaStorage:
+    return LocalMediaStorage(OUTPUT_DIR, stems_root=STEMS_DIR, temp_root=TEMP_DIR)
 
 
 def main() -> None:
