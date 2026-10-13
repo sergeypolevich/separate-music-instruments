@@ -12,10 +12,13 @@ from pytubefix import Search, YouTube
 from logging_setup import configure_logging
 from local_storage import LocalMediaStorage, safe_filename
 from settings import Settings
+from contracts import SourceKind
+from sources import YouTubeSourceAdapter
 
 
 SETTINGS = Settings.load()
 logger = logging.getLogger("audio_stems")
+SOURCE_ADAPTER = YouTubeSourceAdapter(SETTINGS.allowed_source_hosts)
 
 TRACKS = [
     "Dido - white flag",
@@ -35,20 +38,23 @@ STEM_NAMES = [
 ]
 
 
-def download_track(query: str) -> Path | None:
+def download_track(value: str) -> Path | None:
     """Search for the first matching video and download its audio."""
-    print(f"\nSearching: {query}")
-    logger.info("Searching for source", extra={"event": "source_search_started"})
-
     try:
-        results = Search(query).videos
+        source_request = SOURCE_ADAPTER.normalize(value)
+        if source_request.kind is SourceKind.SEARCH_QUERY:
+            print(f"\nSearching: {source_request.value}")
+            logger.info("Searching for source", extra={"event": "source_search_started"})
+            results = Search(source_request.value).videos
+            if not results:
+                print("No videos found.")
+                logger.warning("No source candidates found", extra={"event": "source_resolution_failed"})
+                return None
+            video_url = results[0].watch_url
+        else:
+            video_url = source_request.value
 
-        if not results:
-            print("No videos found.")
-            logger.warning("No source candidates found", extra={"event": "source_resolution_failed"})
-            return None
-
-        yt = YouTube(results[0].watch_url, "WEB")
+        yt = YouTube(video_url, "WEB")
         logger.info("Source candidate selected", extra={"event": "source_resolved"})
 
         print(f"Title: {yt.title}")
