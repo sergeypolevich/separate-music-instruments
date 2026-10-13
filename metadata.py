@@ -517,6 +517,15 @@ class SqliteMetadataStore:
             ).fetchall()
         return [self._asset(row) for row in rows]
 
+    def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT a.* FROM media_assets a JOIN jobs j ON j.id = a.job_id "
+                "WHERE a.id = ? AND j.owner_id = ?",
+                (str(asset_id), owner_id),
+            ).fetchone()
+        return self._asset(row) if row else None
+
     @staticmethod
     def _project(row: sqlite3.Row) -> ProjectRecord:
         return ProjectRecord(

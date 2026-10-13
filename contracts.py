@@ -287,6 +287,8 @@ class JobRepository(Protocol):
 
     def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None: ...
 
+    def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None: ...
+
     def transition_job(
         self,
         job_id: UUID,

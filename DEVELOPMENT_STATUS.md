@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 14 — Project library and reopening (completed).
+- **Current stage:** 15 — Asset streaming and waveform data (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 14 project-library changes are uncommitted; stage 13 commit `a9b6cbb` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 15 asset streaming and waveform changes are uncommitted; stage 14 commit `1388e0d` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 14 project/API/jobs/metadata tests passed (22 passed); full `pytest -q` passed (105 passed, 1 opt-in live E2E skipped); `node --check web/app.js` and `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 15 asset/project/web/contracts tests passed (17 passed); full `pytest -q` passed (112 passed, 1 opt-in live E2E skipped); `node --check web/app.js` and `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -61,7 +61,13 @@
 - **Stage 14 result:** successful source resolution/download now updates project title and source ID. Project list/detail endpoints include job status, model/device/parameters, and asset metadata plus an availability flag; raw storage keys and absolute paths are never returned. The UI lists saved/current projects and opens a detail view with source, processing settings, and available/missing audio/stem files.
 - **Stage 14 checks:** targeted project/API/jobs/metadata tests passed (22 passed); full `pytest -q` passed (105 passed, 1 opt-in live test skipped); `node --check web/app.js` and `git diff --check` passed. Tests reopen the SQLite repository and API, cover a missing stem and partial asset list, and verify project ownership and no path disclosure.
 - **Stage 14 boundaries:** project detail reports file presence but does not stream or play assets; range requests and waveform data remain stage 15. Existing UI checks use ASGI and JavaScript syntax, not browser automation.
-- **Next action:** finish diff review, commit and push stage 14, then add authorized asset streaming and compact waveform data in stage 15.
+- **Stage 14 commit:** `1388e0d` (`Add persistent project library and reopening`) pushed to `origin/main`.
+- **Stage 15 plan/check matrix:** (a) resolve assets only by owner-scoped opaque ID and managed relative key; (b) serve full content and valid byte ranges, reject invalid/absent assets; (c) calculate bounded compact waveform peaks for supported PCM WAV; (d) return waveform with asset ID/format metadata so UI maps the data to the right track; (e) test ownership, missing files, ranges, decoding errors, and bounds; (f) run full offline suite and diff review.
+- **Stage 15 risks/boundaries:** no client-supplied file paths or raw storage keys; static local owner scope remains in effect. Waveform generation must stream through PCM data rather than load a full WAV into memory; unsupported encodings fail with a stable response.
+- **Stage 15 result:** added owner-scoped asset lookup by opaque ID, streamed full assets in bounded chunks, and implemented single byte ranges (closed, open-ended, and suffix) with 206/416 headers. Added PCM WAV peak extraction with bounded chunks and up to 2048 levels; the response includes the exact asset ID, sample rate, channel count, frames, duration, and peaks. Project detail's UI now draws mini waveforms from these compact responses rather than loading whole WAV files.
+- **Stage 15 checks:** targeted asset/project/web/contracts tests passed (17 passed); full `pytest -q` passed (112 passed, 1 opt-in live test skipped); `node --check web/app.js` and `git diff --check` passed. Tests cover byte ranges, missing/foreign assets, invalid ranges, unsupported/corrupt/truncated WAV, bounded levels, track-to-asset mapping, and safe responses without local paths.
+- **Stage 15 boundaries:** waveform extraction supports uncompressed PCM WAV only and rejects truncated/unsupported inputs with a stable error. No browser automation or live server was run. Authentication remains the local single-owner context from stage 12.
+- **Next action:** commit and push stage 15, then add synchronized playback and shared seek controls in stage 16.
 
 ## Completed stages
 

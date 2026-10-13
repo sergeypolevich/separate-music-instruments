@@ -98,6 +98,7 @@ h3 { margin: 0; font: 650 17px Manrope, sans-serif; overflow-wrap: anywhere; }
 .detail-model { margin-bottom: 15px; color: #9daf9f; font-size: 11px; }
 .asset-list { display: grid; border-top: 1px solid var(--line); }
 .asset-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 0; border-bottom: 1px solid rgba(151, 180, 160, .09); font-size: 12px; }
+.waveform-preview { display: block; width: min(100%, 320px); height: 30px; flex: 1; }
 .asset-available { color: var(--accent); text-align: right; }
 .asset-missing { color: var(--danger); text-align: right; }
 @keyframes loading { 0% { transform: translateX(-110%); } 100% { transform: translateX(280%); } }
@@ -116,6 +117,6 @@ footer { display: flex; justify-content: space-between; gap: 16px; padding: 27px
   footer { flex-direction: column; gap: 7px; }
   .job-row { align-items: flex-start; flex-direction: column; gap: 6px; }
   .project-list { grid-template-columns: 1fr; }
-  .asset-row { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .asset-row { align-items: flex-start; flex-direction: column; gap: 8px; }
   .asset-available, .asset-missing { text-align: left; }
 }

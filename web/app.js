@@ -124,6 +124,26 @@ function assetLabel(asset) {
   return asset.stem_name ? `Стем: ${asset.stem_name}` : "Стем";
 }
 
+async function drawWaveform(canvas, assetId) {
+  try {
+    const waveform = await requestJson(
+      `/api/v1/assets/${encodeURIComponent(assetId)}/waveform?levels=128`,
+    );
+    if (waveform.asset_id !== assetId) return;
+    const context = canvas.getContext("2d");
+    const center = canvas.height / 2;
+    const step = canvas.width / Math.max(1, waveform.levels.length);
+    context.clearRect(0, 0, canvas.width, canvas.height);
+    context.fillStyle = "#b8ef68";
+    waveform.levels.forEach((peak, index) => {
+      const height = Math.max(1, peak * (canvas.height - 2));
+      context.fillRect(index * step, center - height / 2, Math.max(1, step - 1), height);
+    });
+  } catch (_error) {
+    canvas.setAttribute("aria-label", "Форма волны недоступна");
+  }
+}
+
 function renderProject(project) {
   detailTitle.textContent = project.title || project.input_value;
   detailStatus.dataset.status = project.job.status;
@@ -143,7 +163,17 @@ function renderProject(project) {
     availability.textContent = asset.available
       ? `${asset.media_format || "файл"} · ${Math.ceil(asset.byte_size / 1024)} КБ`
       : "Файл не найден";
-    row.append(name, availability);
+    row.append(name);
+    if (asset.available && asset.media_format === "wav") {
+      const waveform = document.createElement("canvas");
+      waveform.className = "waveform-preview";
+      waveform.width = 320;
+      waveform.height = 30;
+      waveform.setAttribute("aria-label", `Форма волны: ${assetLabel(asset)}`);
+      row.append(waveform);
+      drawWaveform(waveform, asset.asset_id);
+    }
+    row.append(availability);
     return row;
   }));
   if (project.assets.length === 0) {
