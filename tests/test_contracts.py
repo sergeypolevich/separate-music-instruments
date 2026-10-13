@@ -122,6 +122,9 @@ class FakeJobRepository:
     def list_batches(self, owner_id, limit=50):
         return []
 
+    def update_project_source(self, job_id, source_id, title):
+        return None
+
     def transition_job(self, job_id, status, *, stage=None, error_summary=None):
         return JobView(job_id, uuid4(), "client-1", status, stage, error_summary)
 

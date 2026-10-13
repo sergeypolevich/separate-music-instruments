@@ -62,6 +62,8 @@ class ProjectRecord:
     source_id: str | None
     title: str | None
     created_at: datetime
+    job_id: UUID
+    job_status: str
 
 
 @dataclass(frozen=True)
@@ -427,6 +429,16 @@ class SqliteMetadataStore:
             return None
         return ClientRecord(row["id"], row["display_name"], _parse_datetime(row["created_at"]))
 
+    def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None:
+        with self._connection() as connection:
+            result = connection.execute(
+                "UPDATE projects SET source_id = ?, title = ?, updated_at = ? "
+                "WHERE id = (SELECT project_id FROM jobs WHERE id = ?)",
+                (source_id, title, _utc_now(), str(job_id)),
+            )
+            if result.rowcount != 1:
+                raise AdapterError("Project job was not found", FailureCategory.NOT_FOUND)
+
     def get_batch(self, batch_id: UUID, owner_id: str) -> BatchRecord | None:
         with self._connection() as connection:
             row = connection.execute(
@@ -505,21 +517,32 @@ class SqliteMetadataStore:
             ).fetchall()
         return [self._asset(row) for row in rows]
 
+    @staticmethod
+    def _project(row: sqlite3.Row) -> ProjectRecord:
+        return ProjectRecord(
+            project_id=UUID(row["id"]), owner_id=row["owner_id"],
+            input_type=SourceKind(row["input_type"]), input_value=row["input_value"],
+            source_id=row["source_id"], title=row["title"],
+            created_at=_parse_datetime(row["created_at"]),
+            job_id=UUID(row["job_id"]), job_status=row["job_status"],
+        )
+
+    def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT p.*, j.id AS job_id, j.status AS job_status "
+                "FROM projects p JOIN jobs j ON j.project_id = p.id "
+                "WHERE p.id = ? AND p.owner_id = ?",
+                (str(project_id), owner_id),
+            ).fetchone()
+        return self._project(row) if row else None
+
     def list_projects(self, owner_id: str) -> list[ProjectRecord]:
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT * FROM projects WHERE owner_id = ? ORDER BY created_at, rowid",
+                "SELECT p.*, j.id AS job_id, j.status AS job_status "
+                "FROM projects p JOIN jobs j ON j.project_id = p.id "
+                "WHERE p.owner_id = ? ORDER BY p.created_at, p.rowid",
                 (owner_id,),
             ).fetchall()
-        return [
-            ProjectRecord(
-                project_id=UUID(row["id"]),
-                owner_id=row["owner_id"],
-                input_type=SourceKind(row["input_type"]),
-                input_value=row["input_value"],
-                source_id=row["source_id"],
-                title=row["title"],
-                created_at=_parse_datetime(row["created_at"]),
-            )
-            for row in rows
-        ]
+        return [self._project(row) for row in rows]

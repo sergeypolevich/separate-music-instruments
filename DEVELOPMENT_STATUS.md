@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 13 — Submission and progress UI (completed).
+- **Current stage:** 14 — Project library and reopening (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 13 UI changes are uncommitted; stage 12 commit `95a0087` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 14 project-library changes are uncommitted; stage 13 commit `a9b6cbb` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 13 web/API/Demucs/jobs/metadata tests passed (29 passed); full `pytest -q` passed (102 passed, 1 opt-in live E2E skipped); `node --check web/app.js` and `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 14 project/API/jobs/metadata tests passed (22 passed); full `pytest -q` passed (105 passed, 1 opt-in live E2E skipped); `node --check web/app.js` and `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -55,7 +55,13 @@
 - **Stage 13 result:** added a responsive Russian-language local page with multiline query/URL submission, model/device selectors, queued job confirmation, polling of persisted batch state, per-job progress/error cards, and continued visibility for successful siblings. Static files are served by the API process; CSS uses only local/system fonts and UI inserts untrusted text via `textContent`.
 - **Stage 13 checks:** targeted web/API/Demucs/jobs/metadata tests passed (29 passed); full `pytest -q` passed (102 passed, 1 opt-in live test skipped); `node --check web/app.js` and `git diff --check` passed. Tests cover page assets, planned states, multiple job/error visibility, and the persistent API response after state changes.
 - **Stage 13 boundaries:** no browser automation or live server was run; UI behavior is covered by ASGI tests, safe text rendering checks, and JavaScript syntax validation. Existing single-user localhost/authentication limitations remain.
-- **Next action:** review, commit and push stage 13, then implement saved-project reopening and output listing in stage 14.
+- **Stage 13 commit:** `a9b6cbb` (`Add local submission and progress UI`) pushed to `origin/main`.
+- **Stage 14 plan/check matrix:** (a) persist actual selected title/source identity on each project; (b) expose owner-scoped project detail, current job state/options, and relative assets without returning filesystem paths; (c) detect missing assets and represent partial outputs; (d) reopen the SQLite store/app and verify project data survives; (e) add UI library/detail view; (f) run targeted/full offline suite and diff check.
+- **Stage 14 risks/boundaries:** data is read through repository/storage interfaces; user input cannot supply a storage key. Missing files should be reported as unavailable without breaking the rest of the project detail; this stage does not stream or play audio.
+- **Stage 14 result:** successful source resolution/download now updates project title and source ID. Project list/detail endpoints include job status, model/device/parameters, and asset metadata plus an availability flag; raw storage keys and absolute paths are never returned. The UI lists saved/current projects and opens a detail view with source, processing settings, and available/missing audio/stem files.
+- **Stage 14 checks:** targeted project/API/jobs/metadata tests passed (22 passed); full `pytest -q` passed (105 passed, 1 opt-in live test skipped); `node --check web/app.js` and `git diff --check` passed. Tests reopen the SQLite repository and API, cover a missing stem and partial asset list, and verify project ownership and no path disclosure.
+- **Stage 14 boundaries:** project detail reports file presence but does not stream or play assets; range requests and waveform data remain stage 15. Existing UI checks use ASGI and JavaScript syntax, not browser automation.
+- **Next action:** finish diff review, commit and push stage 14, then add authorized asset streaming and compact waveform data in stage 15.
 
 ## Completed stages
 

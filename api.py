@@ -19,12 +19,15 @@ from contracts import (
     FailureCategory,
     JobEvent,
     JobView,
+    MediaAsset,
+    MediaStorage,
     SeparationOptions,
     SourceAdapter,
     SourceRequest,
     StemSeparator,
 )
 from demucs_adapter import DemucsSeparator
+from local_storage import LocalMediaStorage
 from metadata import ProjectRecord, SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
@@ -44,6 +47,8 @@ class ApiRepository(Protocol):
     def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
     def list_events(self, job_id: UUID, owner_id: str) -> Sequence[JobEvent]: ...
     def list_projects(self, owner_id: str) -> Sequence[ProjectRecord]: ...
+    def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None: ...
+    def list_assets(self, job_id: UUID, owner_id: str) -> Sequence[MediaAsset]: ...
 
 
 class BatchSubmission(BaseModel):
@@ -73,10 +78,12 @@ def create_app(
     settings: Settings,
     source_adapter: SourceAdapter | None = None,
     separator: StemSeparator | None = None,
+    storage: MediaStorage | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
     separator = separator or DemucsSeparator()
+    storage = storage or LocalMediaStorage(settings.storage_root, temp_root=settings.temp_root)
     app = FastAPI(title="Audio Stems API", version="1.0.0")
 
     @app.exception_handler(RequestValidationError)
@@ -215,9 +222,52 @@ def create_app(
                 "source_id": project.source_id,
                 "title": project.title,
                 "created_at": project.created_at.isoformat(),
+                "job_id": str(project.job_id),
+                "job_status": project.job_status,
             }
             for project in repository.list_projects(_OWNER_ID)
         ]
+
+    @app.get("/api/v1/projects/{project_id}")
+    def get_project(project_id: UUID) -> dict[str, object]:
+        project = repository.get_project(project_id, _OWNER_ID)
+        if project is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        job = repository.get_job(project.job_id, _OWNER_ID)
+        if job is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        options = job.separation_options
+        assets: list[dict[str, object]] = []
+        for asset in repository.list_assets(job.job_id, _OWNER_ID):
+            try:
+                available = storage.resolve_path(asset.storage_key).is_file()
+            except (AdapterError, OSError):
+                available = False
+            assets.append({
+                "asset_id": str(asset.asset_id),
+                "asset_type": asset.asset_type.value,
+                "stem_name": asset.stem_name,
+                "media_format": asset.media_format,
+                "byte_size": asset.byte_size,
+                "available": available,
+            })
+        return {
+            "project_id": str(project.project_id),
+            "input_type": project.input_type.value,
+            "input_value": project.input_value,
+            "source_id": project.source_id,
+            "title": project.title,
+            "created_at": project.created_at.isoformat(),
+            "job": {
+                **_job_payload(job),
+                "separation_options": (
+                    {"model_name": options.model_name, "device": options.device,
+                     "parameters": dict(options.parameters)}
+                    if options else None
+                ),
+            },
+            "assets": assets,
+        }
 
     web_root = Path(__file__).with_name("web")
 
