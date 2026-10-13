@@ -2,15 +2,15 @@
 
 ## Current checkpoint
 
-- **Current stage:** 1 — Verify and publish v1 (local verification complete; publication pending).
+- **Current stage:** 3 — Baseline regression coverage (in progress; startup dependency bootstrap added as a small developer-experience follow-up).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** clean after the stage 2 workflow/checkpoint commit.
-- **Remote:** none configured. The plan names `separate-music-instruments` but does not provide an owner or remote URL, so publication cannot be addressed safely yet.
-- **Notebook:** 6 cells; all saved outputs removed and execution counts reset. JSON parses and each cell source was compared with the committed source and preserved exactly. Local absolute paths and package environment output are absent.
-- **Checks:** `pytest -q` passed: 9 passed, 1 opt-in live E2E skipped. `git diff --check` passed. `.gitignore` excludes generated media and local environment files.
+- **Working tree at checkpoint:** contains uncommitted notebook removal and dependency-bootstrap changes.
+- **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
+- **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
+- **Checks:** after the launcher and its unit tests were added, `pytest -q` passed: 12 passed, 1 opt-in live E2E skipped. `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
-- **Next action:** configure the intended Git remote, verify it points to the desired public repository, then publish the verified v1 commit. Do not start stage 3 before stage 1 is closed.
+- **Next action:** review the complete working diff and continue stage 3 regression coverage. Stage 1 publication is complete.
 
 ## Completed stages
 
-None. Local v1 checks passed, but the required publication step is outstanding.
+Stage 1 publication is complete. The notebook deletion and launcher changes are not committed.
