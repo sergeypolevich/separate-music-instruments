@@ -1,0 +1,212 @@
+"""Provider-independent application contracts and typed data models."""
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Mapping, Protocol, Sequence, runtime_checkable
+from uuid import UUID
+
+
+class FailureCategory(Enum):
+    TRANSIENT = "transient"
+    PERMANENT = "permanent"
+    INVALID_INPUT = "invalid_input"
+    NOT_FOUND = "not_found"
+    CONFLICT = "conflict"
+
+
+class AdapterError(Exception):
+    """Expected, categorized failure raised by an adapter boundary."""
+
+    def __init__(self, message: str, category: FailureCategory) -> None:
+        super().__init__(message)
+        self.category = category
+        self.retryable = category is FailureCategory.TRANSIENT
+
+
+class SourceKind(Enum):
+    SEARCH_QUERY = "search_query"
+    VIDEO_URL = "video_url"
+
+
+@dataclass(frozen=True)
+class SourceRequest:
+    kind: SourceKind
+    value: str
+
+
+@dataclass(frozen=True)
+class VideoCandidate:
+    source_id: str
+    title: str
+    url: str
+    duration_seconds: float | None = None
+
+
+@dataclass(frozen=True)
+class DownloadedAudio:
+    path: Path
+    source: VideoCandidate
+    media_format: str
+    byte_size: int
+
+
+@dataclass(frozen=True)
+class SeparationOptions:
+    model_name: str
+    device: str
+    parameters: Mapping[str, str | int | float | bool] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class StemArtifact:
+    name: str
+    path: Path
+
+
+@dataclass(frozen=True)
+class SeparationResult:
+    stems: tuple[StemArtifact, ...]
+
+
+class MediaAssetType(Enum):
+    SOURCE_AUDIO = "source_audio"
+    STEM = "stem"
+
+
+@dataclass(frozen=True)
+class MediaAsset:
+    asset_id: UUID
+    job_id: UUID
+    asset_type: MediaAssetType
+    storage_key: str
+    byte_size: int
+    stem_name: str | None = None
+    media_format: str | None = None
+    checksum: str | None = None
+
+
+class JobStatus(Enum):
+    QUEUED = "queued"
+    SEARCHING = "searching"
+    DOWNLOADING = "downloading"
+    DOWNLOADED = "downloaded"
+    SEPARATING = "separating"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+@dataclass(frozen=True)
+class BatchReceipt:
+    batch_id: UUID
+    job_ids: tuple[UUID, ...]
+
+
+@dataclass(frozen=True)
+class JobView:
+    job_id: UUID
+    batch_id: UUID
+    owner_id: str
+    status: JobStatus
+    current_stage: str | None = None
+    error_summary: str | None = None
+
+
+@dataclass(frozen=True)
+class JobEvent:
+    event_id: UUID
+    job_id: UUID
+    name: str
+    occurred_at: datetime
+    details: Mapping[str, str | int | float | bool | None] = field(default_factory=dict)
+
+
+@runtime_checkable
+class SourceAdapter(Protocol):
+    """Normalize client text without fetching media.
+
+    Raise ``AdapterError(INVALID_INPUT)`` when the request is unsupported.
+    """
+
+    def normalize(self, value: str) -> SourceRequest: ...
+
+
+@runtime_checkable
+class Downloader(Protocol):
+    """Search and download source media.
+
+    Implementations use ``NOT_FOUND`` for empty searches and ``TRANSIENT``
+    for retryable network/service failures; input and permanent failures are
+    categorized separately.
+    """
+
+    def search(self, query: str) -> Sequence[VideoCandidate]: ...
+
+    def download(self, source: VideoCandidate) -> DownloadedAudio: ...
+
+
+@runtime_checkable
+class StemSeparator(Protocol):
+    """Run a configured separator; raise categorized ``AdapterError`` on failure."""
+
+    def separate(
+        self,
+        audio_path: Path,
+        output_dir: Path,
+        options: SeparationOptions,
+    ) -> SeparationResult: ...
+
+
+@runtime_checkable
+class MediaStorage(Protocol):
+    """Manage media assets and return opaque relative keys, never client paths."""
+
+    def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset: ...
+
+    def save_stem(self, job_id: UUID, stem: StemArtifact) -> MediaAsset: ...
+
+    def resolve_path(self, asset_id: UUID) -> Path: ...
+
+    def delete_job_assets(self, job_id: UUID) -> None: ...
+
+
+@runtime_checkable
+class JobService(Protocol):
+    """Application-facing job API; failures use categorized ``AdapterError``."""
+
+    def submit_batch(
+        self,
+        owner_id: str,
+        sources: Sequence[SourceRequest],
+        idempotency_key: str | None = None,
+    ) -> BatchReceipt: ...
+
+    def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
+
+
+@runtime_checkable
+class JobRepository(Protocol):
+    """Persist jobs/events; raise ``CONFLICT`` for invalid state/idempotency conflicts."""
+
+    def create_batch(
+        self,
+        owner_id: str,
+        sources: Sequence[SourceRequest],
+        idempotency_key: str | None = None,
+    ) -> BatchReceipt: ...
+
+    def transition_job(
+        self,
+        job_id: UUID,
+        status: JobStatus,
+        *,
+        stage: str | None = None,
+        error_summary: str | None = None,
+    ) -> JobView: ...
+
+    def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
+
+    def list_events(self, job_id: UUID, owner_id: str) -> Sequence[JobEvent]: ...

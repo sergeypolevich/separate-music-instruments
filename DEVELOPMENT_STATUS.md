@@ -2,9 +2,9 @@
 
 ## Current checkpoint
 
-- **Current stage:** 5 — Adapter contracts (next; settings and logging completed).
+- **Current stage:** 6 — Storage adapter (next; stage 5 contracts completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 4 settings/logging changes are uncommitted; stage 3 commit `553010e` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 5 contracts and checkpoint are uncommitted; stage 4 commit `3cb92c0` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
 - **Checks:** stage 3 targeted `pytest -q tests/test_baseline.py` passed (11 passed). Full `pytest -q` passed (14 passed, 1 opt-in live E2E skipped). `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
@@ -14,7 +14,10 @@
 - **Stage 4 result:** added standard-library settings loading/validation, `.env` support and placeholders, rotating JSONL plus readable UTC console logs, credential-pattern redaction, and lifecycle events from the CLI. Storage/temp roots, retries, delays, model name/device, and log policy now read from settings with baseline-compatible defaults.
 - **Stage 4 checks:** targeted settings/logging/baseline tests passed (22 passed); full `pytest -q` passed (25 passed, 1 opt-in live test skipped); `git diff --check` passed. Tests cover defaults, `.env` and process overrides, invalid config, log schema/ClientID, console and JSON redaction, exception data, rotation, and configured retry delays.
 - **Stage 4 boundaries:** `.env` is parsed as data and never shell-evaluated. No search query or output path is placed in structured event messages. No new runtime dependency was introduced. The actual YouTube/Demucs workflow remains opt-in and was not run.
-- **Next action:** review, commit, and push stage 4; then define typed contracts for sources, downloader, separator, storage, and jobs in stage 5.
+- **Stage 5 result:** added provider-independent typed models, protocols for source normalization, downloader, separator, storage, jobs, and repository, plus categorized adapter errors with retryability.
+- **Stage 5 checks:** targeted `pytest -q tests/test_contracts.py` passed (4 passed); full `pytest -q` passed (29 passed, 1 opt-in live test skipped); `git diff --check` passed. Fake adapters satisfy runtime-checkable protocols; AST test confirms contracts do not import `pytubefix` or Demucs.
+- **Stage 5 boundaries:** contracts only; no implementation was moved and baseline paths, format policy, model, retries, and phase ordering are unchanged. The compatibility CLI remains intact.
+- **Next action:** run final diff check, commit and push stage 5, then implement local storage path safety in stage 6.
 
 ## Completed stages
 
