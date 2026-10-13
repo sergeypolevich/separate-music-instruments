@@ -130,6 +130,16 @@ class BatchReceipt:
 
 
 @dataclass(frozen=True)
+class BatchView:
+    batch_id: UUID
+    owner_id: str
+    submission_method: str
+    status: str
+    result_summary: str | None
+    created_at: datetime
+
+
+@dataclass(frozen=True)
 class QueuedBatch:
     receipt: BatchReceipt
     sources: tuple[SourceRequest, ...]
@@ -185,6 +195,8 @@ class StemSeparator(Protocol):
     """Describe available models and run one with categorized failures."""
 
     def available_models(self) -> Sequence[SeparatorModel]: ...
+
+    def validate_options(self, options: SeparationOptions) -> None: ...
 
     def separate(
         self,
@@ -267,6 +279,10 @@ class JobRepository(Protocol):
     def claim_next_batch(self) -> QueuedBatch | None: ...
 
     def recover_interrupted_batches(self) -> int: ...
+
+    def list_jobs_for_batch(self, batch_id: UUID, owner_id: str) -> Sequence[JobView]: ...
+
+    def list_batches(self, owner_id: str, limit: int = 50) -> Sequence[BatchView]: ...
 
     def transition_job(
         self,

@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 11 — Separate worker process (completed).
+- **Current stage:** 12 — Minimal localhost API (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 11 worker and restart-recovery changes are uncommitted; stage 10 commit `6a85952` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 12 API changes are uncommitted; stage 11 commit `51e0f1c` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 11 targeted launcher/worker/downloader/storage tests passed (29 passed); full `pytest -q` passed (92 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 12 targeted API/launcher/contracts/metadata tests passed (22 passed); full `pytest -q` passed (99 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -45,7 +45,12 @@
 - **Stage 11 corner-case fix:** a cache lookup miss no longer reserves a direct URL's placeholder video ID as its permanent filename; actual downloaded titles keep the established title-based naming.
 - **Stage 11 checks:** targeted launcher/worker/downloader/storage tests passed (29 passed); full `pytest -q` passed (92 passed, 1 opt-in live test skipped). The worker was composed against a temporary SQLite database in tests; no live download or Demucs inference ran. `git diff --check` pending final review.
 - **Stage 11 boundaries:** worker concurrency is one batch at a time per process; the local composition currently supports SQLite. A worker left mid-job does not resume automatically; worker-start recovery marks its unfinished jobs failed, preserving files for a later new submission.
-- **Next action:** finish diff review, commit and push stage 11, then implement the minimal localhost API in stage 12.
+- **Stage 11 commit:** `51e0f1c` (`Run queued batches in a separate worker`) pushed to `origin/main`.
+- **Stage 12 plan/check matrix:** (a) accept one or more supported queries/URLs and persist them as a queued batch; (b) return 202 and opaque IDs without running downloads; (c) validate URL/model/batch inputs and reject arbitrary path fields with stable errors; (d) expose owner-scoped batch/job/events/projects/models reads; (e) verify request schemas, idempotency, and full offline suite.
+- **Stage 12 result:** added FastAPI app factory with thin SQLite repository/source/separator interfaces and `py run.py --api` launcher mode. The API binds to `127.0.0.1:8000`, creates queued work only, lists batches/projects/models, and returns batch/job/event state. Owner identity is server-assigned as `local`; callers cannot supply an owner or filesystem path. FastAPI/Uvicorn runtime constraints and HTTPX test dependency are declared.
+- **Stage 12 checks:** targeted API/launcher/contracts/metadata tests passed (22 passed); full `pytest -q` passed (99 passed, 1 opt-in live test skipped); `git diff --check` pending final review. Tests use the ASGI transport and temporary SQLite only; no server port, YouTube, or model was used.
+- **Stage 12 boundaries:** this is a localhost-only single-user API with no login/authentication. It must remain bound to loopback; authentication and browser-origin policy are not implemented. There is no UI or media streaming yet.
+- **Next action:** finish diff review, commit and push stage 12, then implement the submission/progress UI in stage 13.
 
 ## Completed stages
 

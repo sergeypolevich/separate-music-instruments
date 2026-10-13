@@ -50,6 +50,24 @@ checkpoint proves that partial outputs are valid.
 The application can still be started directly with the Python interpreter, but
 that bypasses the dependency check. Use `py run.py` for normal startup.
 
+Start the versioned HTTP API in another PowerShell window with:
+
+```powershell
+py run.py --api
+```
+
+It binds only to `127.0.0.1:8000`; the API process only validates and
+queues requests. Keep `py run.py --worker` running separately to process them.
+This initial local API uses a server-side `local` owner identity and has no
+login screen; do not expose its port beyond the local machine.
+
+The API accepts `POST /api/v1/batches` with an `inputs` array of search queries
+or supported YouTube URLs and returns `202` with batch/job IDs. Use
+`GET /api/v1/batches`, `/api/v1/batches/{id}`, `/api/v1/jobs/{id}`, and
+`/api/v1/jobs/{id}/events` for persisted progress; `/api/v1/projects` lists
+saved projects and `/api/v1/models` lists model options. Errors use an
+`error.code` and safe `error.message` response. The API never accepts file paths.
+
 The Demucs adapter exposes its model names and supported inference parameters.
 Jobs store the selected model, device, and parameters in SQLite, and pass that
 saved configuration to the separator. The standalone compatibility command
