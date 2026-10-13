@@ -130,6 +130,12 @@ class BatchReceipt:
 
 
 @dataclass(frozen=True)
+class QueuedBatch:
+    receipt: BatchReceipt
+    sources: tuple[SourceRequest, ...]
+
+
+@dataclass(frozen=True)
 class JobView:
     job_id: UUID
     batch_id: UUID
@@ -257,6 +263,10 @@ class JobRepository(Protocol):
         idempotency_key: str | None = None,
         separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt: ...
+
+    def claim_next_batch(self) -> QueuedBatch | None: ...
+
+    def recover_interrupted_batches(self) -> int: ...
 
     def transition_job(
         self,

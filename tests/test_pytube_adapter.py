@@ -1,0 +1,102 @@
+from pathlib import Path
+
+from contracts import DownloadedAudio, Downloader, VideoCandidate
+from local_storage import LocalMediaStorage
+from pytube_adapter import PytubeDownloader
+from settings import Settings
+
+
+class FakeStream:
+    def __init__(self, subtype, data=b"\x1aE\xdf\xa3valid"):
+        self.subtype = subtype
+        self.abr = "128kbps"
+        self.data = data
+        self.download_args = None
+
+    def download(self, *, output_path, filename):
+        self.download_args = (output_path, filename)
+        Path(output_path, filename).write_bytes(self.data)
+
+
+class FakeStreams:
+    def __init__(self, stream):
+        self.stream = stream
+
+    def filter(self, **kwargs):
+        assert kwargs == {"only_audio": True, "mime_type": "audio/webm"}
+        return self
+
+    def order_by(self, key):
+        assert key == "abr"
+        return self
+
+    def desc(self):
+        return self
+
+    def first(self):
+        return self.stream if self.stream.subtype == "webm" else None
+
+    def get_audio_only(self):
+        return self.stream
+
+
+class FakeYoutube:
+    def __init__(self, url, client, *, streams):
+        self.requested_url = url
+        self.title = "A Track"
+        self.watch_url = "https://youtube.com/watch?v=canonical"
+        self.video_id = "canonical"
+        self.streams = streams
+
+
+def test_search_adapter_returns_candidates_without_downloading(monkeypatch, tmp_path):
+    candidate = type("Candidate", (), {
+        "video_id": "source-1", "title": "Track", "watch_url": "https://youtube.com/watch?v=source-1"
+    })()
+    monkeypatch.setattr("pytube_adapter.Search", lambda query: type("Result", (), {"videos": [candidate]})())
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
+
+    assert isinstance(downloader, Downloader)
+
+    results = downloader.search("query")
+
+    assert results == [VideoCandidate("source-1", "Track", candidate.watch_url)]
+
+
+def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_path):
+    selected = FakeStream("webm")
+    observed = {}
+    monkeypatch.setattr(
+        "pytube_adapter.YouTube",
+        lambda url, client: observed.update(url=url, client=client) or FakeYoutube(
+            url, client, streams=FakeStreams(selected)
+        ),
+    )
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    storage = LocalMediaStorage(tmp_path / "media")
+    downloader = PytubeDownloader(storage, settings)
+    exact = "https://youtu.be/direct-id?feature=share"
+
+    downloaded = downloader.download(VideoCandidate("direct-id", "direct-id", exact))
+
+    assert observed["url"] == exact
+    assert downloaded.source.url == exact
+    assert downloaded.media_format == "webm"
+    assert storage.validate_audio_file(downloaded.path, "webm")
+    assert selected.download_args[1].endswith(".webm")
+
+
+def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp_path):
+    fallback = FakeStream("m4a", data=b"0000ftypM4A ")
+    monkeypatch.setattr(
+        "pytube_adapter.YouTube",
+        lambda url, client: FakeYoutube(url, client, streams=FakeStreams(fallback)),
+    )
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
+
+    downloaded = downloader.download(VideoCandidate("id", "Track", "https://youtube.com/watch?v=id"))
+
+    assert downloaded.media_format == "m4a"
+    assert downloaded.path.suffix == ".m4a"

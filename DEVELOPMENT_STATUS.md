@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 10 — Model selection in processing (completed).
+- **Current stage:** 11 — Separate worker process (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 10 adapter/model configuration changes are uncommitted; stage 9 commit `b657f5d` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 11 worker and restart-recovery changes are uncommitted; stage 10 commit `6a85952` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 10 targeted adapter/metadata/contracts/jobs tests passed (24 passed); full `pytest -q` passed (81 passed, 1 opt-in live E2E skipped); `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 11 targeted launcher/worker/downloader/storage tests passed (29 passed); full `pytest -q` passed (92 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -39,7 +39,13 @@
 - **Stage 10 result:** added `DemucsSeparator` with declared six-stem models and supported `shifts`, `overlap`, and `segment` parameters; option validation and subprocess argument tests use a fake runner. Job-specific model/device/parameter choices are stored as JSON metadata through migration 002, survive reopening, are returned on repeated idempotent submissions, and are passed by the orchestrator to the separator. Defaults remain `htdemucs_6s` on CPU.
 - **Stage 10 checks:** targeted adapter/metadata/contracts/jobs tests passed (24 passed); full `pytest -q` passed (81 passed, 1 opt-in live test skipped); `git diff --check` passed. No actual model weights or Demucs inference were run.
 - **Stage 10 boundary:** adapter model catalog is a declared supported set and does not inspect/install/download weights. UI selection is deferred until API/UI milestones; current CLI continues to use `.env` model/device defaults.
-- **Next action:** commit and push stage 10, then define the separate worker process and bounded restart recovery in stage 11.
+- **Stage 10 commit:** `6a85952` (`Add Demucs model options to job processing`) pushed to `origin/main`.
+- **Stage 11 plan/check matrix:** (a) atomically claim queued SQLite batches and reconstruct source requests/options after process launch; (b) run the existing two-phase orchestrator in a separate CLI process; (c) on restart, preserve completed jobs and mark unfinished jobs failed without claiming automatic resumability; (d) test worker failure recovery, adapter composition, and batch download-before-separation order; (e) provide a dependency-checking launcher mode and documentation.
+- **Stage 11 result:** `py run.py --worker` starts a separate database-backed process composed from the pytubefix, Demucs, SQLite, and local storage adapters. SQLite atomically claims one queued batch at a time and restores persisted input/model options. Startup recovery keeps completed jobs, marks unfinished work failed with an explicit safe summary, and marks the batch failed/partial; users can submit a new batch, and existing downloaded audio/stems remain reusable. Recovery does not promise resumability.
+- **Stage 11 corner-case fix:** a cache lookup miss no longer reserves a direct URL's placeholder video ID as its permanent filename; actual downloaded titles keep the established title-based naming.
+- **Stage 11 checks:** targeted launcher/worker/downloader/storage tests passed (29 passed); full `pytest -q` passed (92 passed, 1 opt-in live test skipped). The worker was composed against a temporary SQLite database in tests; no live download or Demucs inference ran. `git diff --check` pending final review.
+- **Stage 11 boundaries:** worker concurrency is one batch at a time per process; the local composition currently supports SQLite. A worker left mid-job does not resume automatically; worker-start recovery marks its unfinished jobs failed, preserving files for a later new submission.
+- **Next action:** finish diff review, commit and push stage 11, then implement the minimal localhost API in stage 12.
 
 ## Completed stages
 

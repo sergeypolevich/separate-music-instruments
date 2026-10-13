@@ -153,7 +153,19 @@ class LocalMediaStorage:
 
     def find_existing_audio(self, source: VideoCandidate) -> DownloadedAudio | None:
         """Reuse an audio file only when its container has a recognizable header."""
-        title = self._claim_title("audio", source.title, source.source_id)
+        if not self.root.is_dir():
+            return None
+        index = self._read_index()
+        identity_key = f"source:audio:{source.source_id}"
+        title = index.get(identity_key)
+        if title is None:
+            safe_title = safe_filename(source.title)
+            known_source = index.get(f"audio:{safe_title.casefold()}")
+            title = (
+                f"{safe_title}--{self._source_suffix(source.source_id)}"
+                if known_source is not None and known_source != source.source_id
+                else safe_title
+            )
         allowed_extensions = ("webm", "m4a", "opus", "mp3", "ogg", "flac", "aac", "wma", "aiff", "aif")
         try:
             matches = {
@@ -170,6 +182,8 @@ class LocalMediaStorage:
         for extension in allowed_extensions:
             path = matches.get(extension)
             if path is not None:
+                if index.get(identity_key) is None:
+                    self._claim_title("audio", source.title, source.source_id)
                 stored_source = VideoCandidate(source.source_id, title, source.url, source.duration_seconds)
                 return DownloadedAudio(path, stored_source, extension, path.stat().st_size)
         return None

@@ -27,6 +27,26 @@ py -m pip install -r requirements-test.txt
 py -m pytest
 ```
 
+Run the database-backed worker in a separate PowerShell window:
+
+```powershell
+py run.py --worker
+```
+
+The launcher performs the same isolated environment and dependency checks, then
+starts the worker instead of the compatibility CLI. It uses the same `.env`,
+SQLite database, media root, and log configuration as the rest of the
+application. The worker claims one queued
+batch at a time; it completes all downloads in the batch before separating any
+track. Stop it with Ctrl+C.
+
+On startup, a batch left in `processing` by a prior worker exit is recovered in
+a bounded way: completed jobs remain completed, unfinished jobs become failed
+with a safe interruption summary, and the batch is marked failed or partial.
+Downloaded files and completed stems remain available for reuse if the source
+is submitted again. Jobs are not automatically resumed because no mid-stage
+checkpoint proves that partial outputs are valid.
+
 The application can still be started directly with the Python interpreter, but
 that bypasses the dependency check. Use `py run.py` for normal startup.
 
