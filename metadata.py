@@ -18,6 +18,7 @@ from contracts import (
     JobEvent,
     JobStatus,
     JobView,
+    QueuedBatch,
     MediaAsset,
     MediaAssetType,
     SourceKind,
@@ -238,6 +239,99 @@ class SqliteMetadataStore:
                 )
                 job_ids.append(job_id)
         return BatchReceipt(batch_id, tuple(job_ids), owner_id, separation_options)
+
+    def claim_next_batch(self) -> QueuedBatch | None:
+        """Atomically claim one queued batch for a single worker process."""
+        with self._connection() as connection:
+            batch = connection.execute(
+                "SELECT id, owner_id FROM batches WHERE status = ? ORDER BY created_at, rowid LIMIT 1",
+                (BatchStatus.QUEUED.value,),
+            ).fetchone()
+            if batch is None:
+                return None
+            now = _utc_now()
+            updated = connection.execute(
+                "UPDATE batches SET status = ?, updated_at = ? WHERE id = ? AND status = ?",
+                (BatchStatus.PROCESSING.value, now, batch["id"], BatchStatus.QUEUED.value),
+            )
+            if updated.rowcount != 1:
+                return None
+            rows = connection.execute(
+                "SELECT id, input_type, normalized_source, separation_options_json "
+                "FROM jobs WHERE batch_id = ? ORDER BY rowid",
+                (batch["id"],),
+            ).fetchall()
+            if not rows:
+                raise AdapterError("Queued batch has no jobs", FailureCategory.PERMANENT)
+            sources = tuple(SourceRequest(SourceKind(row["input_type"]), row["normalized_source"]) for row in rows)
+            options = (
+                SeparationOptions(**json.loads(rows[0]["separation_options_json"]))
+                if rows[0]["separation_options_json"] else None
+            )
+            job_ids = tuple(UUID(row["id"]) for row in rows)
+            for job_id in job_ids:
+                connection.execute(
+                    "INSERT INTO job_events(id, batch_id, job_id, name, occurred_at, details_json, actor_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+                    (str(uuid4()), batch["id"], str(job_id), "batch_claimed", now,
+                     json.dumps({"status": BatchStatus.PROCESSING.value})),
+                )
+        receipt = BatchReceipt(UUID(batch["id"]), job_ids, batch["owner_id"], options)
+        return QueuedBatch(receipt, sources)
+
+    def recover_interrupted_batches(self) -> int:
+        """Fail unfinished work from prior worker processes; outputs remain reusable."""
+        recovered = 0
+        with self._connection() as connection:
+            batches = connection.execute(
+                "SELECT id FROM batches WHERE status = ? ORDER BY created_at, rowid",
+                (BatchStatus.PROCESSING.value,),
+            ).fetchall()
+            for batch in batches:
+                rows = connection.execute(
+                    "SELECT id, status FROM jobs WHERE batch_id = ? ORDER BY rowid", (batch["id"],)
+                ).fetchall()
+                if not rows:
+                    final_status = BatchStatus.FAILED
+                    completed = failed = 0
+                else:
+                    now = _utc_now()
+                    for row in rows:
+                        status = JobStatus(row["status"])
+                        if status in {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED}:
+                            continue
+                        summary = "Interrupted by worker failure; submit the source again to retry"
+                        connection.execute(
+                            "UPDATE jobs SET status = ?, current_stage = ?, error_summary = ?, updated_at = ? WHERE id = ?",
+                            (JobStatus.FAILED.value, "worker_recovery", summary, now, row["id"]),
+                        )
+                        connection.execute(
+                            "INSERT INTO job_events(id, batch_id, job_id, name, occurred_at, details_json, actor_id) "
+                            "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+                            (str(uuid4()), batch["id"], row["id"], "job_state_changed", now,
+                             json.dumps({"status": JobStatus.FAILED.value, "stage": "worker_recovery",
+                                         "error_summary": summary})),
+                        )
+                    counts = connection.execute(
+                        "SELECT status, COUNT(*) AS count FROM jobs WHERE batch_id = ? GROUP BY status",
+                        (batch["id"],),
+                    ).fetchall()
+                    count_by_status = {row["status"]: row["count"] for row in counts}
+                    completed = count_by_status.get(JobStatus.COMPLETED.value, 0)
+                    failed = count_by_status.get(JobStatus.FAILED.value, 0)
+                    if completed == len(rows):
+                        final_status = BatchStatus.COMPLETED
+                    elif completed:
+                        final_status = BatchStatus.PARTIAL
+                    else:
+                        final_status = BatchStatus.FAILED
+                connection.execute(
+                    "UPDATE batches SET status = ?, result_summary = ?, updated_at = ? WHERE id = ?",
+                    (final_status.value, json.dumps({"completed": completed, "failed": failed, "recovered": True}),
+                     _utc_now(), batch["id"]),
+                )
+                recovered += 1
+        return recovered
 
     def transition_job(
         self,

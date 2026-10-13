@@ -97,3 +97,13 @@ def test_existing_audio_is_reused_by_source_identity_after_storage_reopens(tmp_p
     assert existing.path == target.path
     assert existing.byte_size == len(b"\x1aE\xdf\xa3existing-audio")
     assert existing.source.source_id == source.source_id
+
+
+def test_audio_lookup_miss_does_not_reserve_placeholder_video_id_as_title(tmp_path):
+    storage = LocalMediaStorage(tmp_path / "library")
+    placeholder = VideoCandidate("video-id", "video-id", "https://youtu.be/video-id")
+
+    assert storage.find_existing_audio(placeholder) is None
+    actual = storage.audio_target("Real Track Title", "webm", "video-id")
+
+    assert actual.path.name == "Real Track Title.webm"

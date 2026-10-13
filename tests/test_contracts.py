@@ -107,6 +107,12 @@ class FakeJobRepository:
     def create_batch(self, owner_id, sources, idempotency_key=None):
         return BatchReceipt(uuid4(), (uuid4(),))
 
+    def claim_next_batch(self):
+        return None
+
+    def recover_interrupted_batches(self):
+        return 0
+
     def transition_job(self, job_id, status, *, stage=None, error_summary=None):
         return JobView(job_id, uuid4(), "client-1", status, stage, error_summary)
 

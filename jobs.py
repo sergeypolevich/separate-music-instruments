@@ -101,6 +101,8 @@ class BatchOrchestrator:
         receipt: BatchReceipt,
         sources: Sequence[SourceRequest],
         owner_id: str | None = None,
+        *,
+        already_processing: bool = False,
     ) -> BatchProcessingResult:
         if len(receipt.job_ids) != len(sources) or not sources:
             raise AdapterError("Batch source list does not match its jobs", FailureCategory.INVALID_INPUT)
@@ -108,7 +110,8 @@ class BatchOrchestrator:
         if not owner_id:
             raise AdapterError("Batch owner context is required", FailureCategory.INVALID_INPUT)
 
-        self.repository.transition_batch(receipt.batch_id, BatchStatus.PROCESSING)
+        if not already_processing:
+            self.repository.transition_batch(receipt.batch_id, BatchStatus.PROCESSING)
         downloaded: dict[UUID, DownloadedAudio] = {}
 
         # Phase one: attempt resolution and download for every item.

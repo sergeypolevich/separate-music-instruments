@@ -30,3 +30,22 @@ def test_virtual_environment_python_path_is_platform_specific(monkeypatch, tmp_p
     monkeypatch.setattr(run.os, "name", "nt")
 
     assert run.venv_python() == tmp_path / ".venv" / "Scripts" / "python.exe"
+
+
+def test_worker_mode_launches_worker_script_after_dependency_check(monkeypatch):
+    calls = []
+    monkeypatch.setattr(run, "in_project_venv", lambda: True)
+    monkeypatch.setattr(run, "install_runtime_dependencies", lambda: None)
+    monkeypatch.setattr(
+        run.subprocess, "run",
+        lambda args, **kwargs: calls.append((args, kwargs)) or type("Result", (), {"returncode": 0})(),
+    )
+
+    assert run.main(["--worker"]) == 0
+    assert calls[0][0] == [run.sys.executable, str(run.WORKER)]
+
+
+def test_launcher_rejects_unknown_arguments(monkeypatch):
+    monkeypatch.setattr(run, "in_project_venv", lambda: True)
+
+    assert run.main(["--unknown"]) == 2
