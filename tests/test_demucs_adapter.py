@@ -11,6 +11,7 @@ def test_separator_reports_model_names_and_supported_options():
 
     models = separator.available_models()
 
+    assert {model.name for model in models} == {"htdemucs_6s"}
     assert "htdemucs_6s" in {model.name for model in models}
     six_stem = next(model for model in models if model.name == "htdemucs_6s")
     assert six_stem.stems == ("vocals", "drums", "bass", "guitar", "piano", "other")

@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101614">
+    <title>Audio Stems</title>
+    <link rel="stylesheet" href="/static/app.css">
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <a class="brand" href="/" aria-label="Audio Stems — главная">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span>audio<span class="brand-accent">stems</span></span>
+        </a>
+        <span class="local-badge"><span class="live-dot"></span> Локально</span>
+      </header>
+
+      <section class="intro">
+        <p class="eyebrow">РАЗДЕЛЕНИЕ АУДИО</p>
+        <h1>Дайте музыке<br><span>звучать по-новому.</span></h1>
+        <p class="lede">Введите название или ссылку на видео. Получите отдельные дорожки вокала и инструментов.</p>
+      </section>
+
+      <section class="panel" aria-labelledby="form-title">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">НОВАЯ ЗАДАЧА</p>
+            <h2 id="form-title">Что будем разделять?</h2>
+          </div>
+          <span class="step-number">01</span>
+        </div>
+        <form id="submit-form">
+          <label for="inputs">Название или YouTube-ссылка</label>
+          <textarea id="inputs" name="inputs" rows="4" maxlength="2048" required
+            placeholder="Например: Artist — Song title&#10;Можно добавить несколько строк"></textarea>
+          <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
+
+          <div class="options-grid">
+            <div class="field">
+              <label for="model">Модель</label>
+              <select id="model" name="model" required>
+                <option value="">Загрузка списка…</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="device">Устройство</label>
+              <select id="device" name="device">
+                <option value="cpu">CPU</option>
+                <option value="cuda">NVIDIA CUDA</option>
+                <option value="mps">Apple Metal</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-footer">
+            <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
+            <button id="submit-button" type="submit"><span>Начать разделение</span><span aria-hidden="true">↗</span></button>
+          </div>
+        </form>
+      </section>
+
+      <section id="progress-section" class="progress-section" aria-live="polite" hidden>
+        <div class="panel-heading progress-heading">
+          <div>
+            <p class="eyebrow">ПРОГРЕСС</p>
+            <h2 id="batch-title">Ваша задача</h2>
+          </div>
+          <span id="batch-status" class="status-pill"></span>
+        </div>
+        <div id="job-list" class="job-list"></div>
+      </section>
+
+      <footer>
+        <span>Audio Stems</span>
+        <span>Обработка выполняется на этом компьютере</span>
+      </footer>
+    </main>
+  </body>
+</html>

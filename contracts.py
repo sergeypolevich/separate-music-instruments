@@ -155,6 +155,7 @@ class JobView:
     error_summary: str | None = None
     retry_count: int = 0
     separation_options: SeparationOptions | None = None
+    input_value: str | None = None
 
 
 @dataclass(frozen=True)

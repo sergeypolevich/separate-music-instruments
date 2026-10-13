@@ -17,15 +17,7 @@ from contracts import (
 
 
 _STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
-_MODELS = (
-    "htdemucs_6s",
-    "htdemucs",
-    "htdemucs_ft",
-    "mdx",
-    "mdx_extra",
-    "mdx_q",
-    "mdx_extra_q",
-)
+_MODELS = ("htdemucs_6s",)
 _PARAMETERS = {"shifts": "int", "overlap": "float", "segment": "int"}
 
 
