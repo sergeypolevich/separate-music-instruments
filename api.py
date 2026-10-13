@@ -8,8 +8,9 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from fastapi.staticfiles import StaticFiles
 
 from contracts import (
     AdapterError,
@@ -62,6 +63,7 @@ def _job_payload(job) -> dict[str, object]:
         "current_stage": job.current_stage,
         "retry_count": job.retry_count,
         "error_summary": job.error_summary,
+        "input_value": job.input_value,
     }
 
 
@@ -104,7 +106,12 @@ def create_app(
     @app.get("/api/v1/models")
     def models() -> list[dict[str, object]]:
         return [
-            {"name": model.name, "stems": list(model.stems), "parameters": dict(model.parameters)}
+            {
+                "name": model.name,
+                "stems": list(model.stems),
+                "parameters": dict(model.parameters),
+                "default": model.name == settings.model_name,
+            }
             for model in separator.available_models()
         ]
 
@@ -211,6 +218,14 @@ def create_app(
             }
             for project in repository.list_projects(_OWNER_ID)
         ]
+
+    web_root = Path(__file__).with_name("web")
+
+    @app.get("/", include_in_schema=False)
+    def home() -> FileResponse:
+        return FileResponse(web_root / "index.html")
+
+    app.mount("/static", StaticFiles(directory=web_root), name="static")
 
     return app
 

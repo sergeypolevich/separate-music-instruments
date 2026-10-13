@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 12 — Minimal localhost API (completed).
+- **Current stage:** 13 — Submission and progress UI (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 12 API changes are uncommitted; stage 11 commit `51e0f1c` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 13 UI changes are uncommitted; stage 12 commit `95a0087` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 12 targeted API/launcher/contracts/metadata tests passed (22 passed); full `pytest -q` passed (99 passed, 1 opt-in live E2E skipped); `git diff --check` pending. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 13 web/API/Demucs/jobs/metadata tests passed (29 passed); full `pytest -q` passed (102 passed, 1 opt-in live E2E skipped); `node --check web/app.js` and `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -36,7 +36,7 @@
 - **Stage 9 boundaries:** orchestration is callable with fakes and SQLite but is not yet run in a separate worker process; cancellation/restart recovery remain stage 11. Existing CLI behavior remains the compatibility path.
 - **Stage 9 commit:** `b657f5d` (`Add job state transitions and batch orchestration`) pushed to `origin/main`.
 - **Stage 10 plan/check matrix:** (a) expose model names and supported parameters through the separator contract; (b) reject unsupported model/device/parameter values before subprocess execution; (c) pass model, device, and supported values to Demucs; (d) persist per-job configuration in SQLite and use it during processing; (e) targeted and full offline tests, migration check, and diff check.
-- **Stage 10 result:** added `DemucsSeparator` with declared six-stem models and supported `shifts`, `overlap`, and `segment` parameters; option validation and subprocess argument tests use a fake runner. Job-specific model/device/parameter choices are stored as JSON metadata through migration 002, survive reopening, are returned on repeated idempotent submissions, and are passed by the orchestrator to the separator. Defaults remain `htdemucs_6s` on CPU.
+- **Stage 10 result:** added `DemucsSeparator` with supported `shifts`, `overlap`, and `segment` parameters; option validation and subprocess argument tests use a fake runner. Job-specific model/device/parameter choices are stored as JSON metadata through migration 002, survive reopening, are returned on repeated idempotent submissions, and are passed by the orchestrator to the separator. Defaults remain `htdemucs_6s` on CPU. Stage 13 integration review narrowed the advertised catalog to the six-source-compatible `htdemucs_6s` model.
 - **Stage 10 checks:** targeted adapter/metadata/contracts/jobs tests passed (24 passed); full `pytest -q` passed (81 passed, 1 opt-in live test skipped); `git diff --check` passed. No actual model weights or Demucs inference were run.
 - **Stage 10 boundary:** adapter model catalog is a declared supported set and does not inspect/install/download weights. UI selection is deferred until API/UI milestones; current CLI continues to use `.env` model/device defaults.
 - **Stage 10 commit:** `6a85952` (`Add Demucs model options to job processing`) pushed to `origin/main`.
@@ -49,8 +49,13 @@
 - **Stage 12 plan/check matrix:** (a) accept one or more supported queries/URLs and persist them as a queued batch; (b) return 202 and opaque IDs without running downloads; (c) validate URL/model/batch inputs and reject arbitrary path fields with stable errors; (d) expose owner-scoped batch/job/events/projects/models reads; (e) verify request schemas, idempotency, and full offline suite.
 - **Stage 12 result:** added FastAPI app factory with thin SQLite repository/source/separator interfaces and `py run.py --api` launcher mode. The API binds to `127.0.0.1:8000`, creates queued work only, lists batches/projects/models, and returns batch/job/event state. Owner identity is server-assigned as `local`; callers cannot supply an owner or filesystem path. FastAPI/Uvicorn runtime constraints and HTTPX test dependency are declared.
 - **Stage 12 checks:** targeted API/launcher/contracts/metadata tests passed (22 passed); full `pytest -q` passed (99 passed, 1 opt-in live test skipped); `git diff --check` pending final review. Tests use the ASGI transport and temporary SQLite only; no server port, YouTube, or model was used.
-- **Stage 12 boundaries:** this is a localhost-only single-user API with no login/authentication. It must remain bound to loopback; authentication and browser-origin policy are not implemented. There is no UI or media streaming yet.
-- **Next action:** finish diff review, commit and push stage 12, then implement the submission/progress UI in stage 13.
+- **Stage 12 boundaries:** this is a localhost-only single-user API with no login/authentication. It must remain bound to loopback; authentication and browser-origin policy are not implemented. Media streaming is deferred to stage 15.
+- **Stage 12 commit:** `95a0087` (`Add localhost job and project API`) pushed to `origin/main`.
+- **Stage 13 plan/check matrix:** (a) serve a local page from the API process; (b) submit one or multiple newline-separated query/URL inputs with selected model/device; (c) show persisted batch/job states and safe errors; (d) cover queued, downloading, separating, completed, failed in UI code and API-backed fixture tests; (e) ensure one failed job does not hide successful siblings; (f) full offline suite and diff review.
+- **Stage 13 result:** added a responsive Russian-language local page with multiline query/URL submission, model/device selectors, queued job confirmation, polling of persisted batch state, per-job progress/error cards, and continued visibility for successful siblings. Static files are served by the API process; CSS uses only local/system fonts and UI inserts untrusted text via `textContent`.
+- **Stage 13 checks:** targeted web/API/Demucs/jobs/metadata tests passed (29 passed); full `pytest -q` passed (102 passed, 1 opt-in live test skipped); `node --check web/app.js` and `git diff --check` passed. Tests cover page assets, planned states, multiple job/error visibility, and the persistent API response after state changes.
+- **Stage 13 boundaries:** no browser automation or live server was run; UI behavior is covered by ASGI tests, safe text rendering checks, and JavaScript syntax validation. Existing single-user localhost/authentication limitations remain.
+- **Next action:** review, commit and push stage 13, then implement saved-project reopening and output listing in stage 14.
 
 ## Completed stages
 

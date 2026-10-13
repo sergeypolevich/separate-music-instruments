@@ -137,6 +137,7 @@ class SqliteMetadataStore:
                 SeparationOptions(**json.loads(row["separation_options_json"]))
                 if row["separation_options_json"] else None
             ),
+            input_value=row["normalized_source"],
         )
 
     @staticmethod
