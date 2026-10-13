@@ -137,7 +137,7 @@ def create_app(
     application_root = Path(__file__).resolve().parent
     update_service = update_service or UpdateService(
         GitHubReleaseClient(),
-        DependencyUpdater(application_root, application_root / "requirements.txt"),
+        DependencyUpdater(application_root),
     )
     app = FastAPI(title="Audio Stems API", version="1.0.0")
 
@@ -195,7 +195,12 @@ def create_app(
                 status_code=503,
                 detail={"code": "update_check_failed", "message": "Could not retrieve release information from GitHub"},
             ) from exc
-        return {"releases": [release.__dict__ for release in releases]}
+        return {
+            "releases": [
+                {**release.__dict__, "updatable": index == 0 and update_service.can_update(release)}
+                for index, release in enumerate(releases)
+            ]
+        }
 
     @app.post("/api/v1/updates/apply")
     def apply_update(body: UpdateApplyRequest) -> dict[str, object]:

@@ -52,6 +52,7 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
     assert "class SynchronizedTransport" in playback.text
     assert "window.confirm" in script.text
     assert "/api/v1/updates/apply" in script.text
+    assert "release.updatable" in script.text
     assert "requirements.txt" in script.text
     assert "http://" not in styles.text and "https://" not in styles.text
 

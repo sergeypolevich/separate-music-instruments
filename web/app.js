@@ -373,7 +373,7 @@ function renderReleases(releases) {
     link.rel = "noopener noreferrer";
     link.textContent = "Открыть релиз на GitHub";
     card.append(title, published, notes, link);
-    if (index === 0) {
+    if (index === 0 && release.updatable) {
       const apply = document.createElement("button");
       apply.type = "button";
       apply.textContent = "Обновить зависимости";
@@ -396,6 +396,10 @@ function renderReleases(releases) {
         }
       });
       card.append(apply);
+    } else if (index === 0) {
+      const unavailable = document.createElement("p");
+      unavailable.textContent = "Для этого релиза нет проверенного manifest с точными версиями зависимостей.";
+      card.append(unavailable);
     }
     return card;
   }));
