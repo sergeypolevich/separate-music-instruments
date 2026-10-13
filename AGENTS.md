@@ -1,5 +1,7 @@
 # Audio Stems — Project Specification and Coding-Agent Instructions
 
+Before starting each implementation stage, read [`skills/audio-stems-development.md`](skills/audio-stems-development.md), [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md), and the current checkpoint in [`DEVELOPMENT_STATUS.md`](DEVELOPMENT_STATUS.md).
+
 ## 1. Purpose
 
 Build a Windows-first application that accepts a YouTube search query or a direct video URL, downloads the available audio, separates it into instrument/vocal stems, and stores the source audio and outputs. It should eventually support a web UI and a Chrome extension, with authentication, job history, logs, and replaceable implementations for downloading, separation, and storage.
