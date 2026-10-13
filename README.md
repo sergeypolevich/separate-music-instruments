@@ -8,6 +8,18 @@ Install Python 3.10 or newer, then run this from the project folder in PowerShel
 py run.py
 ```
 
+To set up the project explicitly and install the test tools:
+
+```powershell
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-test.txt
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+The launcher creates and uses `.venv` automatically, so activation is optional
+when starting the app. Edit `.env` only for local settings; keep it out of Git.
+
 The launcher creates a project-local `.venv` on first run, checks for the runtime
 libraries listed in `requirements.txt`, installs them when needed, and starts
 `download_tracks.py`. Demucs and its machine-learning dependencies can take a
@@ -24,8 +36,12 @@ To run the offline regression tests after installing pytest:
 
 ```powershell
 py -m pip install -r requirements-test.txt
-py -m pytest
+py -m pytest -q
 ```
+
+By default, no live YouTube or Demucs smoke tests run. The separate opt-in
+command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -m e2e -s`; it downloads and
+processes the test video and requires authorization to use that source.
 
 Run the database-backed worker in a separate PowerShell window:
 
@@ -72,6 +88,60 @@ an available asset and supports single byte-range requests. The corresponding
 `/waveform` endpoint returns bounded PCM WAV peak levels so the page does not
 need to download an entire audio file just to draw its waveform.
 
+For a quick local API check, with the API running in its own window:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/health
+Invoke-RestMethod http://127.0.0.1:8000/api/v1/projects
+```
+
+### Backup and restore
+
+Stop both the API and worker with Ctrl+C before copying the database and media.
+This lets SQLite finish and checkpoint any write-ahead log. The commands below
+use the default paths from `settings.py`; if `.env` overrides them, set `$dbPath`
+and `$mediaPath` to those configured locations instead.
+
+```powershell
+$backupPath = Join-Path $HOME ("Audio Stems Backups\" + (Get-Date -Format "yyyyMMdd-HHmmss"))
+$dbPath = Join-Path $HOME "Audio Stems\audio_stems.db"
+$mediaPath = Join-Path $HOME "Audio Stems\Music"
+New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+Copy-Item -LiteralPath $dbPath -Destination $backupPath
+Copy-Item -LiteralPath $mediaPath -Destination $backupPath -Recurse
+```
+
+Keep the backup on a separate drive or other safe location. To restore, stop
+the API and worker, then copy both components back to their configured parents:
+
+```powershell
+Copy-Item -LiteralPath (Join-Path $backupPath "audio_stems.db") `
+  -Destination (Split-Path -Parent $dbPath) -Force
+Copy-Item -LiteralPath (Join-Path $backupPath "Music") `
+  -Destination (Split-Path -Parent $mediaPath) -Recurse -Force
+```
+
+Restore both together so asset records continue to match their files. The local
+`.env` file is not part of this media/database backup; preserve it separately
+if you customized it.
+
+### Maintenance
+
+- Keep enough free disk space for the source audio, six WAV stems, model weights,
+  and temporary Demucs output. Check the configured storage and temp roots in
+  `.env` before moving or cleaning data.
+- Use the project UI to delete completed projects. If the API reports pending
+  file cleanup, reopen that project ID's delete action by retrying the API
+  request; cleanup receipts remain in SQLite until file deletion succeeds.
+- Stop the worker before inspecting `_demucs_temp`. Remove only abandoned
+  temporary folders after confirming no worker is using them; do not remove
+  source audio or `Stems` as routine cleanup.
+- Logs rotate at the configured 10 MB/five-file default. Archive or remove old
+  log files manually when needed; never use logs as the source of job status.
+- If the isolated Python environment is damaged, stop API/worker, remove only
+  the project `.venv` directory, then run `py run.py` to recreate it. This does
+  not remove the database or media stored under your user profile.
+
 ### Updates
 
 The Updates panel checks the fixed public GitHub repository for stable releases
@@ -84,12 +154,11 @@ to 30 minutes); after success, restart both the API and worker. If installation
 fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
 
-The Demucs adapter exposes its model names and supported inference parameters.
-Jobs store the selected model, device, and parameters in SQLite, and pass that
-saved configuration to the separator. The standalone compatibility command
+The Demucs adapter exposes its supported model and inference parameters. The UI
+lets each job select a model and device; SQLite stores the configuration and
+the worker passes it to the separator. The standalone compatibility command
 continues to use `AUDIO_STEMS_MODEL_NAME` and `AUDIO_STEMS_MODEL_DEVICE` from
-`.env`; defaults remain `htdemucs_6s` on CPU. The future API/UI will expose
-per-job selection through the same saved job configuration.
+`.env`; defaults remain `htdemucs_6s` on CPU.
 
 Before reusing an existing audio file, the application checks its container
 signature (for example, the WebM or MP4 header). This catches empty and plainly
