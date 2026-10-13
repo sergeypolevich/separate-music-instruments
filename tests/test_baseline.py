@@ -6,6 +6,7 @@ must not access the network or execute an ML model.
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -257,3 +258,91 @@ def test_separator_skips_when_all_flat_stems_already_exist(monkeypatch, tmp_path
 
     monkeypatch.setattr(app.subprocess, "run", should_not_run)
     app.separate_stems(audio_path)
+
+
+def test_incomplete_stem_output_keeps_temp_and_can_be_repaired(monkeypatch, tmp_path):
+    output_dir = tmp_path / "YouTube Audio"
+    stems_dir = output_dir / "Stems"
+    temp_dir = output_dir / "_demucs_temp"
+    audio_path = output_dir / "Blur - Song 2.webm"
+    output_dir.mkdir(parents=True)
+    audio_path.write_bytes(b"fake-audio")
+
+    monkeypatch.setattr(app, "OUTPUT_DIR", output_dir)
+    monkeypatch.setattr(app, "STEMS_DIR", stems_dir)
+    monkeypatch.setattr(app, "TEMP_DIR", temp_dir)
+
+    calls = 0
+
+    def fake_subprocess_run(command, check):
+        nonlocal calls
+        calls += 1
+        temp_output = Path(command[command.index("-o") + 1])
+        source_path = Path(command[-1])
+        result_dir = temp_output / "htdemucs_6s" / source_path.stem
+        result_dir.mkdir(parents=True, exist_ok=True)
+        expected = STEM_NAMES if calls == 2 else STEM_NAMES[:-1]
+        for stem in expected:
+            (result_dir / f"{stem}.wav").write_bytes(b"fake-wav-content")
+
+    monkeypatch.setattr(app.subprocess, "run", fake_subprocess_run)
+    track_stems_dir = stems_dir / app.safe_filename(audio_path.stem)
+    temp_output = temp_dir / app.safe_filename(audio_path.stem)
+
+    app.separate_stems(audio_path)
+
+    assert sorted(path.name for path in track_stems_dir.iterdir()) == sorted(
+        f"{stem}.wav" for stem in STEM_NAMES[:-1]
+    )
+    assert temp_output.exists()
+
+    app.separate_stems(audio_path)
+
+    assert calls == 2
+    assert sorted(path.name for path in track_stems_dir.iterdir()) == sorted(
+        f"{stem}.wav" for stem in STEM_NAMES
+    )
+    assert not temp_output.exists()
+
+
+def test_separation_failure_does_not_stop_later_tracks(monkeypatch, tmp_path):
+    tracks = ["First track", "Second track"]
+    output_dir = tmp_path / "YouTube Audio"
+    stems_dir = output_dir / "Stems"
+    temp_dir = output_dir / "_demucs_temp"
+    output_dir.mkdir()
+    audio_paths = [output_dir / f"{track}.webm" for track in tracks]
+    for path in audio_paths:
+        path.write_bytes(b"fake-audio")
+
+    monkeypatch.setattr(app, "TRACKS", tracks)
+    monkeypatch.setattr(app, "OUTPUT_DIR", output_dir)
+    monkeypatch.setattr(app, "STEMS_DIR", stems_dir)
+    monkeypatch.setattr(app, "TEMP_DIR", temp_dir)
+    monkeypatch.setattr(app, "download_track", lambda query: audio_paths[tracks.index(query)])
+    monkeypatch.setattr(app.time, "sleep", lambda *_args, **_kwargs: None)
+
+    separation_calls = 0
+
+    def fake_subprocess_run(command, check):
+        nonlocal separation_calls
+        separation_calls += 1
+        if separation_calls == 1:
+            raise subprocess.CalledProcessError(returncode=1, cmd=command)
+
+        temp_output = Path(command[command.index("-o") + 1])
+        source_path = Path(command[-1])
+        result_dir = temp_output / "htdemucs_6s" / source_path.stem
+        result_dir.mkdir(parents=True, exist_ok=True)
+        for stem in STEM_NAMES:
+            (result_dir / f"{stem}.wav").write_bytes(b"fake-wav-content")
+
+    monkeypatch.setattr(app.subprocess, "run", fake_subprocess_run)
+
+    app.main()
+
+    second_stems = stems_dir / app.safe_filename(audio_paths[1].stem)
+    assert separation_calls == 2
+    assert sorted(path.name for path in second_stems.iterdir()) == sorted(
+        f"{stem}.wav" for stem in STEM_NAMES
+    )
