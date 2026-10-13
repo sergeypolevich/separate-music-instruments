@@ -56,11 +56,13 @@ class FakeSeparator:
         self.failures = set(failures)
         self.incomplete = set(incomplete)
         self.calls = []
+        self.options = []
 
     def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions):
         track = audio_path.stem
         self.events.append(("separate", track))
         self.calls.append(track)
+        self.options.append(options)
         if track in self.failures:
             raise AdapterError("model failed", FailureCategory.PERMANENT)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -219,3 +221,15 @@ def test_existing_audio_for_same_source_skips_downloader(tmp_path):
 
     assert result.jobs[0].status is JobStatus.COMPLETED
     assert not any(kind == "download" for kind, _value in events)
+
+
+def test_batch_specific_model_options_are_persisted_and_passed_to_separator(tmp_path):
+    orchestrator, store, _, _, _, separator = build_orchestrator(tmp_path)
+    selected = SeparationOptions("htdemucs", "cpu", {"shifts": 2})
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
+    receipt = orchestrator.submit_batch("owner-1", requests, separation_options=selected)
+
+    orchestrator.process_batch(receipt, requests)
+
+    assert store.get_job(receipt.job_ids[0], "owner-1").separation_options == selected
+    assert separator.options == [selected]

@@ -2,12 +2,12 @@
 
 ## Current checkpoint
 
-- **Current stage:** 9 — Job states and orchestration (in progress).
+- **Current stage:** 10 — Model selection in processing (completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 9 orchestration and transition changes are uncommitted; stage 8 commit `0421da2` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 10 adapter/model configuration changes are uncommitted; stage 9 commit `b657f5d` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
-- **Latest checks:** stage 9 targeted storage/jobs/baseline/contracts tests passed (39 passed); full `pytest -q` passed (71 passed, 1 opt-in live E2E skipped); `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
+- **Latest checks:** stage 10 targeted adapter/metadata/contracts/jobs tests passed (24 passed); full `pytest -q` passed (81 passed, 1 opt-in live E2E skipped); `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
 - **Stage 2 preparation:** `skills/audio-stems-development.md`, `DEVELOPMENT_PLAN.md`, and this checkpoint were committed and referenced by `AGENTS.md`; the offline suite was run after those files were added. Stage 2 is recorded as preparatory and does not authorize advancing past the stage 1 publication gate.
 - **Stage 3 result:** added tests proving incomplete stem output retains temporary files and can be repaired on a later run, and a Demucs subprocess failure for one track does not prevent the next track from completing. Existing tests cover batch download-before-separation, a failed download, complete-set skip, and temp cleanup after all six stems exist.
 - **Stage 3 boundaries:** fake subprocess recreates Demucs' expected output layout; no network, model execution, audio data, or dependency installation in tests. Output layout, model, retry policy, and phase ordering are unchanged.
@@ -34,7 +34,12 @@
 - **Stage 9 checks:** targeted storage/jobs/baseline/contracts tests passed (39 passed); full `pytest -q` passed (71 passed, 1 opt-in live test skipped); `git diff --check` passed. Tests cover invalid transitions, retry counts/delays, permanent errors not retried, download-before-separation, sibling isolation, partial outcomes, incomplete-output preservation, complete-set reuse, and invalid audio quarantine/re-download.
 - **Stage 9 audio validation limit:** reuse checks known container signatures and non-empty files; it does not decode samples. Invalid cached files are preserved in `_demucs_temp/_recovery/`. README documents moving an audio file aside when it passes signature validation but fails in Demucs.
 - **Stage 9 boundaries:** orchestration is callable with fakes and SQLite but is not yet run in a separate worker process; cancellation/restart recovery remain stage 11. Existing CLI behavior remains the compatibility path.
-- **Next action:** commit and push stage 9, then expose Demucs model capabilities/options through the separator contract in stage 10.
+- **Stage 9 commit:** `b657f5d` (`Add job state transitions and batch orchestration`) pushed to `origin/main`.
+- **Stage 10 plan/check matrix:** (a) expose model names and supported parameters through the separator contract; (b) reject unsupported model/device/parameter values before subprocess execution; (c) pass model, device, and supported values to Demucs; (d) persist per-job configuration in SQLite and use it during processing; (e) targeted and full offline tests, migration check, and diff check.
+- **Stage 10 result:** added `DemucsSeparator` with declared six-stem models and supported `shifts`, `overlap`, and `segment` parameters; option validation and subprocess argument tests use a fake runner. Job-specific model/device/parameter choices are stored as JSON metadata through migration 002, survive reopening, are returned on repeated idempotent submissions, and are passed by the orchestrator to the separator. Defaults remain `htdemucs_6s` on CPU.
+- **Stage 10 checks:** targeted adapter/metadata/contracts/jobs tests passed (24 passed); full `pytest -q` passed (81 passed, 1 opt-in live test skipped); `git diff --check` passed. No actual model weights or Demucs inference were run.
+- **Stage 10 boundary:** adapter model catalog is a declared supported set and does not inspect/install/download weights. UI selection is deferred until API/UI milestones; current CLI continues to use `.env` model/device defaults.
+- **Next action:** commit and push stage 10, then define the separate worker process and bounded restart recovery in stage 11.
 
 ## Completed stages
 

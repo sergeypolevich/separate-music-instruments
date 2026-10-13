@@ -91,8 +91,10 @@ class BatchOrchestrator:
         owner_id: str,
         sources: Sequence[SourceRequest],
         idempotency_key: str | None = None,
+        separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt:
-        return self.repository.create_batch(owner_id, sources, idempotency_key)
+        options = separation_options or self.options
+        return self.repository.create_batch(owner_id, sources, idempotency_key, options)
 
     def process_batch(
         self,
@@ -155,7 +157,9 @@ class BatchOrchestrator:
             if audio is None:
                 continue
             try:
-                self._separate(job_id, audio, owner_id, receipt.batch_id)
+                job = self.repository.get_job(job_id, owner_id)
+                options = (job.separation_options if job else None) or receipt.separation_options or self.options
+                self._separate(job_id, audio, owner_id, receipt.batch_id, options)
             except AdapterError as error:
                 self._fail(job_id, error, "separation", owner_id, receipt.batch_id)
             except Exception:
@@ -229,7 +233,10 @@ class BatchOrchestrator:
                     self.sleep(self.settings.retry_delays[delay_index])
         raise AssertionError("Retry loop ended without a result")
 
-    def _separate(self, job_id: UUID, audio: DownloadedAudio, owner_id: str, batch_id: UUID) -> None:
+    def _separate(
+        self, job_id: UUID, audio: DownloadedAudio, owner_id: str, batch_id: UUID,
+        options: SeparationOptions,
+    ) -> None:
         title = audio.source.title
         source_id = audio.source.source_id
         if self._retry(
@@ -253,7 +260,7 @@ class BatchOrchestrator:
         temp_dir = self.storage.temporary_directory(title, source_id)
         result = self._retry(
             job_id,
-            lambda: self.separator.separate(audio.path, temp_dir, self.options),
+            lambda: self.separator.separate(audio.path, temp_dir, options),
             owner_id,
             batch_id,
         )

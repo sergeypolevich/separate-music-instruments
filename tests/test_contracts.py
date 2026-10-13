@@ -19,6 +19,7 @@ from contracts import (
     MediaStorage,
     SeparationOptions,
     SeparationResult,
+    SeparatorModel,
     StorageTarget,
     SourceAdapter,
     SourceKind,
@@ -43,6 +44,9 @@ class FakeDownloader:
 
 
 class FakeSeparator:
+    def available_models(self):
+        return (SeparatorModel("htdemucs_6s", ("vocals",), {}),)
+
     def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions) -> SeparationResult:
         return SeparationResult((StemArtifact("vocals", output_dir / "vocals.wav"),))
 
@@ -126,6 +130,7 @@ def test_fake_adapters_satisfy_public_protocols():
     assert isinstance(FakeSourceAdapter(), SourceAdapter)
     assert isinstance(FakeDownloader(), Downloader)
     assert isinstance(FakeSeparator(), StemSeparator)
+    assert FakeSeparator().available_models()[0].name == "htdemucs_6s"
     assert isinstance(FakeStorage(), MediaStorage)
     assert isinstance(FakeJobs(), JobService)
     assert isinstance(FakeJobRepository(), JobRepository)
