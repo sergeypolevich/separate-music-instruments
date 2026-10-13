@@ -14,6 +14,7 @@ from contracts import (
     AdapterError,
     BatchStatus,
     BatchReceipt,
+    BatchView,
     FailureCategory,
     JobEvent,
     JobStatus,
@@ -70,14 +71,7 @@ class ClientRecord:
     created_at: datetime
 
 
-@dataclass(frozen=True)
-class BatchRecord:
-    batch_id: UUID
-    owner_id: str
-    submission_method: str
-    status: str
-    result_summary: str | None
-    created_at: datetime
+BatchRecord = BatchView
 
 
 def _utc_now() -> str:
@@ -417,6 +411,14 @@ class SqliteMetadataStore:
             ).fetchone()
         return self._job_view(row) if row else None
 
+    def list_jobs_for_batch(self, batch_id: UUID, owner_id: str) -> list[JobView]:
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM jobs WHERE batch_id = ? AND owner_id = ? ORDER BY rowid",
+                (str(batch_id), owner_id),
+            ).fetchall()
+        return [self._job_view(row) for row in rows]
+
     def get_client(self, client_id: str) -> ClientRecord | None:
         with self._connection() as connection:
             row = connection.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
@@ -440,6 +442,23 @@ class SqliteMetadataStore:
             result_summary=row["result_summary"],
             created_at=_parse_datetime(row["created_at"]),
         )
+
+    def list_batches(self, owner_id: str, limit: int = 50) -> list[BatchRecord]:
+        if not 1 <= limit <= 100:
+            raise ValueError("Batch list limit must be between 1 and 100")
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT * FROM batches WHERE owner_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
+                (owner_id, limit),
+            ).fetchall()
+        return [
+            BatchRecord(
+                batch_id=UUID(row["id"]), owner_id=row["owner_id"],
+                submission_method=row["submission_method"], status=row["status"],
+                result_summary=row["result_summary"], created_at=_parse_datetime(row["created_at"]),
+            )
+            for row in rows
+        ]
 
     def list_events(self, job_id: UUID, owner_id: str) -> list[JobEvent]:
         with self._connection() as connection:

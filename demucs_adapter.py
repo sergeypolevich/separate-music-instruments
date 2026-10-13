@@ -43,7 +43,7 @@ class DemucsSeparator(StemSeparator):
         output_dir: Path,
         options: SeparationOptions,
     ) -> SeparationResult:
-        self._validate(options)
+        self.validate_options(options)
         output_dir.mkdir(parents=True, exist_ok=True)
         command = [
             sys.executable, "-m", "demucs", "-n", options.model_name,
@@ -76,7 +76,7 @@ class DemucsSeparator(StemSeparator):
             raise AdapterError("Demucs did not produce all six expected stems", FailureCategory.PERMANENT)
         return SeparationResult(artifacts)
 
-    def _validate(self, options: SeparationOptions) -> None:
+    def validate_options(self, options: SeparationOptions) -> None:
         if options.model_name not in _MODELS:
             raise AdapterError("Unsupported Demucs model", FailureCategory.INVALID_INPUT)
         if not options.device or options.device not in {"cpu", "cuda", "mps"} and not options.device.startswith("cuda:"):

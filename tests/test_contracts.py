@@ -47,6 +47,9 @@ class FakeSeparator:
     def available_models(self):
         return (SeparatorModel("htdemucs_6s", ("vocals",), {}),)
 
+    def validate_options(self, options):
+        return None
+
     def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions) -> SeparationResult:
         return SeparationResult((StemArtifact("vocals", output_dir / "vocals.wav"),))
 
@@ -112,6 +115,12 @@ class FakeJobRepository:
 
     def recover_interrupted_batches(self):
         return 0
+
+    def list_jobs_for_batch(self, batch_id, owner_id):
+        return []
+
+    def list_batches(self, owner_id, limit=50):
+        return []
 
     def transition_job(self, job_id, status, *, stage=None, error_summary=None):
         return JobView(job_id, uuid4(), "client-1", status, stage, error_summary)

@@ -1,2 +1,4 @@
 pytubefix
 demucs
+fastapi>=0.115,<1
+uvicorn>=0.30,<1

@@ -13,7 +13,8 @@ VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
 APP = ROOT / "download_tracks.py"
 WORKER = ROOT / "worker.py"
-RUNTIME_MODULES = ("pytubefix", "demucs")
+API = ROOT / "api.py"
+RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn")
 
 
 def venv_python() -> Path:
@@ -57,10 +58,10 @@ def install_runtime_dependencies() -> None:
 
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
-    if arguments not in ([], ["--worker"]):
-        print("Usage: py run.py [--worker]")
+    if arguments not in ([], ["--worker"], ["--api"]):
+        print("Usage: py run.py [--worker | --api]")
         return 2
-    target = WORKER if arguments == ["--worker"] else APP
+    target = WORKER if arguments == ["--worker"] else API if arguments == ["--api"] else APP
     if not in_project_venv():
         python = ensure_project_venv()
         subprocess.run([str(python), str(Path(__file__).resolve()), *arguments], check=True, cwd=ROOT)
