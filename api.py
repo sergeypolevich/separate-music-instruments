@@ -491,7 +491,7 @@ def create_app(
     def home() -> FileResponse:
         return FileResponse(web_root / "index.html")
 
-    app.mount("/static", StaticFiles(directory=web_root), name="static")
+    app.mount("/", StaticFiles(directory=web_root), name="web")
 
     return app
 
@@ -508,7 +508,7 @@ def main() -> None:
     repository = SqliteMetadataStore(Path(database_path))
     configure_logging(settings)
     app = create_app(repository=repository, settings=settings)
-    uvicorn.run(app, host="127.0.0.1", port=8000, log_config=None)
+    uvicorn.run(app, host="127.0.0.1", port=settings.api_port, log_config=None)
 
 
 if __name__ == "__main__":

@@ -24,6 +24,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 18. **Project deletion:** remove metadata and owned files safely, including active jobs and retryable cleanup; test idempotency, filesystem errors, traversal, and neighbor preservation.
 19. **Controlled updates:** inspect releases and update pinned app/dependencies only after confirmation; test mocked responses and failure recovery without updating the real environment.
 20. **Documentation and local v2 verification:** PowerShell setup, API/worker launch, backup, maintenance; run full offline suite, diff checks, and manual core UI/API checks. Live smoke remains opt-in.
+21. **One-click local launch and browser E2E:** add a Windows button that bootstraps Python and dependencies, supervises the API and worker, and opens the browser; serve page assets with relative sibling URLs; add an opt-in full real YouTube/Demucs workflow controlled with visible installed Edge/Chrome via Playwright, and require it before each commit.
 
 ## Stage gate
 

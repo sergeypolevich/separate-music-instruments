@@ -216,7 +216,7 @@ async function setupProjectPlayback(assets, setupId) {
 
   playbackPanel.hidden = false;
   try {
-    const { MixerSession, SynchronizedTransport } = await import("/static/playback.mjs");
+    const { MixerSession, SynchronizedTransport } = await import("./playback.mjs");
     // The project can change while the module is loading; avoid attaching stale audio.
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -224,6 +224,7 @@ async function setupProjectPlayback(assets, setupId) {
       audio.preload = "metadata";
       audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`;
       audio.setAttribute("aria-label", asset.stem_name);
+      audio.dataset.stem = asset.stem_name;
       return audio;
     });
     const time = document.createElement("span");
@@ -234,6 +235,7 @@ async function setupProjectPlayback(assets, setupId) {
     seek.max = "0";
     seek.step = "0.01";
     seek.value = "0";
+    seek.dataset.control = "seek";
     seek.setAttribute("aria-label", "Позиция воспроизведения");
     const formatTime = (seconds) => {
       const safe = Math.max(0, Math.floor(seconds || 0));
@@ -250,14 +252,17 @@ async function setupProjectPlayback(assets, setupId) {
     buttons.className = "playback-buttons";
     const play = document.createElement("button");
     play.type = "button";
+    play.dataset.action = "play";
     play.textContent = "Воспроизвести";
     const pause = document.createElement("button");
     pause.type = "button";
     pause.className = "quiet-button";
+    pause.dataset.action = "pause";
     pause.textContent = "Пауза";
     const stop = document.createElement("button");
     stop.type = "button";
     stop.className = "quiet-button";
+    stop.dataset.action = "stop";
     stop.textContent = "Стоп";
     const error = document.createElement("span");
     error.className = "playback-error";
@@ -278,12 +283,14 @@ async function setupProjectPlayback(assets, setupId) {
       gain.max = "1";
       gain.step = "0.01";
       gain.value = "1";
+      gain.dataset.control = "gain";
       gain.setAttribute("aria-label", `Громкость: ${stemLabels[asset.stem_name]}`);
       gain.addEventListener("input", () => mixer.setGain(index, Number(gain.value)));
       const muteLabel = document.createElement("label");
       muteLabel.className = "mixer-toggle";
       const mute = document.createElement("input");
       mute.type = "checkbox";
+      mute.dataset.control = "mute";
       mute.setAttribute("aria-label", `Заглушить: ${stemLabels[asset.stem_name]}`);
       mute.addEventListener("change", () => mixer.setMute(index, mute.checked));
       muteLabel.append(mute, document.createTextNode("Mute"));

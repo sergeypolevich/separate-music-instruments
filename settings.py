@@ -77,6 +77,7 @@ class Settings:
     auth_enabled: bool
     session_secret: str | None
     session_ttl_seconds: int
+    api_port: int
 
     @classmethod
     def load(
@@ -143,4 +144,12 @@ class Settings:
             auth_enabled=auth_enabled,
             session_secret=session_secret,
             session_ttl_seconds=_positive_int("AUDIO_STEMS_SESSION_TTL_SECONDS", value("SESSION_TTL_SECONDS", "3600")),
+            api_port=_port(value("API_PORT", "8000")),
         )
+
+
+def _port(raw: str) -> int:
+    port = _positive_int("AUDIO_STEMS_API_PORT", raw)
+    if port > 65535:
+        raise ValueError("AUDIO_STEMS_API_PORT must be between 1 and 65535")
+    return port

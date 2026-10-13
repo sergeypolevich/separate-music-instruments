@@ -135,7 +135,7 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     assert 'method: "DELETE"' in source
     assert "window.confirm" in source
     assert "/api/v1/projects/" in source
-    assert 'await import("/static/playback.mjs")' in source
+    assert 'await import("./playback.mjs")' in source
     assert 'asset.media_format !== "wav"' in source
     assert 'audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`' in source
     assert 'new MixerSession(tracks)' in source
