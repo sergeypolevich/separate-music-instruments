@@ -106,3 +106,15 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
     assert version == 1
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events"} <= tables
+
+
+def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
+    store = SqliteMetadataStore(tmp_path / "metadata.db")
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")])
+    job_id = receipt.job_ids[0]
+
+    with pytest.raises(ValueError):
+        store.transition_job(job_id, JobStatus.COMPLETED)
+
+    assert store.get_job(job_id, "client-1").status is JobStatus.QUEUED
+    assert [event.name for event in store.list_events(job_id, "client-1")] == ["job_created"]

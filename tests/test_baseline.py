@@ -31,7 +31,13 @@ class FakeStream:
             raise OSError("simulated transient download failure")
         destination = Path(output_path) / filename
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_bytes(b"fake-audio-content")
+        if self.subtype == "webm":
+            payload = b"\x1aE\xdf\xa3" + b"fake-audio-content"
+        elif self.subtype in {"m4a", "mp4"}:
+            payload = b"\x00\x00\x00\x18ftypisom" + b"fake-audio-content"
+        else:
+            payload = b"fake-audio-content"
+        destination.write_bytes(payload)
         return str(destination)
 
 
@@ -164,12 +170,27 @@ def test_existing_nonempty_audio_is_reused(monkeypatch, tmp_path):
         monkeypatch, tmp_path, title="Blur - Song 2", preferred=stream
     )
     existing = output_dir / "Blur - Song 2.webm"
-    existing.write_bytes(b"existing-audio")
+    existing.write_bytes(b"\x1aE\xdf\xa3existing-audio")
 
     result = app.download_track("Blur - Song 2")
 
     assert result == existing
     assert stream.download_calls == 0
+
+
+def test_invalid_existing_audio_is_preserved_and_downloaded_again(monkeypatch, tmp_path):
+    stream = FakeStream()
+    output_dir, _, _, _ = configure_download_mocks(monkeypatch, tmp_path, preferred=stream)
+    invalid = output_dir / "Blur - Song 2.webm"
+    invalid.write_bytes(b"not a webm file")
+
+    result = app.download_track("Blur - Song 2")
+
+    assert result is not None
+    assert app._local_storage().validate_audio_file(result, "webm")
+    recovered = list((output_dir / "_demucs_temp" / "_recovery").glob("*.quarantined"))
+    assert len(recovered) == 1
+    assert recovered[0].read_bytes() == b"not a webm file"
 
 
 def test_failed_download_is_retried_three_times_and_returns_none(monkeypatch, tmp_path):

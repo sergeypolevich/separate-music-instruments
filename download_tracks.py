@@ -80,12 +80,17 @@ def download_track(value: str) -> Path | None:
             return None
 
         source_id = _source_id(yt)
-        destination = _local_storage().audio_target(yt.title, stream.subtype, source_id).path
+        storage = _local_storage()
+        destination = storage.audio_target(yt.title, stream.subtype, source_id).path
 
-        if destination.exists() and destination.stat().st_size > 0:
-            print(f"File already exists: {destination}")
-            logger.info("Existing audio file reused", extra={"event": "audio_download_reused"})
-            return destination
+        if destination.exists():
+            if storage.validate_audio_file(destination, stream.subtype):
+                print(f"File already exists: {destination}")
+                logger.info("Existing audio file reused", extra={"event": "audio_download_reused"})
+                return destination
+            recovery_copy = storage.quarantine_audio(destination)
+            print(f"Invalid audio cache preserved for recovery: {recovery_copy}")
+            logger.warning("Invalid audio cache quarantined", extra={"event": "audio_cache_quarantined"})
 
         # Retry after temporary failures.
         for attempt in range(1, SETTINGS.retry_count + 1):
@@ -105,7 +110,7 @@ def download_track(value: str) -> Path | None:
                     filename=destination.name,
                 )
 
-                if destination.exists() and destination.stat().st_size > 0:
+                if destination.exists() and storage.validate_audio_file(destination, stream.subtype):
                     print(f"Downloaded: {destination}")
                     logger.info("Audio download completed", extra={"event": "audio_download_completed"})
                     return destination

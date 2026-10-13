@@ -69,7 +69,7 @@ def test_storage_asset_operations_return_relative_managed_keys(tmp_path):
     job_id = uuid4()
     source = VideoCandidate("video-7", "A track", "https://youtube.com/watch?v=video-7")
     audio_file = tmp_path / "download.webm"
-    audio_file.write_bytes(b"audio")
+    audio_file.write_bytes(b"\x1aE\xdf\xa3audio")
     audio = DownloadedAudio(audio_file, source, "webm", 5)
 
     audio_asset = storage.save_audio(job_id, audio)
@@ -80,5 +80,20 @@ def test_storage_asset_operations_return_relative_managed_keys(tmp_path):
     assert audio_asset.asset_type is MediaAssetType.SOURCE_AUDIO
     assert audio_asset.storage_key == "A track.webm"
     assert stem_asset.storage_key == "Stems/A track/vocals.wav"
-    assert storage.resolve_path(audio_asset.storage_key).read_bytes() == b"audio"
+    assert storage.resolve_path(audio_asset.storage_key).read_bytes() == b"\x1aE\xdf\xa3audio"
     assert storage.resolve_path(stem_asset.storage_key).read_bytes() == b"stem"
+
+
+def test_existing_audio_is_reused_by_source_identity_after_storage_reopens(tmp_path):
+    root = tmp_path / "library"
+    storage = LocalMediaStorage(root)
+    source = VideoCandidate("video-9", "Track title", "https://youtube.com/watch?v=video-9")
+    target = storage.audio_target(source.title, "webm", source.source_id)
+    target.path.write_bytes(b"\x1aE\xdf\xa3existing-audio")
+
+    existing = LocalMediaStorage(root).find_existing_audio(source)
+
+    assert existing is not None
+    assert existing.path == target.path
+    assert existing.byte_size == len(b"\x1aE\xdf\xa3existing-audio")
+    assert existing.source.source_id == source.source_id

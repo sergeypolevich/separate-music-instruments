@@ -51,22 +51,31 @@ class FakeStorage:
     def audio_target(self, title, extension, source_id=None):
         return StorageTarget(f"{title}.{extension}", Path(title) / f"{title}.{extension}")
 
+    def find_existing_audio(self, source):
+        return None
+
+    def validate_audio_file(self, path, media_format):
+        return True
+
+    def quarantine_audio(self, path):
+        return None
+
     def stem_directory(self, title, source_id=None):
         return Path("Stems") / title
 
     def stem_file_target(self, title, stem_name, source_id=None):
         return StorageTarget(f"Stems/{title}/{stem_name}.wav", Path("Stems") / title / f"{stem_name}.wav")
 
-    def temporary_directory(self, title):
+    def temporary_directory(self, title, source_id=None):
         return Path("temp") / title
 
-    def temporary_model_directory(self, title, model_name):
+    def temporary_model_directory(self, title, model_name, source_id=None):
         return Path("temp") / title / model_name
 
     def stems_complete(self, title, expected_stems, source_id=None):
         return False
 
-    def remove_temporary_directory(self, title):
+    def remove_temporary_directory(self, title, source_id=None):
         return None
 
     def save_audio(self, job_id, audio):
@@ -96,6 +105,15 @@ class FakeJobRepository:
 
     def transition_job(self, job_id, status, *, stage=None, error_summary=None):
         return JobView(job_id, uuid4(), "client-1", status, stage, error_summary)
+
+    def transition_batch(self, batch_id, status, result_summary=None):
+        return None
+
+    def record_retry(self, job_id, attempt):
+        return None
+
+    def add_asset(self, asset):
+        return None
 
     def get_job(self, job_id, owner_id):
         return JobView(job_id, uuid4(), owner_id, JobStatus.QUEUED)

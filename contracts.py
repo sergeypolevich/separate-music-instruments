@@ -105,10 +105,20 @@ class JobStatus(Enum):
     CANCELLED = "cancelled"
 
 
+class BatchStatus(Enum):
+    QUEUED = "queued"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
+    PARTIAL = "partial"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
 @dataclass(frozen=True)
 class BatchReceipt:
     batch_id: UUID
     job_ids: tuple[UUID, ...]
+    owner_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,6 +129,7 @@ class JobView:
     status: JobStatus
     current_stage: str | None = None
     error_summary: str | None = None
+    retry_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -176,17 +187,23 @@ class MediaStorage(Protocol):
 
     def audio_target(self, title: str, extension: str, source_id: str | None = None) -> StorageTarget: ...
 
+    def find_existing_audio(self, source: VideoCandidate) -> DownloadedAudio | None: ...
+
+    def validate_audio_file(self, path: Path, media_format: str) -> bool: ...
+
+    def quarantine_audio(self, path: Path) -> Path | None: ...
+
     def stem_directory(self, title: str, source_id: str | None = None) -> Path: ...
 
     def stem_file_target(self, title: str, stem_name: str, source_id: str | None = None) -> StorageTarget: ...
 
-    def temporary_directory(self, title: str) -> Path: ...
+    def temporary_directory(self, title: str, source_id: str | None = None) -> Path: ...
 
-    def temporary_model_directory(self, title: str, model_name: str) -> Path: ...
+    def temporary_model_directory(self, title: str, model_name: str, source_id: str | None = None) -> Path: ...
 
     def stems_complete(self, title: str, expected_stems: Sequence[str], source_id: str | None = None) -> bool: ...
 
-    def remove_temporary_directory(self, title: str) -> None: ...
+    def remove_temporary_directory(self, title: str, source_id: str | None = None) -> None: ...
 
     def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset: ...
 
@@ -236,6 +253,12 @@ class JobRepository(Protocol):
         stage: str | None = None,
         error_summary: str | None = None,
     ) -> JobView: ...
+
+    def transition_batch(self, batch_id: UUID, status: BatchStatus, result_summary: str | None = None) -> None: ...
+
+    def record_retry(self, job_id: UUID, attempt: int) -> None: ...
+
+    def add_asset(self, asset: MediaAsset) -> None: ...
 
     def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
 

@@ -18,6 +18,7 @@ from contracts import (
     MediaAssetType,
     StemArtifact,
     StorageTarget,
+    VideoCandidate,
 )
 
 
@@ -94,18 +95,25 @@ class LocalMediaStorage:
             return safe_title
 
         index_key = f"{namespace}:{safe_title.casefold()}"
+        identity_key = f"source:{namespace}:{source_id}"
         with _INDEX_LOCK:
             index = self._read_index()
+            assigned_title = index.get(identity_key)
+            if assigned_title is not None:
+                return assigned_title
             known_source = index.get(index_key)
             if known_source is None:
                 # Existing files without an index are legacy baseline outputs.
                 # Claim the readable name for their first source to preserve reuse.
                 index[index_key] = source_id
-                self._write_index(index)
-                return safe_title
-            if known_source == source_id:
-                return safe_title
-            return f"{safe_title}--{self._source_suffix(source_id)}"
+                assigned_title = safe_title
+            elif known_source == source_id:
+                assigned_title = safe_title
+            else:
+                assigned_title = f"{safe_title}--{self._source_suffix(source_id)}"
+            index[identity_key] = assigned_title
+            self._write_index(index)
+            return assigned_title
 
     def _key_for(self, path: Path) -> str:
         resolved = path.resolve()
@@ -143,6 +151,73 @@ class LocalMediaStorage:
             raise AdapterError("Audio storage directory could not be created", FailureCategory.TRANSIENT) from exc
         return StorageTarget(self._key_for(path), path)
 
+    def find_existing_audio(self, source: VideoCandidate) -> DownloadedAudio | None:
+        """Reuse an audio file only when its container has a recognizable header."""
+        title = self._claim_title("audio", source.title, source.source_id)
+        allowed_extensions = ("webm", "m4a", "opus", "mp3", "ogg", "flac", "aac", "wma", "aiff", "aif")
+        try:
+            matches = {
+                path.suffix[1:].lower(): path
+                for path in self.root.iterdir()
+                if path.is_file()
+                and path.stem.casefold() == title.casefold()
+                and path.suffix[1:].lower() in allowed_extensions
+                and path.stat().st_size > 0
+                and self.validate_audio_file(path, path.suffix[1:].lower())
+            }
+        except OSError as exc:
+            raise AdapterError("Audio storage could not be searched", FailureCategory.TRANSIENT) from exc
+        for extension in allowed_extensions:
+            path = matches.get(extension)
+            if path is not None:
+                stored_source = VideoCandidate(source.source_id, title, source.url, source.duration_seconds)
+                return DownloadedAudio(path, stored_source, extension, path.stat().st_size)
+        return None
+
+    @staticmethod
+    def validate_audio_file(path: Path, media_format: str) -> bool:
+        """Check basic container/frame markers without decoding audio samples."""
+        try:
+            with path.open("rb") as audio_file:
+                header = audio_file.read(16)
+            extension = media_format.lower().lstrip(".")
+            if extension == "webm":
+                return len(header) >= 8 and header.startswith(b"\x1aE\xdf\xa3")
+            if extension in {"m4a", "mp4"}:
+                return len(header) >= 12 and header[4:8] == b"ftyp"
+            if extension == "mp3":
+                return header.startswith(b"ID3") or (
+                    len(header) >= 2 and header[0] == 0xFF and (header[1] & 0xE0) == 0xE0
+                )
+            if extension in {"ogg", "opus"}:
+                return header.startswith(b"OggS")
+            if extension == "flac":
+                return header.startswith(b"fLaC")
+            if extension == "wav":
+                return len(header) >= 12 and header.startswith(b"RIFF") and header[8:12] == b"WAVE"
+            if extension == "aac":
+                return len(header) >= 2 and header[0] == 0xFF and (header[1] & 0xF6) == 0xF0
+            if extension == "wma":
+                return header.startswith(bytes.fromhex("3026b2758e66cf11a6d900aa0062ce6c"))
+            if extension in {"aiff", "aif"}:
+                return len(header) >= 12 and header.startswith(b"FORM") and header[8:12] in {b"AIFF", b"AIFC"}
+        except OSError:
+            return False
+        return False
+
+    def quarantine_audio(self, path: Path) -> Path | None:
+        if not path.exists():
+            return None
+        self._key_for(path)
+        recovery_dir = self.temp_root / "_recovery"
+        try:
+            recovery_dir.mkdir(parents=True, exist_ok=True)
+            destination = recovery_dir / f"{path.name}.{uuid4().hex}.quarantined"
+            path.replace(destination)
+            return destination
+        except OSError as exc:
+            raise AdapterError("Invalid audio could not be preserved for recovery", FailureCategory.TRANSIENT) from exc
+
     def stem_directory(self, title: str, source_id: str | None = None) -> Path:
         name = self._claim_title("stems", title, source_id)
         path = (self.stems_root / name).resolve()
@@ -160,11 +235,12 @@ class LocalMediaStorage:
         path = self.stem_directory(title, source_id) / f"{stem_name}.wav"
         return StorageTarget(self._key_for(path), path)
 
-    def temporary_directory(self, title: str) -> Path:
-        return self.temp_root / safe_filename(title)
+    def temporary_directory(self, title: str, source_id: str | None = None) -> Path:
+        name = self._claim_title("temp", title, source_id)
+        return self.temp_root / name
 
-    def temporary_model_directory(self, title: str, model_name: str) -> Path:
-        return self.temporary_directory(title) / safe_filename(model_name)
+    def temporary_model_directory(self, title: str, model_name: str, source_id: str | None = None) -> Path:
+        return self.temporary_directory(title, source_id) / safe_filename(model_name)
 
     def stems_complete(
         self,
@@ -175,19 +251,23 @@ class LocalMediaStorage:
         directory = self.stem_directory(title, source_id)
         return all((directory / f"{stem}.wav").is_file() for stem in expected_stems)
 
-    def remove_temporary_directory(self, title: str) -> None:
-        shutil.rmtree(self.temporary_directory(title), ignore_errors=True)
+    def remove_temporary_directory(self, title: str, source_id: str | None = None) -> None:
+        shutil.rmtree(self.temporary_directory(title, source_id), ignore_errors=True)
 
     def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset:
         target = self.audio_target(audio.source.title, audio.media_format, audio.source.source_id)
         try:
             target.path.parent.mkdir(parents=True, exist_ok=True)
-            if not target.path.is_file() or target.path.stat().st_size == 0:
+            if target.path.is_file() and not self.validate_audio_file(target.path, audio.media_format):
+                self.quarantine_audio(target.path)
+            if not target.path.is_file():
                 if audio.path.resolve() != target.path.resolve():
                     shutil.copy2(audio.path, target.path)
             size = target.path.stat().st_size
         except OSError as exc:
             raise AdapterError("Audio asset could not be saved", FailureCategory.TRANSIENT) from exc
+        if not self.validate_audio_file(target.path, audio.media_format):
+            raise AdapterError("Downloaded audio has an invalid container header", FailureCategory.PERMANENT)
         return MediaAsset(uuid4(), job_id, MediaAssetType.SOURCE_AUDIO, target.storage_key, size, media_format=audio.media_format)
 
     def save_stem(
