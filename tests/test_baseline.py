@@ -127,6 +127,23 @@ def test_download_prefers_highest_ordered_webm_audio_stream(monkeypatch, tmp_pat
     assert stream.download_calls == 1
 
 
+def test_direct_video_url_uses_exact_video_without_search(monkeypatch, tmp_path):
+    stream = FakeStream(subtype="webm")
+    exact_url = "https://youtube.com/watch?v=exact-video-id"
+    _, _, search_calls, youtube_calls = configure_download_mocks(
+        monkeypatch,
+        tmp_path,
+        title="Exact video title",
+        preferred=stream,
+    )
+
+    result = app.download_track(exact_url)
+
+    assert result is not None
+    assert search_calls == []
+    assert youtube_calls == [exact_url]
+
+
 def test_download_falls_back_when_webm_is_unavailable(monkeypatch, tmp_path):
     fallback = FakeStream(subtype="m4a", abr="128kbps")
     _, streams, _, _ = configure_download_mocks(
