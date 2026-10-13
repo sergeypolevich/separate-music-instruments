@@ -1,0 +1,32 @@
+import run
+
+
+def test_installs_requirements_when_runtime_module_is_missing(monkeypatch):
+    calls = []
+    monkeypatch.setattr(run, "missing_runtime_modules", lambda: ["demucs"])
+    monkeypatch.setattr(run.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    run.install_runtime_dependencies()
+
+    assert len(calls) == 1
+    args, kwargs = calls[0]
+    assert args[0] == [run.sys.executable, "-m", "pip", "install", "-r", str(run.REQUIREMENTS)]
+    assert kwargs["check"] is True
+    assert kwargs["cwd"] == run.ROOT
+
+
+def test_does_not_run_pip_when_runtime_modules_are_installed(monkeypatch):
+    monkeypatch.setattr(run, "missing_runtime_modules", lambda: [])
+
+    def unexpected_pip(*_args, **_kwargs):
+        raise AssertionError("pip should not run when dependencies are present")
+
+    monkeypatch.setattr(run.subprocess, "run", unexpected_pip)
+    run.install_runtime_dependencies()
+
+
+def test_virtual_environment_python_path_is_platform_specific(monkeypatch, tmp_path):
+    monkeypatch.setattr(run, "VENV_DIR", tmp_path / ".venv")
+    monkeypatch.setattr(run.os, "name", "nt")
+
+    assert run.venv_python() == tmp_path / ".venv" / "Scripts" / "python.exe"

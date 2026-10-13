@@ -44,4 +44,4 @@ Remove-Item Env:RUN_LIVE_E2E
 
 ## Scope and limitations
 
-The actual project script was not present in the current file workspace when these tests were authored. The tests therefore assume that the working script is named `download_tracks.py` and retains the function names and behavior from the current baseline. The test suite has been syntax-checked, but cannot be truthfully reported as executed against the user's local script until copied alongside that script and run there.
+The runnable project script is `download_tracks.py`; `tests/test_baseline.py` imports and tests it directly. The live end-to-end test remains opt-in and requires network access and Demucs.

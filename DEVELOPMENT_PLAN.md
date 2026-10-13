@@ -4,7 +4,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 
 ## Stages
 
-1. **Verify and publish v1:** inspect the initial commit and ignore rules; remove saved notebook outputs containing local paths while preserving code; run baseline offline checks, `git diff --check`, media/secret and notebook-output checks; publish the clean snapshot to the intended public repository only after all checks pass and a destination is configured.
+1. **Verify and publish v1:** inspect the initial commit and ignore rules; remove saved notebook outputs containing local paths while preserving code; run baseline offline checks, `git diff --check`, media/secret and notebook-output checks; publish the clean snapshot to the intended public repository only after all checks pass and a destination is configured. Completed: v1 is published. The obsolete notebook was later removed at the user's request because the maintained script and tests are in Python files.
 2. **Workflow checkpoints:** add the project workflow skill, this plan, and `DEVELOPMENT_STATUS.md`; check referenced files and the offline suite.
 3. **Baseline regression coverage:** add failure isolation, incomplete-output recovery, and safe temporary cleanup tests; verify retries, reuse, phase order, and flat six-stem layout.
 4. **Settings and structured logs:** central validated settings, `.env.example`, console and rotating JSONL logs; test defaults, overrides, invalid settings, fields, rotation, and secret redaction.
