@@ -19,6 +19,7 @@ from contracts import (
     MediaStorage,
     SeparationOptions,
     SeparationResult,
+    StorageTarget,
     SourceAdapter,
     SourceKind,
     SourceRequest,
@@ -47,16 +48,37 @@ class FakeSeparator:
 
 
 class FakeStorage:
+    def audio_target(self, title, extension, source_id=None):
+        return StorageTarget(f"{title}.{extension}", Path(title) / f"{title}.{extension}")
+
+    def stem_directory(self, title, source_id=None):
+        return Path("Stems") / title
+
+    def stem_file_target(self, title, stem_name, source_id=None):
+        return StorageTarget(f"Stems/{title}/{stem_name}.wav", Path("Stems") / title / f"{stem_name}.wav")
+
+    def temporary_directory(self, title):
+        return Path("temp") / title
+
+    def temporary_model_directory(self, title, model_name):
+        return Path("temp") / title / model_name
+
+    def stems_complete(self, title, expected_stems, source_id=None):
+        return False
+
+    def remove_temporary_directory(self, title):
+        return None
+
     def save_audio(self, job_id, audio):
         return MediaAsset(uuid4(), job_id, MediaAssetType.SOURCE_AUDIO, "audio.webm", 1024)
 
-    def save_stem(self, job_id, stem):
+    def save_stem(self, job_id, track_title, source_id, stem):
         return MediaAsset(uuid4(), job_id, MediaAssetType.STEM, f"{stem.name}.wav", 128, stem.name)
 
-    def resolve_path(self, asset_id):
+    def resolve_path(self, storage_key):
         return Path("managed/asset")
 
-    def delete_job_assets(self, job_id):
+    def delete_asset(self, storage_key):
         return None
 
 

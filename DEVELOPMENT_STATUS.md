@@ -2,9 +2,9 @@
 
 ## Current checkpoint
 
-- **Current stage:** 6 — Storage adapter (next; stage 5 contracts completed).
+- **Current stage:** 7 — Input normalization and direct URLs (next; stage 6 storage completed).
 - **Baseline commit:** `84b08b1` (`Initial commit: audio downloader and stem separation`), branch `main`. The unpublished initial commit was amended with the notebook cleanup.
-- **Working tree at checkpoint:** stage 5 contracts and checkpoint are uncommitted; stage 4 commit `3cb92c0` is pushed to `origin/main`.
+- **Working tree at checkpoint:** stage 6 storage changes are uncommitted; stage 5 commit `30611cb` is pushed to `origin/main`.
 - **Remote:** `origin` points to the public `sergeypolevich/separate-music-instruments` GitHub repository; `main` was pushed and verified.
 - **Source of truth:** `download_tracks.py` contains the runnable current script; `tests/test_baseline.py` tests that module. The obsolete `main.ipynb` duplicated older code and setup cells and has been removed at the user's request.
 - **Checks:** stage 3 targeted `pytest -q tests/test_baseline.py` passed (11 passed). Full `pytest -q` passed (14 passed, 1 opt-in live E2E skipped). `git diff --check` passed. `.gitignore` excludes `.venv/`, generated media, and local environment files.
@@ -17,7 +17,10 @@
 - **Stage 5 result:** added provider-independent typed models, protocols for source normalization, downloader, separator, storage, jobs, and repository, plus categorized adapter errors with retryability.
 - **Stage 5 checks:** targeted `pytest -q tests/test_contracts.py` passed (4 passed); full `pytest -q` passed (29 passed, 1 opt-in live test skipped); `git diff --check` passed. Fake adapters satisfy runtime-checkable protocols; AST test confirms contracts do not import `pytubefix` or Demucs.
 - **Stage 5 boundaries:** contracts only; no implementation was moved and baseline paths, format policy, model, retries, and phase ordering are unchanged. The compatibility CLI remains intact.
-- **Next action:** run final diff check, commit and push stage 5, then implement local storage path safety in stage 6.
+- **Stage 6 result:** added `LocalMediaStorage` behind the `MediaStorage` protocol. Audio and flat stem paths, temporary Demucs directories, complete-set checks, cleanup, storage-key resolution, and asset copy operations now go through the adapter. A small local identity index preserves readable names and gives colliding source IDs distinct stable paths.
+- **Stage 6 checks:** targeted storage/contracts/baseline tests passed (30 passed); full `pytest -q` passed (43 passed, 1 opt-in live test skipped); `git diff --check` passed. Coverage includes Windows-invalid/reserved names, Windows and POSIX traversal, colliding titles, stable reuse after adapter restart, relative keys, and flat stems.
+- **Stage 6 boundaries:** default non-colliding paths and output layout are preserved; legacy outputs without index entries retain the original name; cleanup remains conditional on all six expected stem files. The existing CLI is still the composition entry point.
+- **Next action:** commit and push stage 6, then normalize search and direct-video inputs separately in stage 7.
 
 ## Completed stages
 
