@@ -36,6 +36,7 @@ const detailInput = document.querySelector("#detail-input");
 const detailModel = document.querySelector("#detail-model");
 const assetList = document.querySelector("#asset-list");
 const playbackPanel = document.querySelector("#playback-panel");
+const deleteProjectButton = document.querySelector("#delete-project");
 let pollingTimer = null;
 let activeTransport = null;
 let playbackSetupId = 0;
@@ -154,6 +155,7 @@ function renderProject(project) {
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
   detailTitle.textContent = project.title || project.input_value;
+  deleteProjectButton.dataset.projectId = project.project_id;
   detailStatus.dataset.status = project.job.status;
   detailStatus.textContent = stateLabels[project.job.status] || project.job.status;
   detailInput.textContent = project.input_value;
@@ -327,6 +329,24 @@ async function openProject(projectId) {
   }
 }
 
+async function deleteProject() {
+  const projectId = deleteProjectButton.dataset.projectId;
+  if (!projectId || !window.confirm("Удалить проект, исходное аудио и сохранённые дорожки?")) return;
+  deleteProjectButton.disabled = true;
+  try {
+    await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
+    if (activeTransport) activeTransport.stop();
+    activeTransport = null;
+    projectDetail.hidden = true;
+    await loadProjects();
+    setMessage("Проект удалён.");
+  } catch (error) {
+    setMessage(error.message, true);
+  } finally {
+    deleteProjectButton.disabled = false;
+  }
+}
+
 async function loadProjects() {
   try {
     const projects = await requestJson("/api/v1/projects");
@@ -400,3 +420,4 @@ form.addEventListener("submit", async (event) => {
 loadModels();
 loadProjects();
 document.querySelector("#refresh-projects").addEventListener("click", loadProjects);
+deleteProjectButton.addEventListener("click", deleteProject);

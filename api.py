@@ -9,7 +9,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from fastapi.staticfiles import StaticFiles
 
@@ -29,7 +29,7 @@ from contracts import (
 )
 from demucs_adapter import DemucsSeparator
 from local_storage import LocalMediaStorage
-from metadata import ProjectRecord, SqliteMetadataStore
+from metadata import ProjectDeletion, ProjectRecord, SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
 from waveform import WaveformError, waveform_data
@@ -52,6 +52,8 @@ class ApiRepository(Protocol):
     def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None: ...
     def list_assets(self, job_id: UUID, owner_id: str) -> Sequence[MediaAsset]: ...
     def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None: ...
+    def begin_project_deletion(self, project_id: UUID, owner_id: str) -> ProjectDeletion: ...
+    def complete_project_deletion(self, project_id: UUID, owner_id: str) -> None: ...
 
 
 class BatchSubmission(BaseModel):
@@ -311,6 +313,37 @@ def create_app(
             },
             "assets": assets,
         }
+
+    @app.delete("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_project(project_id: UUID) -> Response:
+        try:
+            deletion = repository.begin_project_deletion(project_id, _OWNER_ID)
+        except AdapterError as exc:
+            if exc.category is FailureCategory.NOT_FOUND:
+                raise HTTPException(
+                    status_code=404, detail={"code": "not_found", "message": "Project not found"}
+                ) from exc
+            if exc.category is FailureCategory.CONFLICT:
+                raise HTTPException(
+                    status_code=409,
+                    detail={"code": "project_processing", "message": "This project cannot be deleted while its batch is active"},
+                ) from exc
+            raise
+        try:
+            for storage_key in deletion.storage_keys:
+                storage.delete_asset(storage_key)
+        except (AdapterError, OSError) as exc:
+            logger.exception(
+                "Project file cleanup remains pending",
+                extra={"event": "project_cleanup_pending", "ClientID": _OWNER_ID,
+                       "project_id": str(project_id), "error_type": type(exc).__name__},
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "cleanup_pending", "message": "Project files could not all be removed; retry delete to continue cleanup"},
+            ) from exc
+        repository.complete_project_deletion(project_id, _OWNER_ID)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/api/v1/assets/{asset_id}/waveform")
     def get_waveform(asset_id: UUID, levels: int = Query(default=512, ge=1, le=2048)) -> dict[str, object]:

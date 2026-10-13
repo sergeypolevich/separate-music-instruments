@@ -131,6 +131,9 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     assert 'id="project-list"' in markup
     assert 'id="project-detail"' in markup
     assert 'id="playback-panel"' in markup
+    assert 'id="delete-project"' in markup
+    assert 'method: "DELETE"' in source
+    assert "window.confirm" in source
     assert "/api/v1/projects/" in source
     assert 'await import("/static/playback.mjs")' in source
     assert 'asset.media_format !== "wav"' in source

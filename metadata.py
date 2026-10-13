@@ -73,6 +73,13 @@ class ClientRecord:
     created_at: datetime
 
 
+@dataclass(frozen=True)
+class ProjectDeletion:
+    project_id: UUID
+    owner_id: str
+    storage_keys: tuple[str, ...]
+
+
 BatchRecord = BatchView
 
 
@@ -555,3 +562,64 @@ class SqliteMetadataStore:
                 (owner_id,),
             ).fetchall()
         return [self._project(row) for row in rows]
+
+    def begin_project_deletion(self, project_id: UUID, owner_id: str) -> ProjectDeletion:
+        """Persist managed file keys, then remove project/job metadata atomically."""
+        with self._connection() as connection:
+            pending = connection.execute(
+                "SELECT storage_keys_json FROM pending_project_deletions WHERE project_id = ? AND owner_id = ?",
+                (str(project_id), owner_id),
+            ).fetchone()
+            if pending:
+                return ProjectDeletion(project_id, owner_id, tuple(json.loads(pending["storage_keys_json"])))
+
+            row = connection.execute(
+                """SELECT p.id, j.id AS job_id, j.status AS job_status, j.batch_id,
+                          b.status AS batch_status,
+                          (SELECT COUNT(*) FROM jobs sibling WHERE sibling.batch_id = j.batch_id) AS batch_size
+                   FROM projects p JOIN jobs j ON j.project_id = p.id
+                   JOIN batches b ON b.id = j.batch_id
+                   WHERE p.id = ? AND p.owner_id = ?""",
+                (str(project_id), owner_id),
+            ).fetchone()
+            if row is None:
+                raise AdapterError("Project was not found", FailureCategory.NOT_FOUND)
+            if row["batch_status"] == BatchStatus.PROCESSING.value:
+                raise AdapterError("Project batch is currently processing", FailureCategory.CONFLICT)
+            if row["job_status"] == JobStatus.QUEUED.value:
+                if row["batch_status"] != BatchStatus.QUEUED.value or row["batch_size"] != 1:
+                    raise AdapterError("Queued multi-job batches cannot be partially deleted", FailureCategory.CONFLICT)
+                now = _utc_now()
+                connection.execute(
+                    "UPDATE jobs SET status = ?, current_stage = ?, updated_at = ? WHERE id = ?",
+                    (JobStatus.CANCELLED.value, "project_deletion", now, row["job_id"]),
+                )
+                connection.execute(
+                    "UPDATE batches SET status = ?, updated_at = ? WHERE id = ?",
+                    (BatchStatus.CANCELLED.value, now, row["batch_id"]),
+                )
+            elif row["job_status"] not in {
+                JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value,
+            }:
+                raise AdapterError("Project job is active", FailureCategory.CONFLICT)
+
+            keys = tuple(item["storage_key"] for item in connection.execute(
+                "SELECT storage_key FROM media_assets WHERE job_id = ? ORDER BY created_at, rowid",
+                (row["job_id"],),
+            ).fetchall())
+            connection.execute(
+                "INSERT INTO pending_project_deletions(project_id, owner_id, storage_keys_json, created_at) "
+                "VALUES (?, ?, ?, ?)",
+                (str(project_id), owner_id, json.dumps(keys), _utc_now()),
+            )
+            connection.execute("DELETE FROM projects WHERE id = ? AND owner_id = ?", (str(project_id), owner_id))
+            return ProjectDeletion(project_id, owner_id, keys)
+
+    def complete_project_deletion(self, project_id: UUID, owner_id: str) -> None:
+        with self._connection() as connection:
+            # Keep an empty-key receipt so repeated DELETE calls remain idempotent.
+            connection.execute(
+                "UPDATE pending_project_deletions SET storage_keys_json = '[]' "
+                "WHERE project_id = ? AND owner_id = ?",
+                (str(project_id), owner_id),
+            )
