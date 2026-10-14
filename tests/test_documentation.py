@@ -35,8 +35,10 @@ def test_project_skill_requires_visible_playwright_song2_browser_gate():
     root = Path(__file__).parents[1]
     skill = (root / "skills" / "audio-stems-development.md").read_text(encoding="utf-8")
     requirements = (root / "requirements-test.txt").read_text(encoding="utf-8")
+    runtime_requirements = (root / "requirements.txt").read_text(encoding="utf-8")
 
     assert "Before every commit" in skill
     assert "Playwright" in skill
     assert "visible window" in skill
     assert "playwright" in requirements.lower()
+    assert "numpy==1.26.4" in runtime_requirements

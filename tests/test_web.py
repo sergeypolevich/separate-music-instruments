@@ -34,7 +34,7 @@ def get_app_client(tmp_path):
     return (lambda method, path: asyncio.run(request(method, path))), repository
 
 
-def test_api_serves_submission_page_and_static_bundle(tmp_path):
+def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     request, _repository = get_app_client(tmp_path)
 
     page = request("GET", "/")
@@ -44,37 +44,60 @@ def test_api_serves_submission_page_and_static_bundle(tmp_path):
 
     assert page.status_code == script.status_code == styles.status_code == playback.status_code == 200
     assert "Audio Stems" in page.text
-    assert 'id="inputs"' in page.text
+    assert 'id="search-trigger"' in page.text
+    assert 'id="search-overlay"' in page.text
+    assert 'id="project-tabs"' in page.text
+    assert page.text.index('id="search-trigger"') < page.text.index('id="project-tabs"')
+    assert page.text.index('id="project-tabs"') < page.text.index('id="project-workspace"')
+    assert 'id="screen-settings"' in page.text
+    assert 'id="screen-help"' in page.text
+    assert 'id="delete-dialog"' in page.text
+    assert "РАЗДЕЛЕНИЕ АУДИО" not in page.text
+    assert "звучать по-новому" not in page.text
+    assert 'rows="2"' in page.text
     assert 'id="model"' in page.text
+    assert 'id="device"' in page.text
     assert 'id="check-updates"' in page.text
     assert 'id="release-list"' in page.text
-    assert 'play.dataset.action = "play"' in script.text
+    assert 'play.dataset.action = "toggle"' in script.text
+    assert 'reset.dataset.action = "reset"' in script.text
     assert 'gain.dataset.control = "gain"' in script.text
     assert 'mute.dataset.control = "mute"' in script.text
+    assert 'solo.dataset.control = "solo"' in script.text
+    assert 'gain.max = "150"' in script.text
+    assert 'gain.value = "100"' in script.text
+    assert "AudioContext" in script.text
+    assert "showModal()" in script.text
     assert 'href="app.css"' in page.text
     assert 'src="app.js"' in page.text
     assert "/static/" not in page.text
     assert "class SynchronizedTransport" in playback.text
-    assert "window.confirm" in script.text
+    assert 'data-screen="settings"' in page.text
+    assert 'data-screen="help"' in page.text
+    assert "window.confirm" in script.text  # Dependency updates retain their existing confirmation.
+    assert "deleteDialog.showModal()" in script.text
     assert "/api/v1/updates/apply" in script.text
     assert "release.updatable" in script.text
     assert "requirements.txt" in script.text
     assert "http://" not in styles.text and "https://" not in styles.text
 
 
-def test_ui_covers_persisted_job_states_and_renders_every_sibling_safely():
+def test_ui_covers_persisted_job_states_and_renders_project_tabs_safely():
     script = Path(__file__).parents[1] / "web" / "app.js"
     source = script.read_text(encoding="utf-8")
 
     for state in ("queued", "downloading", "separating", "completed", "failed"):
         assert state in source
-    assert "batch.jobs.map" in source
+    assert "projects.map" in source
     assert "textContent" in source
     assert "/api/v1/batches/" in source
-    assert "/waveform?levels=128" in source
+    assert "/waveform?levels=256" in source
+    assert 'button.className = "project-tab"' in source
+    assert 'button.dataset.status = statusBucket(project.job_status)' in source
+    assert 'deleteDialog.showModal()' in source
 
 
-def test_ui_progress_data_keeps_a_failed_job_visible_beside_a_successful_one(tmp_path):
+def test_failed_job_remains_visible_in_batch_api_beside_successful_sibling(tmp_path):
     request, repository = get_app_client(tmp_path)
     receipt = repository.create_batch(
         "local",

@@ -2,3 +2,4 @@ pytubefix==11.2.0
 demucs==4.1.0
 fastapi==0.139.2
 uvicorn==0.51.0
+numpy==1.26.4

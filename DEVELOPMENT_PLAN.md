@@ -25,6 +25,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 19. **Controlled updates:** inspect releases and update pinned app/dependencies only after confirmation; test mocked responses and failure recovery without updating the real environment.
 20. **Documentation and local v2 verification:** PowerShell setup, API/worker launch, backup, maintenance; run full offline suite, diff checks, and manual core UI/API checks. Live smoke remains opt-in.
 21. **One-click local launch and browser E2E:** add a Windows button that bootstraps Python and dependencies, supervises the API and worker, and opens the browser; serve page assets with relative sibling URLs; add an opt-in full real YouTube/Demucs workflow controlled with visible installed Edge/Chrome via Playwright, and require it before each commit.
+22. **Version 3 interface redesign:** make the project workspace the main screen; keep a compact search trigger in the current content width in the header and open a full-screen submission panel; show projects as horizontally scrolling tabs between the header and workspace; add Settings and Russian Help screens; redesign transport and DAW mixer rows; support 0–150% track gain with a 95–105% snap band; confirm deletion in a styled dialog; add responsive Playwright checks; finally detect available CPU/CUDA/MPS devices, expose a separate API endpoint without changing `/api/v1/models`, and reject unsupported devices.
 
 ## Stage gate
 

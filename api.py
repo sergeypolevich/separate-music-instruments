@@ -181,6 +181,16 @@ def create_app(
             for model in separator.available_models()
         ]
 
+    @app.get("/api/v1/devices")
+    def devices() -> dict[str, object]:
+        available = tuple(separator.available_devices())
+        names = {device.name for device in available}
+        default = next((name for name in ("cuda", "mps", "cpu") if name in names), "cpu")
+        return {
+            "devices": [{"name": device.name, "label": device.label} for device in available],
+            "default": default,
+        }
+
     @app.get("/api/v1/updates")
     def check_updates() -> dict[str, object]:
         try:

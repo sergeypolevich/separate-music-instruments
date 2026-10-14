@@ -47,6 +47,11 @@ class FakeSeparator:
     def available_models(self):
         return (SeparatorModel("htdemucs_6s", ("vocals",), {}),)
 
+    def available_devices(self):
+        from contracts import ComputeDevice
+
+        return (ComputeDevice("cpu", "CPU"),)
+
     def validate_options(self, options):
         return None
 
