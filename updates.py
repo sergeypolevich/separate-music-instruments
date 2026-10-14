@@ -19,7 +19,7 @@ _RAW_REQUIREMENTS_PREFIX = "https://raw.githubusercontent.com/sergeypolevich/sep
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_REQUIREMENTS_BYTES = 64 * 1024
 _MAX_NOTES_LENGTH = 20_000
-_REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn"}
+_REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn", "numpy"}
 _PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)$")
 
 

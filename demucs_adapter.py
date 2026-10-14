@@ -7,6 +7,7 @@ import sys
 
 from contracts import (
     AdapterError,
+    ComputeDevice,
     FailureCategory,
     SeparationOptions,
     SeparationResult,
@@ -19,6 +20,26 @@ from contracts import (
 _STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 _MODELS = ("htdemucs_6s",)
 _PARAMETERS = {"shifts": "int", "overlap": "float", "segment": "int"}
+_CPU = ComputeDevice("cpu", "CPU")
+
+
+def detect_compute_devices(torch_module=None) -> tuple[ComputeDevice, ...]:
+    """Return devices usable by the installed PyTorch build, falling back to CPU."""
+    if torch_module is None:
+        try:
+            import torch as torch_module
+        except Exception:
+            return (_CPU,)
+    try:
+        devices = [_CPU]
+        if torch_module.cuda.is_available():
+            devices.append(ComputeDevice("cuda", "NVIDIA CUDA"))
+        mps_backend = getattr(getattr(torch_module, "backends", None), "mps", None)
+        if mps_backend is not None and mps_backend.is_available():
+            devices.append(ComputeDevice("mps", "Apple Metal (MPS)"))
+        return tuple(devices)
+    except Exception:
+        return (_CPU,)
 
 
 class DemucsSeparator(StemSeparator):
@@ -28,6 +49,9 @@ class DemucsSeparator(StemSeparator):
         # These are stable Demucs model identifiers supported by its CLI.
         # The capability endpoint is intentionally independent of loading weights.
         return tuple(SeparatorModel(name, _STEMS, _PARAMETERS.copy()) for name in _MODELS)
+
+    def available_devices(self) -> tuple[ComputeDevice, ...]:
+        return detect_compute_devices()
 
     def separate(
         self,
@@ -71,7 +95,7 @@ class DemucsSeparator(StemSeparator):
     def validate_options(self, options: SeparationOptions) -> None:
         if options.model_name not in _MODELS:
             raise AdapterError("Unsupported Demucs model", FailureCategory.INVALID_INPUT)
-        if not options.device or options.device not in {"cpu", "cuda", "mps"} and not options.device.startswith("cuda:"):
+        if options.device not in {device.name for device in self.available_devices()}:
             raise AdapterError("Unsupported Demucs device", FailureCategory.INVALID_INPUT)
         for name, value in options.parameters.items():
             if name not in _PARAMETERS:

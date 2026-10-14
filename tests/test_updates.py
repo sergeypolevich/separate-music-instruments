@@ -16,7 +16,7 @@ from sources import YouTubeSourceAdapter
 from updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
 
 
-PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\n"
+PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==1.26.4\n"
 
 
 class FakeResponse:
@@ -119,7 +119,7 @@ def test_update_action_is_unavailable_for_unpinned_release_manifest():
         if request.full_url.startswith("https://api.github.com/"):
             return FakeResponse([release()])
         return FakeResponse(
-            "pytubefix\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\n", request.full_url
+            "pytubefix\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==1.26.4\n", request.full_url
         )
 
     client = GitHubReleaseClient(open_url=open_url)

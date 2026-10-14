@@ -128,18 +128,20 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     markup = page.read_text(encoding="utf-8")
     source = script.read_text(encoding="utf-8")
 
-    assert 'id="project-list"' in markup
-    assert 'id="project-detail"' in markup
+    assert 'id="project-tabs"' in markup
+    assert 'id="project-workspace"' in markup
     assert 'id="playback-panel"' in markup
     assert 'id="delete-project"' in markup
     assert 'method: "DELETE"' in source
-    assert "window.confirm" in source
+    assert 'id="delete-dialog"' in markup
+    assert "deleteDialog.showModal()" in source
+    assert "window.confirm" not in source.split("async function confirmProjectDeletion", 1)[1].split("searchTrigger.addEventListener", 1)[0]
     assert "/api/v1/projects/" in source
     assert 'await import("./playback.mjs")' in source
     assert 'asset.media_format !== "wav"' in source
     assert 'audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`' in source
-    assert 'new MixerSession(tracks)' in source
-    assert 'mixer.setGain(index, Number(gain.value))' in source
-    assert 'mixer.setMute(index, mute.checked)' in source
-    assert 'mixer.setSolo(index, solo.checked)' in source
+    assert 'new MixerSession(gainNodes,' in source
+    assert 'mixer.setGain(index, percent / 100)' in source
+    assert 'mixer.setMute(index, muted)' in source
+    assert 'mixer.setSolo(index, selected)' in source
     assert "available" in source

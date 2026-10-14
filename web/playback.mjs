@@ -1,21 +1,22 @@
 const STEM_ORDER = ["vocals", "drums", "bass", "guitar", "piano", "other"];
 
 export class MixerSession {
-  constructor(tracks) {
-    if (tracks.length !== STEM_ORDER.length) {
+  constructor(gainNodes, onEffectiveGain = () => {}) {
+    if (gainNodes.length !== STEM_ORDER.length) {
       throw new Error(`Expected ${STEM_ORDER.length} mixer tracks`);
     }
-    this.tracks = tracks;
-    this.gains = tracks.map(() => 1);
-    this.mutes = tracks.map(() => false);
-    this.solos = tracks.map(() => false);
+    this.gainNodes = gainNodes;
+    this.onEffectiveGain = onEffectiveGain;
+    this.gains = gainNodes.map(() => 1);
+    this.mutes = gainNodes.map(() => false);
+    this.solos = gainNodes.map(() => false);
     this.apply();
   }
 
   setGain(index, gain) {
     this.assertIndex(index);
     const value = Number(gain);
-    this.gains[index] = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+    this.gains[index] = Number.isFinite(value) ? Math.min(1.5, Math.max(0, value)) : 0;
     this.apply();
   }
 
@@ -32,19 +33,27 @@ export class MixerSession {
   }
 
   assertIndex(index) {
-    if (!Number.isInteger(index) || index < 0 || index >= this.tracks.length) {
+    if (!Number.isInteger(index) || index < 0 || index >= this.gainNodes.length) {
       throw new RangeError("Mixer track index is out of range");
     }
   }
 
   apply() {
     const hasSolo = this.solos.some(Boolean);
-    this.tracks.forEach((track, index) => {
+    const effectiveGains = this.gainNodes.map((_node, index) => {
       const audible = !this.mutes[index] && (!hasSolo || this.solos[index]);
-      track.volume = audible ? this.gains[index] : 0;
-      track.muted = false;
+      return audible ? this.gains[index] : 0;
     });
+    this.gainNodes.forEach((node, index) => { node.gain.value = effectiveGains[index]; });
+    this.onEffectiveGain(effectiveGains);
   }
+}
+
+export function snapFaderPercent(percent) {
+  const value = Number(percent);
+  if (!Number.isFinite(value)) return 0;
+  const clamped = Math.min(150, Math.max(0, value));
+  return clamped >= 95 && clamped <= 105 ? 100 : clamped;
 }
 
 export class SynchronizedTransport {
@@ -53,6 +62,7 @@ export class SynchronizedTransport {
     cancelFrame = (id) => cancelAnimationFrame(id),
     onTimeUpdate = () => {},
     onEnded = () => {},
+    beforePlay = () => Promise.resolve(),
     driftTolerance = 0.08,
   } = {}) {
     if (tracks.length !== STEM_ORDER.length) {
@@ -63,6 +73,7 @@ export class SynchronizedTransport {
     this.cancelFrame = cancelFrame;
     this.onTimeUpdate = onTimeUpdate;
     this.onEnded = onEnded;
+    this.beforePlay = beforePlay;
     this.driftTolerance = driftTolerance;
     this.frameId = null;
     this.playing = false;
@@ -86,8 +97,10 @@ export class SynchronizedTransport {
   async play() {
     if (this.playing) return;
     try {
+      const ready = this.beforePlay();
       // Invoke every play() in the same gesture before awaiting any promise.
-      await Promise.all(this.tracks.map((track) => track.play()));
+      const playPromises = this.tracks.map((track) => track.play());
+      await Promise.all([ready, ...playPromises]);
       this.playing = true;
       this.scheduleFrame();
     } catch (error) {

@@ -9,112 +9,122 @@
     <script src="app.js" defer></script>
   </head>
   <body>
-    <main class="shell">
-      <header class="topbar">
-        <a class="brand" href="/" aria-label="Audio Stems — главная">
+    <header class="app-header">
+      <div class="topbar shell">
+        <a class="brand" href="#project" data-screen="project" aria-label="Audio Stems — проект">
           <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
           <span>audio<span class="brand-accent">stems</span></span>
         </a>
-        <span class="local-badge"><span class="live-dot"></span> Локально</span>
-      </header>
+        <button id="search-trigger" class="search-trigger" type="button" aria-haspopup="dialog" aria-controls="search-overlay">
+          <span class="search-icon" aria-hidden="true">⌕</span>
+          <span id="search-preview">Найти песню или вставить YouTube-ссылку…</span>
+        </button>
+        <nav class="top-nav" aria-label="Навигация">
+          <a href="#help" data-screen="help">Справка</a>
+          <a href="#settings" data-screen="settings" aria-label="Настройки">⚙</a>
+        </nav>
+      </div>
+    </header>
 
-      <section class="intro">
-        <p class="eyebrow">РАЗДЕЛЕНИЕ АУДИО</p>
-        <h1>Дайте музыке<br><span>звучать по-новому.</span></h1>
-        <p class="lede">Введите название или ссылку на видео. Получите отдельные дорожки вокала и инструментов.</p>
-      </section>
-
-      <section class="panel" aria-labelledby="form-title">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">НОВАЯ ЗАДАЧА</p>
-            <h2 id="form-title">Что будем разделять?</h2>
+    <main>
+      <section id="screen-project" class="screen project-screen" aria-label="Рабочая область проекта">
+        <div class="project-tabs-shell shell">
+          <div id="project-tabs" class="project-tabs" role="tablist" aria-label="Проекты">
+            <p class="tabs-empty">Проекты появятся здесь</p>
           </div>
-          <span class="step-number">01</span>
         </div>
-        <form id="submit-form">
-          <label for="inputs">Название или YouTube-ссылка</label>
-          <textarea id="inputs" name="inputs" rows="4" maxlength="2048" required
-            placeholder="Например: Portishead — Glory Box&#10;Можно добавить несколько строк"></textarea>
-          <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
-
-          <div class="options-grid">
-            <div class="field">
-              <label for="model">Модель</label>
-              <select id="model" name="model" required>
-                <option value="">Загрузка списка…</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="device">Устройство</label>
-              <select id="device" name="device">
-                <option value="cpu">CPU</option>
-                <option value="cuda">NVIDIA CUDA</option>
-                <option value="mps">Apple Metal</option>
-              </select>
-            </div>
+        <section id="project-workspace" class="project-workspace" aria-live="polite">
+          <div id="project-empty" class="workspace-empty">
+            <span class="empty-mark" aria-hidden="true">♫</span>
+            <p>Найдите песню или вставьте ссылку на YouTube, чтобы начать.</p>
           </div>
-          <div class="form-footer">
-            <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
-            <button id="submit-button" type="submit"><span>Начать разделение</span><span aria-hidden="true">↗</span></button>
-          </div>
-        </form>
-      </section>
-
-      <section id="progress-section" class="progress-section" aria-live="polite" hidden>
-        <div class="panel-heading progress-heading">
-          <div>
-            <p class="eyebrow">ПРОГРЕСС</p>
-            <h2 id="batch-title">Ваша задача</h2>
-          </div>
-          <span id="batch-status" class="status-pill"></span>
-        </div>
-        <div id="job-list" class="job-list"></div>
-      </section>
-
-      <section class="updates-section" aria-labelledby="updates-title">
-        <div class="panel-heading library-heading">
-          <div>
-            <p class="eyebrow">ОБСЛУЖИВАНИЕ</p>
-            <h2 id="updates-title">Обновления</h2>
-          </div>
-          <button id="check-updates" class="quiet-button" type="button">Проверить</button>
-        </div>
-        <p id="updates-message" class="empty-state" role="status" aria-live="polite">Проверка выполняется только по запросу.</p>
-        <div id="release-list" class="release-list"></div>
-      </section>
-
-      <section class="library-section" aria-labelledby="library-title">
-        <div class="panel-heading library-heading">
-          <div>
-            <p class="eyebrow">ВАША КОЛЛЕКЦИЯ</p>
-            <h2 id="library-title">Проекты</h2>
-          </div>
-          <button id="refresh-projects" class="quiet-button" type="button" aria-label="Обновить проекты">↻</button>
-        </div>
-        <div id="project-list" class="project-list" aria-live="polite">
-          <p class="empty-state">Здесь появятся обработанные и текущие проекты.</p>
-        </div>
-        <section id="project-detail" class="project-detail" aria-live="polite" hidden>
-          <div class="detail-heading">
-            <div>
-              <p class="eyebrow">ПРОЕКТ</p>
-              <h3 id="detail-title"></h3>
-            </div>
-            <span id="detail-status" class="status-pill"></span>
-          </div>
-          <p id="detail-input" class="detail-input"></p>
-          <div id="detail-model" class="detail-model"></div>
-          <button id="delete-project" class="delete-button" type="button">Удалить проект</button>
-          <section id="playback-panel" class="playback-panel" aria-label="Синхронное воспроизведение" hidden></section>
-          <div id="asset-list" class="asset-list"></div>
+          <article id="project-detail" class="project-detail" hidden>
+            <header class="detail-heading">
+              <div class="detail-title-wrap">
+                <h1 id="detail-title"></h1>
+                <p id="detail-input" class="detail-input"></p>
+              </div>
+              <button id="refresh-projects" class="icon-button" type="button" aria-label="Обновить проекты" title="Обновить проекты">↻</button>
+            </header>
+            <p id="detail-error" class="detail-error" role="alert" hidden></p>
+            <p id="detail-model" class="detail-model"></p>
+            <section id="playback-panel" class="playback-panel" aria-label="Синхронное воспроизведение" hidden></section>
+            <details class="asset-details">
+              <summary>Файлы проекта</summary>
+              <div id="asset-list" class="asset-list"></div>
+            </details>
+            <button id="delete-project" class="delete-button" type="button" aria-label="Удалить проект" title="Удалить проект">♲</button>
+          </article>
         </section>
       </section>
 
-      <footer>
-        <span>Audio Stems</span>
-        <span>Обработка выполняется на этом компьютере</span>
-      </footer>
+      <section id="screen-settings" class="screen secondary-screen shell" aria-labelledby="settings-title" hidden>
+        <header class="screen-heading">
+          <a class="back-link" href="#project" data-screen="project">← Проект</a>
+          <h1 id="settings-title">Настройки</h1>
+          <p>Версия приложения и доступные обновления.</p>
+        </header>
+        <section class="settings-card" aria-labelledby="updates-title">
+          <div class="section-heading">
+            <h2 id="updates-title">Обновления</h2>
+            <button id="check-updates" class="quiet-button" type="button">Проверить</button>
+          </div>
+          <p id="updates-message" class="empty-state" role="status" aria-live="polite">Проверка выполняется только по запросу.</p>
+          <div id="release-list" class="release-list"></div>
+        </section>
+      </section>
+
+      <section id="screen-help" class="screen secondary-screen shell" aria-labelledby="help-title" hidden>
+        <header class="screen-heading">
+          <a class="back-link" href="#project" data-screen="project">← Проект</a>
+          <h1 id="help-title">Как пользоваться Audio Stems</h1>
+          <p>Несколько простых шагов — и можно заниматься с отдельными партиями.</p>
+        </header>
+        <ol class="help-steps">
+          <li><h2>Найдите песню</h2><p>Нажмите на строку поиска в шапке. Введите название песни и исполнителя или вставьте ссылку на видео YouTube. Можно указать несколько песен, каждую с новой строки.</p></li>
+          <li><h2>Выберите настройки и запустите обработку</h2><p>В открывшейся панели выберите модель и доступное устройство, затем нажмите «Начать разделение». Можно свернуть панель: ход работы будет виден по цвету вкладки проекта.</p></li>
+          <li><h2>Откройте проект</h2><p>Когда песня появится во вкладках под поиском, нажмите на её название. Зелёный цвет означает, что дорожки готовы; красный — что возникла ошибка. Текст ошибки появится внутри проекта.</p></li>
+          <li><h2>Слушайте и занимайтесь</h2><p>Нажмите ▶, чтобы начать, и Ⅱ, чтобы поставить на паузу. Кнопка |◀ остановит все дорожки и вернёт их в начало. Перетаскивайте общую шкалу времени, чтобы перейти к нужному месту.</p></li>
+          <li><h2>Настройте дорожки</h2><p>У каждой дорожки есть регулятор громкости. Кнопка S оставляет звучать выбранные дорожки, кнопка M отключает дорожку. Можно включать несколько S одновременно. Перетаскивайте шкалу до 150%; рядом со 100% регулятор мягко фиксируется на обычном уровне.</p></li>
+          <li><h2>Удалите ненужный проект</h2><p>Нажмите на красную кнопку с корзиной внизу проекта и подтвердите удаление в окне приложения. Вместе с проектом будут удалены сохранённое аудио и дорожки.</p></li>
+        </ol>
+      </section>
     </main>
+
+    <div id="search-overlay" class="search-overlay" hidden>
+      <section class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="search-title">
+        <div class="search-dialog-heading">
+          <div><p class="eyebrow">НОВАЯ ЗАДАЧА</p><h1 id="search-title">Что будем разделять?</h1></div>
+          <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск">×</button>
+        </div>
+        <form id="submit-form">
+          <label for="inputs">Название песни или YouTube-ссылка</label>
+          <textarea id="inputs" name="inputs" rows="2" maxlength="2048" required
+            placeholder="Например: Portishead — Glory Box&#10;Можно добавить несколько строк"></textarea>
+          <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
+          <div class="options-grid">
+            <div class="field"><label for="model">Модель разделения</label><select id="model" name="model" required><option value="">Загрузка списка…</option></select></div>
+            <div class="field"><label for="device">Устройство</label><select id="device" name="device" required><option value="cpu">CPU</option></select></div>
+          </div>
+          <div class="form-footer">
+            <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
+            <button id="submit-button" type="submit">Начать разделение <span aria-hidden="true">↗</span></button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title">
+      <form method="dialog" class="confirm-card">
+        <p class="eyebrow">УДАЛЕНИЕ ПРОЕКТА</p>
+        <h2 id="delete-title">Удалить проект?</h2>
+        <p id="delete-description">Проект, исходное аудио и все дорожки будут удалены.</p>
+        <div class="confirm-actions">
+          <button id="cancel-delete" class="quiet-button" value="cancel">Отмена</button>
+          <button id="confirm-delete" class="danger-action" type="button">Удалить</button>
+        </div>
+        <p id="delete-error" class="detail-error" role="alert" hidden></p>
+      </form>
+    </dialog>
   </body>
 </html>

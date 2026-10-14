@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MixerSession, SynchronizedTransport } from "../web/playback.mjs";
+import { MixerSession, SynchronizedTransport, snapFaderPercent } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -34,6 +34,10 @@ function makeTransport(durations = [10, 10, 10, 10, 10, 10]) {
     driftTolerance: 0.08,
   });
   return { tracks, transport, tick() { const pending = [...frames.values()]; frames.clear(); pending.forEach((cb) => cb()); } };
+}
+
+function makeGainNodes(count = 6) {
+  return Array.from({ length: count }, () => ({ gain: { value: 1 } }));
 }
 
 test("play starts all tracks and seek synchronizes to the shortest duration", async () => {
@@ -72,38 +76,52 @@ test("a rejected play pauses every track and reports the failure", async () => {
   assert.ok(tracks.every((track) => track.paused));
 });
 
-test("mixer gain is independent and clamps to the browser volume range", () => {
-  const { tracks } = makeTransport();
-  const mixer = new MixerSession(tracks);
+test("mixer gain is independent and supports 0 through 150 percent", () => {
+  const nodes = makeGainNodes();
+  const mixer = new MixerSession(nodes);
   mixer.setGain(0, 0.35);
   mixer.setGain(1, 1.5);
-  assert.equal(tracks[0].volume, 0.35);
-  assert.equal(tracks[1].volume, 1);
-  assert.equal(tracks[2].volume, 1);
+  assert.equal(nodes[0].gain.value, 0.35);
+  assert.equal(nodes[1].gain.value, 1.5);
+  assert.equal(nodes[2].gain.value, 1);
+  mixer.setGain(2, -1);
+  mixer.setGain(3, 2);
+  assert.equal(nodes[2].gain.value, 0);
+  assert.equal(nodes[3].gain.value, 1.5);
 });
 
 test("mute, multiple solo, and clearing solo compose with each track gain", () => {
-  const { tracks } = makeTransport();
-  const mixer = new MixerSession(tracks);
+  const nodes = makeGainNodes();
+  const mixer = new MixerSession(nodes);
   mixer.setGain(0, 0.4);
   mixer.setGain(1, 0.7);
   mixer.setMute(0, true);
   mixer.setSolo(1, true);
   mixer.setSolo(2, true);
-  assert.deepEqual(tracks.map((track) => track.volume), [0, 0.7, 1, 0, 0, 0]);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [0, 0.7, 1, 0, 0, 0]);
   mixer.setSolo(2, false);
   mixer.setSolo(1, false);
-  assert.deepEqual(tracks.map((track) => track.volume), [0, 0.7, 1, 1, 1, 1]);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [0, 0.7, 1, 1, 1, 1]);
   mixer.setMute(0, false);
-  assert.equal(tracks[0].volume, 0.4);
+  assert.equal(nodes[0].gain.value, 0.4);
 });
 
 test("mixer updates preserve the current shared playback position", async () => {
   const { tracks, transport } = makeTransport();
-  const mixer = new MixerSession(tracks);
+  const mixer = new MixerSession(makeGainNodes());
   await transport.play();
   transport.seek(3.25);
   mixer.setGain(4, 0.2);
   mixer.setSolo(4, true);
   assert.deepEqual(tracks.map((track) => track.currentTime), [3.25, 3.25, 3.25, 3.25, 3.25, 3.25]);
+});
+
+test("fader snaps to 100 percent only inside the inclusive 95 to 105 percent band", () => {
+  assert.equal(snapFaderPercent(0), 0);
+  assert.equal(snapFaderPercent(94), 94);
+  assert.equal(snapFaderPercent(95), 100);
+  assert.equal(snapFaderPercent(100), 100);
+  assert.equal(snapFaderPercent(105), 100);
+  assert.equal(snapFaderPercent(106), 106);
+  assert.equal(snapFaderPercent(150), 150);
 });

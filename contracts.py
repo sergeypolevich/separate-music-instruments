@@ -78,6 +78,12 @@ class SeparatorModel:
     parameters: Mapping[str, str]
 
 
+@dataclass(frozen=True)
+class ComputeDevice:
+    name: str
+    label: str
+
+
 class MediaAssetType(Enum):
     SOURCE_AUDIO = "source_audio"
     STEM = "stem"
@@ -196,6 +202,8 @@ class StemSeparator(Protocol):
     """Describe available models and run one with categorized failures."""
 
     def available_models(self) -> Sequence[SeparatorModel]: ...
+
+    def available_devices(self) -> Sequence[ComputeDevice]: ...
 
     def validate_options(self, options: SeparationOptions) -> None: ...
 

@@ -66,21 +66,28 @@ def test_blur_song2_full_desktop_browser_flow(tmp_path):
     if os.getenv("RUN_LIVE_E2E") != "1":
         pytest.skip("Set RUN_LIVE_E2E=1 to run the full YouTube + Demucs browser test")
 
-    from pytubefix import Search
     from playwright.sync_api import sync_playwright
 
-    # Do not process a substitute if YouTube's first search result changes.
-    results = Search(QUERY).videos
-    assert results, "YouTube search returned no candidates"
-    first_id = str(getattr(results[0], "video_id", ""))
-    assert first_id == EXPECTED_VIDEO_ID, (
-        f"First YouTube result changed to {first_id!r}; refusing to download a different video"
-    )
+    reuse_root_value = os.getenv("AUDIO_STEMS_E2E_REUSE_DIR")
+    reuse_root = Path(reuse_root_value) if reuse_root_value else None
+    if reuse_root is None:
+        from pytubefix import Search
+
+        # Do not process a substitute if YouTube's first search result changes.
+        results = Search(QUERY).videos
+        assert results, "YouTube search returned no candidates"
+        first_id = str(getattr(results[0], "video_id", ""))
+        assert first_id == EXPECTED_VIDEO_ID, (
+            f"First YouTube result changed to {first_id!r}; refusing to download a different video"
+        )
 
     port = _free_local_port()
     base_url = f"http://127.0.0.1:{port}"
-    database = tmp_path / "audio_stems.db"
-    media_root = tmp_path / "YouTube Audio"
+    data_root = reuse_root or tmp_path
+    database = data_root / "audio_stems.db"
+    media_root = data_root / "YouTube Audio"
+    if reuse_root is not None and (not database.is_file() or not media_root.is_dir()):
+        pytest.fail("AUDIO_STEMS_E2E_REUSE_DIR must contain audio_stems.db and YouTube Audio")
     stop_file = tmp_path / "stop-supervisor"
     log_path = tmp_path / "desktop-e2e.log"
     environment = os.environ.copy()
@@ -113,49 +120,87 @@ def test_blur_song2_full_desktop_browser_flow(tmp_path):
                 page = browser.new_page()
                 page.set_default_timeout(30_000)
                 page_errors = []
+                asset_responses = []
+                asset_request_failures = []
                 page.on("pageerror", lambda error: page_errors.append(str(error)))
-                page.goto(base_url, wait_until="networkidle", timeout=60_000)
+                page.on(
+                    "response",
+                    lambda response: asset_responses.append((response.status, response.url))
+                    if "/api/v1/assets/" in response.url else None,
+                )
+                page.on(
+                    "requestfailed",
+                    lambda request: asset_request_failures.append((request.url, request.failure))
+                    if "/api/v1/assets/" in request.url else None,
+                )
+                # The app polls its API, so the page may never become network-idle.
+                page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
 
                 assert page.locator('link[href="app.css"]').count() == 1
                 assert page.locator('script[src="app.js"]').count() == 1
                 background = page.locator("body").evaluate("element => getComputedStyle(element).backgroundColor")
                 assert background not in {"rgba(0, 0, 0, 0)", "transparent"}, "CSS did not apply"
-                page.locator("#model").select_option("htdemucs_6s")
-
-                # Verify that the real browser completed the local API call.
-                with page.expect_response(lambda response: response.url.endswith("/api/v1/updates")):
+                if reuse_root is None:
+                    # Verify that the real browser completed the local update API call.
+                    page.locator('[data-screen="settings"]').click()
+                    update_message = page.locator("#updates-message")
+                    previous_update_message = update_message.inner_text()
                     page.locator("#check-updates").click()
-                page.wait_for_function("!document.querySelector('#check-updates').disabled")
-                assert "Failed to fetch" not in page.locator("#updates-message").inner_text()
+                    page.wait_for_function(
+                        "previous => document.querySelector('#updates-message').textContent !== previous",
+                        arg=previous_update_message,
+                        timeout=120_000,
+                    )
+                    page.wait_for_function(
+                        "!document.querySelector('#check-updates').disabled",
+                        timeout=120_000,
+                    )
+                    assert "failed to fetch" not in update_message.inner_text().lower()
 
-                page.locator("#inputs").fill(QUERY)
-                page.locator("#submit-button").click()
-                page.wait_for_function(
-                    "() => { const job = document.querySelector('.job-card'); "
-                    "return job && ['completed', 'failed'].includes(job.dataset.status); }",
-                    timeout=90 * 60 * 1000,
-                )
-                status = page.locator(".job-card").get_attribute("data-status")
+                page.locator('[data-screen="project"]').first.click()
+                if reuse_root is None:
+                    page.locator("#search-trigger").click()
+                    page.locator("#model").select_option("htdemucs_6s")
+                    page.locator("#inputs").fill(QUERY)
+                    page.locator("#submit-button").click()
+                    page.wait_for_function("document.querySelector('#search-overlay').hidden")
+                    page.wait_for_function(
+                        "() => { const tab = document.querySelector('.project-tab'); "
+                        "return tab && ['completed', 'failed'].includes(tab.dataset.status); }",
+                        timeout=90 * 60 * 1000,
+                    )
+                status = page.locator(".project-tab").first.get_attribute("data-status")
                 if status != "completed":
-                    failure = page.locator(".job-error").inner_text() if page.locator(".job-error").count() else "no error summary"
+                    failure = page.locator("#detail-error").inner_text() if not page.locator("#detail-error").is_hidden() else "no error summary"
                     raise AssertionError(f"Song 2 job finished with status {status!r}: {failure}")
-                project = page.locator(".project-card").first
+                project = page.locator(".project-tab").first
                 project.wait_for(timeout=60_000)
                 assert "blur" in project.inner_text().lower() and "song 2" in project.inner_text().lower()
-                project.click()
+                if reuse_root is None:
+                    project.click()
 
                 tracks = page.locator("#playback-panel audio")
                 tracks.nth(5).wait_for(state="attached", timeout=60_000)
-                page.wait_for_function(
-                    "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
-                    "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
-                    "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
-                    timeout=60_000,
-                )
+                try:
+                    page.wait_for_function(
+                        "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
+                        "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
+                        "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
+                        timeout=60_000,
+                    )
+                except Exception:
+                    print("Media element diagnostics:", page.locator("#playback-panel audio").evaluate_all(
+                        "els => els.map(audio => ({src: audio.currentSrc, duration: audio.duration, "
+                        "readyState: audio.readyState, networkState: audio.networkState, "
+                        "error: audio.error && {code: audio.error.code, message: audio.error.message}}))"
+                    ))
+                    print("Asset responses:", asset_responses)
+                    print("Asset request failures:", asset_request_failures)
+                    raise
                 assert [tracks.nth(index).get_attribute("data-stem") for index in range(6)] == list(EXPECTED_STEMS)
                 assert page.locator("#asset-list .asset-available").count() == 7
 
-                page.locator('[data-action="play"]').click()
+                page.locator('[data-action="toggle"]').click()
                 page.wait_for_function("Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => !audio.paused)")
                 position = page.locator("#playback-panel audio").first.evaluate("audio => audio.currentTime")
                 page.wait_for_function(
@@ -175,46 +220,85 @@ def test_blur_song2_full_desktop_browser_flow(tmp_path):
 
                 gains = page.locator('[data-control="gain"]')
                 mutes = page.locator('[data-control="mute"]')
-                assert gains.count() == mutes.count() == 6
+                solos = page.locator('[data-control="solo"]')
+                assert gains.count() == mutes.count() == solos.count() == 6
                 for index in range(6):
                     gain = gains.nth(index)
-                    box = gain.bounding_box()
-                    assert box is not None
-                    page.mouse.click(box["x"] + box["width"] * 0.25, box["y"] + box["height"] / 2)
+                    gain.focus()
+                    gain.press("Home")
                     page.wait_for_function(
-                        "index => Math.abs(document.querySelectorAll('#playback-panel audio')[index].volume - 0.25) < 0.08",
+                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 0",
                         arg=index,
                     )
-                    page.mouse.click(box["x"] + box["width"] * 0.75, box["y"] + box["height"] / 2)
+                    assert gain.input_value() == "0"
+                    gain.press("End")
                     page.wait_for_function(
-                        "index => Math.abs(document.querySelectorAll('#playback-panel audio')[index].volume - 0.75) < 0.08",
+                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 1.5",
                         arg=index,
                     )
+                    assert gain.input_value() == "150"
                     mute = mutes.nth(index)
-                    mute.check()
+                    mute.click()
                     page.wait_for_function(
-                        "index => document.querySelectorAll('#playback-panel audio')[index].volume === 0",
+                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 0",
                         arg=index,
                     )
-                    mute.uncheck()
+                    mute.click()
                     page.wait_for_function(
-                        "index => Math.abs(document.querySelectorAll('#playback-panel audio')[index].volume - 0.75) < 0.08",
+                        "index => document.querySelectorAll('[data-control=\"mute\"]')[index].getAttribute('aria-pressed') === 'false'",
                         arg=index,
                     )
-                page.locator('[data-action="pause"]').click()
-                page.wait_for_function("Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => audio.paused)")
+                    page.wait_for_function(
+                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) > 0",
+                        arg=index,
+                    )
+                    assert gain.input_value() == "150"
+                solos.nth(0).click()
+                solos.nth(1).click()
+                print("Solo controls after selection:", solos.evaluate_all(
+                    "buttons => buttons.map(button => button.getAttribute('aria-pressed'))"
+                ))
+                print("Effective gains after solo selection:", page.locator("#playback-panel audio").evaluate_all(
+                    "tracks => tracks.map(audio => audio.dataset.effectiveGain)"
+                ))
+                page.wait_for_function(
+                    "Array.from(document.querySelectorAll('#playback-panel audio')).slice(0, 2).every(audio => Number(audio.dataset.effectiveGain) > 0)",
+                    timeout=5_000,
+                )
+                page.wait_for_function(
+                    "Array.from(document.querySelectorAll('#playback-panel audio')).slice(2).every(audio => Number(audio.dataset.effectiveGain) === 0)"
+                )
+                solos.nth(0).click()
+                solos.nth(1).click()
+                page.wait_for_function(
+                    "Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => Number(audio.dataset.effectiveGain) === 1.5)"
+                )
+                page.locator('[data-action="toggle"]').click()
+                try:
+                    page.wait_for_function(
+                        "Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => audio.paused)",
+                        timeout=5_000,
+                    )
+                except Exception:
+                    print("Playback state after pause click:", page.locator("#playback-panel audio").evaluate_all(
+                        "els => els.map(audio => ({paused: audio.paused, currentTime: audio.currentTime, duration: audio.duration}))"
+                    ))
+                    print("Transport button after pause click:", page.locator('[data-action="toggle"]').evaluate(
+                        "button => ({text: button.textContent, label: button.getAttribute('aria-label')})"
+                    ))
+                    raise
 
                 # Reopen the saved project from the library and play it again.
-                page.locator(".project-card").first.click()
+                page.locator(".project-tab").first.click()
                 page.wait_for_function(
                     "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
                     "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
                     "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
                     timeout=60_000,
                 )
-                page.locator('[data-action="play"]').click()
+                page.locator('[data-action="toggle"]').click()
                 page.wait_for_function("Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => !audio.paused)")
-                page.locator('[data-action="pause"]').click()
+                page.locator('[data-action="toggle"]').click()
                 assert not page_errors, f"Browser page errors: {page_errors}"
         except Exception:
             app_log.flush()

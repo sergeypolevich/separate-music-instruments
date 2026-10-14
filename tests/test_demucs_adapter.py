@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from contracts import AdapterError, FailureCategory, SeparationOptions
-from demucs_adapter import DemucsSeparator
+from contracts import AdapterError, ComputeDevice, FailureCategory, SeparationOptions
+from demucs_adapter import DemucsSeparator, detect_compute_devices
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -16,6 +16,64 @@ def test_separator_reports_model_names_and_supported_options():
     six_stem = next(model for model in models if model.name == "htdemucs_6s")
     assert six_stem.stems == ("vocals", "drums", "bass", "guitar", "piano", "other")
     assert set(six_stem.parameters) == {"shifts", "overlap", "segment"}
+
+
+def test_device_detection_lists_only_available_torch_backends_in_priority_order():
+    class Torch:
+        class cuda:
+            @staticmethod
+            def is_available():
+                return True
+
+        class backends:
+            class mps:
+                @staticmethod
+                def is_available():
+                    return True
+
+    assert detect_compute_devices(Torch) == (
+        ComputeDevice("cpu", "CPU"),
+        ComputeDevice("cuda", "NVIDIA CUDA"),
+        ComputeDevice("mps", "Apple Metal (MPS)"),
+    )
+
+
+def test_device_detection_handles_cpu_only_and_backend_errors():
+    class CpuOnlyTorch:
+        class cuda:
+            @staticmethod
+            def is_available():
+                return False
+
+        class backends:
+            class mps:
+                @staticmethod
+                def is_available():
+                    return False
+
+    class BrokenTorch:
+        class cuda:
+            @staticmethod
+            def is_available():
+                raise RuntimeError("backend probe failed")
+
+    cpu = (ComputeDevice("cpu", "CPU"),)
+    assert detect_compute_devices(CpuOnlyTorch) == cpu
+    assert detect_compute_devices(BrokenTorch) == cpu
+
+
+def test_device_detection_falls_back_to_cpu_when_torch_is_missing(monkeypatch):
+    import builtins
+
+    original_import = builtins.__import__
+
+    def without_torch(name, *args, **kwargs):
+        if name == "torch":
+            raise ImportError("torch is missing")
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_torch)
+    assert detect_compute_devices() == (ComputeDevice("cpu", "CPU"),)
 
 
 def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_path):
@@ -57,6 +115,16 @@ def test_separator_rejects_unsupported_model_or_parameters(options, tmp_path):
     with pytest.raises(AdapterError) as error:
         DemucsSeparator().separate(tmp_path / "source.wav", tmp_path / "out", options)
 
+    assert error.value.category is FailureCategory.INVALID_INPUT
+
+
+def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "demucs_adapter.detect_compute_devices",
+        lambda: (ComputeDevice("cpu", "CPU"),),
+    )
+    with pytest.raises(AdapterError) as error:
+        DemucsSeparator().validate_options(SeparationOptions("htdemucs_6s", "mps"))
     assert error.value.category is FailureCategory.INVALID_INPUT
 
 
