@@ -81,6 +81,24 @@ class _QuietHandler(SimpleHTTPRequestHandler):
         pass
 
 
+# Distance between the centre of an icon (SVG box, or the text itself for letter buttons) and its host.
+_ICON_OFFSET = """([iconSel, hostSel]) => {
+  const icon = document.querySelector(iconSel), host = document.querySelector(hostSel);
+  let r;
+  if (icon instanceof SVGElement) r = icon.getBoundingClientRect();
+  else { const range = document.createRange(); range.selectNodeContents(icon); r = range.getBoundingClientRect(); }
+  const h = host.getBoundingClientRect();
+  return [r.left + r.width / 2 - (h.left + h.width / 2), r.top + r.height / 2 - (h.top + h.height / 2)];
+}"""
+
+
+def _assert_icon_centred(page, icon_sel, host_sel, *, horizontal=True, tolerance=0.75):
+    dx, dy = page.evaluate(_ICON_OFFSET, [icon_sel, host_sel])
+    assert abs(dy) <= tolerance, f"{icon_sel} is {dy:.2f}px off vertically"
+    if horizontal:
+        assert abs(dx) <= tolerance, f"{icon_sel} is {dx:.2f}px off horizontally"
+
+
 @pytest.mark.browser
 @pytest.mark.parametrize("viewport", [(1365, 768), (390, 844)], ids=["desktop", "mobile"])
 def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
@@ -205,6 +223,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 timeout=15_000,
             )
 
+            for icon_sel, host_sel in (
+                (".settings-link .icon", ".settings-link"),
+                ('[data-action="toggle"] .icon', '[data-action="toggle"]'),
+                ('[data-action="reset"] .icon', '[data-action="reset"]'),
+                ("#delete-project .icon", "#delete-project"),
+                ('[data-control="solo"]', '[data-control="solo"]'),
+                ('[data-control="mute"]', '[data-control="mute"]'),
+            ):
+                _assert_icon_centred(page, icon_sel, host_sel)
+            _assert_icon_centred(page, "#search-trigger .icon", "#search-trigger", horizontal=False)
+            _assert_icon_centred(page, "#search-trigger .icon", "#search-preview", horizontal=False, tolerance=1)
+
             # The timeline spans exactly the waveform column, and its position matches the playhead.
             timeline_box = page.locator('[data-control="seek"]').bounding_box()
             for wave_box in [w.bounding_box() for w in page.locator(".mixer-waveform").all()]:
@@ -287,6 +317,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#search-trigger").click()
             overlay = page.locator("#search-overlay")
             assert overlay.is_visible()
+            _assert_icon_centred(page, "#close-search .icon", "#close-search")
+            _assert_icon_centred(page, "#submit-button .icon", "#submit-button span", horizontal=False, tolerance=1)
             bounds = overlay.bounding_box()
             assert bounds["width"] == viewport[0] and bounds["height"] == viewport[1]
             textarea = page.locator("#inputs")

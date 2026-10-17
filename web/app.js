@@ -44,6 +44,17 @@ let playbackSetupId = 0;
 let selectedProjectId = null;
 let selectedProjectTitle = "";
 
+// Transport icons are drawn in the same 24px grid as the static SVG icons in index.html.
+const transportIcons = {
+  play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
+  pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
+  start: '<path d="M6 5v14"/><path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/>',
+};
+
+function setIcon(button, name) {
+  button.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${transportIcons[name]}</svg>`;
+}
+
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
     ...options,
@@ -263,14 +274,14 @@ async function setupProjectPlayback(assets, setupId) {
     play.type = "button";
     play.className = "transport-button";
     play.dataset.action = "toggle";
-    play.textContent = "▶";
+    setIcon(play, "play");
     play.setAttribute("aria-label", "Воспроизвести");
     play.title = "Воспроизвести";
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "transport-button";
     reset.dataset.action = "reset";
-    reset.textContent = "|◀";
+    setIcon(reset, "start");
     reset.setAttribute("aria-label", "В начало и пауза");
     reset.title = "В начало и пауза";
     const buttons = document.createElement("div");
@@ -282,7 +293,7 @@ async function setupProjectPlayback(assets, setupId) {
     mixerRows.className = "mixer-grid";
 
     const updateTransportButton = (isPlaying) => {
-      play.textContent = isPlaying ? "Ⅱ" : "▶";
+      setIcon(play, isPlaying ? "pause" : "play");
       play.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести");
       play.title = isPlaying ? "Пауза" : "Воспроизвести";
     };

@@ -16,11 +16,11 @@
           <span>audio<span class="brand-accent">stems</span></span>
         </a>
         <button id="search-trigger" class="search-trigger" type="button" aria-haspopup="dialog" aria-controls="search-overlay">
-          <span class="search-icon" aria-hidden="true">⌕</span>
+          <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
           <span id="search-preview">Найти песню или вставить YouTube-ссылку…</span>
         </button>
         <nav class="top-nav" aria-label="Навигация">
-          <a href="#settings" data-screen="settings" aria-label="Настройки">⚙</a>
+          <a href="#settings" data-screen="settings" class="settings-link" aria-label="Настройки" title="Настройки"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></a>
         </nav>
       </div>
     </header>
@@ -34,7 +34,7 @@
         </div>
         <section id="project-workspace" class="project-workspace" aria-live="polite">
           <div id="project-empty" class="workspace-empty">
-            <span class="empty-mark" aria-hidden="true">♫</span>
+            <span class="empty-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
             <p>Найдите песню или вставьте ссылку на YouTube, чтобы начать.</p>
           </div>
           <article id="project-detail" class="project-detail" hidden>
@@ -43,14 +43,14 @@
             </header>
             <p id="detail-error" class="detail-error" role="alert" hidden></p>
             <section id="playback-panel" class="playback-panel" aria-label="Синхронное воспроизведение" hidden></section>
-            <button id="delete-project" class="delete-button" type="button" aria-label="Удалить проект" title="Удалить проект">♲</button>
+            <button id="delete-project" class="delete-button" type="button" aria-label="Удалить проект" title="Удалить проект"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
           </article>
         </section>
       </section>
 
       <section id="screen-settings" class="screen secondary-screen shell" aria-labelledby="settings-title" hidden>
         <header class="screen-heading">
-          <a class="back-link" href="#project" data-screen="project">← Проект</a>
+          <a class="back-link" href="#project" data-screen="project"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Проект</span></a>
           <h1 id="settings-title">Настройки</h1>
           <p>Версия приложения и доступные обновления.</p>
         </header>
@@ -69,7 +69,7 @@
       <section class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="search-title">
         <div class="search-dialog-heading">
           <div><p class="eyebrow">НОВАЯ ЗАДАЧА</p><h1 id="search-title">Что будем разделять?</h1></div>
-          <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск">×</button>
+          <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <form id="submit-form">
           <label for="inputs">Название песни или YouTube-ссылка</label>
@@ -81,7 +81,7 @@
           </div>
           <div class="form-footer">
             <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
-            <button id="submit-button" type="submit">Начать разделение <span aria-hidden="true">↗</span></button>
+            <button id="submit-button" type="submit"><span>Начать разделение</span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></button>
           </div>
         </form>
       </section>
