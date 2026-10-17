@@ -142,3 +142,9 @@ Stage 1 publication, stage 3 regression coverage, and stage 4 settings/logging a
 - **Changes:** added `CLAUDE.md` (imports `AGENTS.md`) and project `.claude/settings.json` (allow pytest/node checks and local git status/diff/log/add/commit; `git push` always asks); ignored `.claude/settings.local.json`. The development skill now requires an automatic local commit after every step whose gates pass, and pushing only at the end of a version after the user's manual verification.
 - **Live gate song:** the Song 2 E2E took about four minutes and timed out waiting for all six stem `<audio>` elements to load metadata. At the user's request the live test is now `tests/test_e2e_spiro_agnew.py`: query `John Denver - The Ballad of Spiro Agnew`, expected first result `GDXxm2gu-_E` (16 s). Scenario and assertions are otherwise unchanged; the project-name check matches `spiro agnew` because the video title has no artist name.
 - **Checks:** `pytest -q` passed (151 passed, 1 opt-in live test skipped); `$env:RUN_LIVE_E2E = '1'; pytest -q -m e2e -s` passed (1 passed in 83 s, visible browser via Playwright, real YouTube + CPU Demucs).
+
+## Ponytail coding rules
+
+- **Status:** complete.
+- **Changes:** vendored the MIT-licensed ponytail ruleset (DietrichGebert/ponytail `AGENTS.md` at `16352ac`) as `skills/ponytail.md`, imported it from `CLAUDE.md`, and referenced it from the development skill so Codex follows it too. Project test and live-gate rules stay authoritative where stricter. The Claude Code plugin (Node hooks, `/ponytail-*` commands) was not installed.
+- **Checks:** `pytest -q` passed (151 passed, 1 skipped); live Spiro Agnew E2E passed (1 passed in 97 s).

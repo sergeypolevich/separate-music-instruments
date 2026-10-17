@@ -8,6 +8,7 @@ Read this file and the linked project specification in `AGENTS.md` before each i
 2. List the stage's corner cases, risks, and behavior boundaries before writing tests. Preserve the working baseline unless an explicit behavior change is requested.
 3. Write a short implementation plan and a check matrix with expected results in the stage notes.
 4. Start with tests, then make the smallest useful change. Keep external downloads, YouTube, and real Demucs execution out of default tests.
+5. Follow the coding style in [`ponytail.md`](ponytail.md): the smallest complete change, no unrequested abstractions or options, reuse what the codebase already has, and end each report with what was skipped or not checked. Where it allows skipping a test, this workflow's stricter test and gate requirements still apply.
 
 ## Verification and review
 
