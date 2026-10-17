@@ -23,6 +23,7 @@ const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");
 const detailControls = document.querySelector("#detail-controls");
+const detailTime = document.querySelector("#detail-time");
 const detailError = document.querySelector("#detail-error");
 const playbackPanel = document.querySelector("#playback-panel");
 const deleteProjectButton = document.querySelector("#delete-project");
@@ -238,6 +239,7 @@ function cleanupPlayback() {
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
   detailControls.replaceChildren();
+  detailTime.textContent = "";
   playbackKey = "";
 }
 
@@ -318,8 +320,7 @@ async function setupProjectPlayback(assets, setupId) {
     });
     activeMixer = mixer;
 
-    const time = document.createElement("span");
-    time.className = "playback-time";
+    const time = detailTime;
     // One playhead layer over the waveform column of all six rows; it is the position slider
     // for both pointer and keyboard.
     const playheadLayer = document.createElement("div");
@@ -450,12 +451,16 @@ async function setupProjectPlayback(assets, setupId) {
       gain.max = "150";
       gain.step = "1";
       gain.value = "100";
+      // Filled part of the custom track, as a share of the 0-150 % range.
+      const showFill = () => gain.style.setProperty("--fill", `${(Number(gain.value) / 150) * 100}%`);
+      showFill();
       gain.dataset.control = "gain";
       gain.tabIndex = -1; // volume is mouse-only; arrow keys belong to the global hotkeys
       gain.setAttribute("aria-label", `Громкость ${stemLabels[asset.stem_name]}`);
       gain.addEventListener("input", () => {
         const percent = snapFaderPercent(Number(gain.value));
         gain.value = String(percent);
+        showFill();
         mixer.setGain(index, percent / 100);
       });
       fader.append(gain);
@@ -504,7 +509,7 @@ async function setupProjectPlayback(assets, setupId) {
         updateTime(transport.tracks[0].currentTime);
       }
     }));
-    detailControls.replaceChildren(buttons, time);
+    detailControls.replaceChildren(buttons);
     mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
     playbackPanel.replaceChildren(error, mixerRows, ...tracks);

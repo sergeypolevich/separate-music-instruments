@@ -121,19 +121,20 @@ button { cursor: pointer; }
 .project-detail { position: relative; width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 8px 16px 58px; }
 .project-detail > * { grid-column: 1 / -1; }
 .project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
-.project-detail > #detail-title { grid-column: 2; grid-row: 1; }
+/* Title on the left of the waveform column, timer pushed to its right edge. */
+.project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.detail-time { flex: none; color: var(--text); font: 300 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 h1, h2, h3, p { margin-top: 0; }
-#detail-title { margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+#detail-title { min-width: 0; margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
 .icon-button:hover { border-color: var(--line-strong); color: var(--accent); }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger-text); font-size: 12px; }
 .playback-panel { display: grid; grid-template-columns: subgrid; row-gap: 8px; margin-top: 12px; }
 .playback-panel > * { grid-column: 1 / -1; }
-.playback-message, .playback-time, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
+.playback-message, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
 .playback-buttons { display: flex; gap: 6px; }
 .transport-button { width: 57px; min-width: 57px; height: 51px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); color: var(--text); font-size: 27px; }
 .transport-button:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
-.playback-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .playback-panel audio {
   position: absolute;
   width: 1px;
@@ -159,8 +160,16 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-row[data-selected="true"]::before { position: absolute; top: -1px; bottom: 0; left: -10px; width: 3px; background: var(--accent); content: ""; }
 /* Stems silenced by S/M fade to 20 % so the audible ones stand out. */
 .mixer-row[data-silenced="true"] .waveform-preview { opacity: .2; }
-.mixer-fader { display: flex; align-items: center; }
-.mixer-fader input { width: 100%; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); }
+/* Borderless volume slider: 4px track, 12px thumb. The thumb centre travels from 6px to width-6px,
+   so the 100 % mark (100 of 150) sits at 6px + (width - 12px) * 2/3; it is 2px taller than the thumb. */
+.mixer-fader { position: relative; display: flex; align-items: center; }
+.mixer-fader::before { position: absolute; top: 50%; left: calc(6px + (100% - 12px) * 2 / 3); width: 1px; height: 14px; background: var(--muted); transform: translateY(-50%); pointer-events: none; content: ""; }
+.mixer-fader input { position: relative; z-index: 1; width: 100%; min-width: 0; height: 16px; margin: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.mixer-fader input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 66.67%), var(--line) var(--fill, 66.67%)); }
+.mixer-fader input::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--accent); -webkit-appearance: none; appearance: none; }
+.mixer-fader input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
+.mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
+.mixer-fader input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
 .playhead-layer:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 2px; border-radius: 4px; }
@@ -249,7 +258,6 @@ button:disabled { opacity: .55; cursor: wait; }
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
   .transport-button { width: 50px; min-width: 50px; height: 46px; font-size: 24px; }
-  .playback-time { font-size: 9px; }
   .search-overlay { padding: 14px 10px; }
   .search-dialog { min-height: calc(100dvh - 28px); padding: 20px 16px; border-radius: 13px; }
   .search-dialog-heading { margin-bottom: 22px; }
