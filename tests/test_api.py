@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 
 import httpx
 
-from contracts import ComputeDevice, JobStatus, SourceKind, SourceRequest
+from contracts import JobStatus, SourceKind, SourceRequest
 from demucs_adapter import DemucsSeparator
 from metadata import SqliteMetadataStore
 from settings import Settings
@@ -112,7 +112,6 @@ def test_api_reads_jobs_events_projects_and_models_with_stable_not_found(tmp_pat
     projects = client.get("/api/v1/projects")
     batches = client.get("/api/v1/batches")
     models = client.get("/api/v1/models")
-    devices = client.get("/api/v1/devices")
     hidden = client.get(f"/api/v1/jobs/{uuid4()}")
 
     assert batch.status_code == 200 and batch.json()["jobs"][0]["status"] == "downloading"
@@ -121,10 +120,6 @@ def test_api_reads_jobs_events_projects_and_models_with_stable_not_found(tmp_pat
     assert projects.json()[0]["input_value"] == "Track"
     assert batches.json()[0]["batch_id"] == str(receipt.batch_id)
     assert "htdemucs_6s" in [model["name"] for model in models.json()]
-    assert devices.status_code == 200
-    available_names = [device["name"] for device in devices.json()["devices"]]
-    assert available_names[0] == "cpu"
-    assert devices.json()["default"] in available_names
     assert hidden.status_code == 404 and hidden.json()["error"]["code"] == "not_found"
 
 
@@ -151,45 +146,15 @@ def test_idempotency_key_returns_the_existing_batch_without_duplicate_jobs(tmp_p
     assert len(repository.list_projects("local")) == 1
 
 
-def test_device_endpoint_prefers_cuda_then_mps_without_changing_model_endpoint(tmp_path, monkeypatch):
-    from contracts import ComputeDevice
+def test_batch_records_the_best_detected_device_and_has_no_device_selection(tmp_path, monkeypatch):
+    monkeypatch.setattr("demucs_adapter.detect_compute_devices", lambda: ("cuda", "cpu"))
+    client, repository = build_client(tmp_path)
 
-    monkeypatch.setattr(
-        "demucs_adapter.detect_compute_devices",
-        lambda: (
-            ComputeDevice("cpu", "CPU"),
-            ComputeDevice("mps", "Apple Metal (MPS)"),
-            ComputeDevice("cuda", "NVIDIA CUDA"),
-        ),
-    )
-    client, _repository = build_client(tmp_path)
+    created = client.post("/api/v1/batches", json={"inputs": ["Track"]})
+    with_device = client.post("/api/v1/batches", json={"inputs": ["Track"], "device": "cpu"})
 
-    devices = client.get("/api/v1/devices")
-    models = client.get("/api/v1/models")
-
-    assert devices.json() == {
-        "devices": [
-            {"name": "cpu", "label": "CPU"},
-            {"name": "mps", "label": "Apple Metal (MPS)"},
-            {"name": "cuda", "label": "NVIDIA CUDA"},
-        ],
-        "default": "cuda",
-    }
-    assert isinstance(models.json(), list)
-    assert "htdemucs_6s" in [model["name"] for model in models.json()]
-
-
-def test_batch_api_rejects_a_device_not_detected_on_this_machine(tmp_path, monkeypatch):
-    monkeypatch.setattr(
-        "demucs_adapter.detect_compute_devices",
-        lambda: (ComputeDevice("cpu", "CPU"),),
-    )
-    client, _repository = build_client(tmp_path)
-
-    response = client.post(
-        "/api/v1/batches",
-        json={"inputs": ["Track"], "device": "mps"},
-    )
-
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "invalid_model_options"
+    assert created.status_code == 202
+    job = repository.get_job(UUID(created.json()["job_ids"][0]), "local")
+    assert job.separation_options.device == "cuda"
+    assert client.get("/api/v1/devices").status_code == 404
+    assert with_device.status_code == 422 and with_device.json()["error"]["code"] == "invalid_request"

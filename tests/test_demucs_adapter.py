@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from contracts import AdapterError, ComputeDevice, FailureCategory, SeparationOptions
+from contracts import AdapterError, FailureCategory, SeparationOptions
 from demucs_adapter import DemucsSeparator, detect_compute_devices
 
 
@@ -31,11 +31,7 @@ def test_device_detection_lists_only_available_torch_backends_in_priority_order(
                 def is_available():
                     return True
 
-    assert detect_compute_devices(Torch) == (
-        ComputeDevice("cpu", "CPU"),
-        ComputeDevice("cuda", "NVIDIA CUDA"),
-        ComputeDevice("mps", "Apple Metal (MPS)"),
-    )
+    assert detect_compute_devices(Torch) == ("cuda", "mps", "cpu")
 
 
 def test_device_detection_handles_cpu_only_and_backend_errors():
@@ -57,7 +53,7 @@ def test_device_detection_handles_cpu_only_and_backend_errors():
             def is_available():
                 raise RuntimeError("backend probe failed")
 
-    cpu = (ComputeDevice("cpu", "CPU"),)
+    cpu = ("cpu",)
     assert detect_compute_devices(CpuOnlyTorch) == cpu
     assert detect_compute_devices(BrokenTorch) == cpu
 
@@ -73,7 +69,7 @@ def test_device_detection_falls_back_to_cpu_when_torch_is_missing(monkeypatch):
         return original_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", without_torch)
-    assert detect_compute_devices() == (ComputeDevice("cpu", "CPU"),)
+    assert detect_compute_devices() == ("cpu",)
 
 
 def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_path):
@@ -121,7 +117,7 @@ def test_separator_rejects_unsupported_model_or_parameters(options, tmp_path):
 def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, tmp_path):
     monkeypatch.setattr(
         "demucs_adapter.detect_compute_devices",
-        lambda: (ComputeDevice("cpu", "CPU"),),
+        lambda: ("cpu",),
     )
     with pytest.raises(AdapterError) as error:
         DemucsSeparator().validate_options(SeparationOptions("htdemucs_6s", "mps"))
@@ -137,3 +133,10 @@ def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_
         DemucsSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
 
     assert error.value.category is FailureCategory.PERMANENT
+
+
+def test_auto_device_resolves_to_the_best_available_backend(monkeypatch):
+    monkeypatch.setattr("demucs_adapter.detect_compute_devices", lambda: ("mps", "cpu"))
+
+    assert DemucsSeparator().resolve_device("auto") == "mps"
+    assert DemucsSeparator().resolve_device("cpu") == "cpu"

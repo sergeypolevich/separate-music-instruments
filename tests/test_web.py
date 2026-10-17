@@ -56,7 +56,7 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert "звучать по-новому" not in page.text
     assert 'rows="2"' in page.text
     assert 'id="model"' in page.text
-    assert 'id="device"' in page.text
+    assert 'id="device"' not in page.text
     assert 'id="check-updates"' in page.text
     assert 'id="release-list"' in page.text
     assert 'play.dataset.action = "toggle"' in script.text

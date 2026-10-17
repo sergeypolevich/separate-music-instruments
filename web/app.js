@@ -13,7 +13,6 @@ const batchActiveStates = new Set(["queued", "processing"]);
 const form = document.querySelector("#submit-form");
 const inputField = document.querySelector("#inputs");
 const modelField = document.querySelector("#model");
-const deviceField = document.querySelector("#device");
 const formMessage = document.querySelector("#form-message");
 const submitButton = document.querySelector("#submit-button");
 const searchOverlay = document.querySelector("#search-overlay");
@@ -571,21 +570,6 @@ async function loadModels() {
   }
 }
 
-async function loadDevices() {
-  try {
-    const result = await requestJson("/api/v1/devices");
-    deviceField.replaceChildren(...result.devices.map((device) => {
-      const option = document.createElement("option");
-      option.value = device.name;
-      option.textContent = device.label;
-      option.selected = device.name === result.default;
-      return option;
-    }));
-  } catch (_error) {
-    deviceField.replaceChildren(new Option("CPU", "cpu", true, true));
-  }
-}
-
 async function submitSearch(event) {
   event.preventDefault();
   if (pollingTimer !== null) window.clearTimeout(pollingTimer);
@@ -599,7 +583,7 @@ async function submitSearch(event) {
   try {
     const created = await requestJson("/api/v1/batches", {
       method: "POST",
-      body: JSON.stringify({ inputs, model_name: modelField.value, device: deviceField.value }),
+      body: JSON.stringify({ inputs, model_name: modelField.value }),
     });
     inputField.value = "";
     inputField.style.height = "";
@@ -669,4 +653,3 @@ checkUpdatesButton.addEventListener("click", checkUpdates);
 const initialScreen = location.hash.slice(1);
 activateScreen(screens.has(initialScreen) ? initialScreen : "project");
 loadModels();
-loadDevices();

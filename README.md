@@ -101,8 +101,6 @@ or supported YouTube URLs and returns `202` with batch/job IDs. Use
 `/api/v1/jobs/{id}/events` for persisted progress; `/api/v1/projects` lists
 saved projects and `/api/v1/models` lists model options. Errors use an
 `error.code` and safe `error.message` response. The API never accepts file paths.
-`GET /api/v1/devices` reports only compute devices supported by the installed
-PyTorch runtime and selects the fastest available option for new UI jobs.
 Project details provide opaque asset IDs. `GET /api/v1/assets/{asset_id}` streams
 an available asset and supports single byte-range requests. The corresponding
 `/waveform` endpoint returns bounded PCM WAV peak levels so the page does not
@@ -177,10 +175,10 @@ fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
 
 The Demucs adapter exposes its supported model and inference parameters. The UI
-lets each job select a model and device; SQLite stores the configuration and
-the worker passes it to the separator. The standalone compatibility command
-continues to use `AUDIO_STEMS_MODEL_NAME` and `AUDIO_STEMS_MODEL_DEVICE` from
-`.env`; defaults remain `htdemucs_6s` on CPU.
+lets each job select a model; the device comes from `AUDIO_STEMS_MODEL_DEVICE`
+(default `auto`: CUDA, then Apple MPS, then CPU, whichever the installed PyTorch
+can use). SQLite stores the resolved configuration and the worker passes it to
+the separator.
 
 Before reusing an existing audio file, the application checks its container
 signature (for example, the WebM or MP4 header). This catches empty and plainly

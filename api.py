@@ -66,7 +66,6 @@ class BatchSubmission(BaseModel):
     inputs: list[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(min_length=1, max_length=100)
     idempotency_key: Annotated[str | None, Field(max_length=200)] = None
     model_name: Annotated[str | None, Field(max_length=100)] = None
-    device: Annotated[str | None, Field(max_length=50)] = None
     parameters: dict[str, _ParameterValue] = Field(default_factory=dict, max_length=10)
 
 
@@ -153,16 +152,6 @@ def create_app(
             for model in separator.available_models()
         ]
 
-    @app.get("/api/v1/devices")
-    def devices() -> dict[str, object]:
-        available = tuple(separator.available_devices())
-        names = {device.name for device in available}
-        default = next((name for name in ("cuda", "mps", "cpu") if name in names), "cpu")
-        return {
-            "devices": [{"name": device.name, "label": device.label} for device in available],
-            "default": default,
-        }
-
     @app.get("/api/v1/updates")
     def check_updates() -> dict[str, object]:
         try:
@@ -225,7 +214,7 @@ def create_app(
         sources = [source_adapter.normalize(value) for value in body.inputs]
         options = SeparationOptions(
             body.model_name or settings.model_name,
-            body.device or settings.model_device,
+            separator.resolve_device(settings.model_device),
             body.parameters,
         )
         try:

@@ -136,7 +136,7 @@ h1, h2, h3, p { margin-top: 0; }
 .search-dialog select { height: 40px; padding: 0 11px; }
 .search-dialog textarea:focus, .search-dialog select:focus { outline: none; border-color: #94c84f; box-shadow: 0 0 0 3px rgba(184, 239, 104, .1); }
 .field-hint { margin: 6px 0 14px; color: #7f8e85; font-size: 10px; }
-.options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.options-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
 .form-message { min-height: 16px; color: var(--muted); font-size: 11px; }
 .form-message.error { color: var(--danger); }
