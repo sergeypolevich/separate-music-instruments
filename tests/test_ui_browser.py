@@ -202,17 +202,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_load_state("networkidle")
             assert page.evaluate("document.querySelector('#playback-panel audio') === window.firstStem")
-            # Tabs span the same width as the project card.
+            # The project is unframed; tabs start where the project controls start.
+            assert page.locator("#project-detail").evaluate("el => getComputedStyle(el).borderTopWidth") == "0px"
             tabs_box = page.locator("#project-tabs").bounding_box()
-            card_box = page.locator("#project-detail").bounding_box()
-            assert abs(tabs_box["x"] - card_box["x"]) <= 1 and abs(tabs_box["width"] - card_box["width"]) <= 1
+            assert abs(tabs_box["x"] - page.locator("#detail-controls").bounding_box()["x"]) <= 1
             assert page.locator(".project-tab").count() == 14
             assert page.locator(".project-tab").first.get_attribute("data-status") == "completed"
             assert "Ошибка" not in page.locator("#project-tabs").inner_text()
             assert page.locator("#search-trigger").bounding_box()["width"] <= 760
             assert page.locator("#project-tabs").evaluate("el => el.compareDocumentPosition(document.querySelector('#project-workspace')) & Node.DOCUMENT_POSITION_FOLLOWING")
             assert page.locator(".mixer-row").count() == 6
-            assert page.locator(".mixer-row").first.locator(".mixer-left > *").count() == 3
+            assert page.locator(".mixer-row").first.locator(".mixer-left > *").count() == 2
+            assert page.locator(".gain-value").count() == 0 and page.locator(".timeline").count() == 0
             assert page.locator(".playback-buttons button").count() == 2
             assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Воспроизвести"
             assert page.locator('[data-action="reset"]').get_attribute("aria-label") == "В начало и пауза"
@@ -248,51 +249,51 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 assert cell.locator("svg path").count() == 1
                 assert abs(svg_box["width"] - cell_box["width"]) <= 0.5
 
-            # The timeline spans exactly the waveform column, and its position matches the playhead.
-            timeline_box = page.locator('[data-control="seek"]').bounding_box()
-            for wave_box in [w.bounding_box() for w in page.locator(".mixer-waveform").all()]:
-                assert abs(timeline_box["x"] - wave_box["x"]) <= 0.5
-                assert abs(timeline_box["x"] + timeline_box["width"] - wave_box["x"] - wave_box["width"]) <= 0.5
+            # The title sits over the waveform column; the transport buttons are 1.5x larger.
+            waves = [w.bounding_box() for w in page.locator(".mixer-waveform").all()]
+            assert abs(page.locator("#detail-title").bounding_box()["x"] - waves[0]["x"]) <= 0.5
+            assert page.locator('[data-action="toggle"]').bounding_box()["height"] >= 46
+            # S and M share the stem-name line and are pushed to the right edge of the controls column.
+            name_box = page.locator(".mixer-name").first.bounding_box()
+            mute_box = page.locator('[data-control="mute"]').first.bounding_box()
+            fader_box = page.locator('[data-control="gain"]').first.bounding_box()
+            assert abs((name_box["y"] + name_box["height"] / 2) - (mute_box["y"] + mute_box["height"] / 2)) <= 1
+            assert abs((mute_box["x"] + mute_box["width"]) - (fader_box["x"] + fader_box["width"])) <= 1
 
-            def centers():
+            # The position layer covers exactly the waveform column; one 1px line spans all stems.
+            seek_box = page.locator('[data-control="seek"]').bounding_box()
+            for wave_box in waves:
+                assert abs(seek_box["x"] - wave_box["x"]) <= 0.5
+                assert abs(seek_box["x"] + seek_box["width"] - wave_box["x"] - wave_box["width"]) <= 0.5
+
+            def position():
                 return page.evaluate("""() => {
-                    const mid = (el) => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
-                    return {
-                        thumb: mid(document.querySelector('.timeline-thumb')),
-                        playheads: [...document.querySelectorAll('.playhead')].map(mid),
-                        time: document.querySelector('#playback-panel audio').currentTime,
-                        duration: document.querySelector('#playback-panel audio').duration,
-                    };
+                    const line = document.querySelector('.playhead').getBoundingClientRect();
+                    const audio = document.querySelector('#playback-panel audio');
+                    return {x: line.left, time: audio.currentTime, duration: audio.duration};
                 }""")
 
-            at_start = centers()
-            assert abs(at_start["thumb"] - timeline_box["x"]) <= 1
-            assert all(abs(x - timeline_box["x"]) <= 1 for x in at_start["playheads"])
-            # A single 1px playhead runs from the timeline thumb centre to the bottom of the last waveform.
             assert page.locator(".playhead").count() == 1
             line = page.locator(".playhead").bounding_box()
-            thumb = page.locator(".timeline-thumb").bounding_box()
-            last_wave = page.locator(".mixer-waveform").last.bounding_box()
             assert line["width"] == 1
-            assert abs(line["y"] - (thumb["y"] + thumb["height"] / 2)) <= 1
-            assert abs(line["y"] + line["height"] - (last_wave["y"] + last_wave["height"])) <= 1
+            assert abs(line["y"] - waves[0]["y"]) <= 1
+            assert abs(line["y"] + line["height"] - (waves[-1]["y"] + waves[-1]["height"])) <= 1
+            assert abs(position()["x"] - seek_box["x"]) <= 1
 
-            vocal_wave = page.locator(".mixer-waveform").first.bounding_box()
-            page.mouse.click(vocal_wave["x"] + vocal_wave["width"] * 0.25, vocal_wave["y"] + vocal_wave["height"] / 2)
-            quarter = centers()
+            page.mouse.click(waves[0]["x"] + waves[0]["width"] * 0.25, waves[0]["y"] + waves[0]["height"] / 2)
+            quarter = position()
             assert abs(quarter["time"] / quarter["duration"] - 0.25) < 0.02
-            expected_x = timeline_box["x"] + timeline_box["width"] * quarter["time"] / quarter["duration"]
-            assert abs(quarter["thumb"] - expected_x) <= 1
-            assert all(abs(x - expected_x) <= 1 for x in quarter["playheads"])
+            assert abs(quarter["x"] - (seek_box["x"] + seek_box["width"] * quarter["time"] / quarter["duration"])) <= 1
             assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => Math.abs(a.currentTime - document.querySelector('#playback-panel audio').currentTime) < 0.01)")
 
-            page.mouse.click(timeline_box["x"] + timeline_box["width"] / 2, timeline_box["y"] + timeline_box["height"] / 2)
-            half = centers()
+            # A click anywhere over the waveform column, gaps between stems included, seeks there.
+            page.mouse.click(seek_box["x"] + seek_box["width"] / 2, seek_box["y"] + seek_box["height"] / 2)
+            half = position()
             assert abs(half["time"] / half["duration"] - 0.5) < 0.02
             page.locator('[data-control="seek"]').press("Home")
-            assert centers()["time"] == 0
+            assert position()["time"] == 0
             page.locator('[data-control="seek"]').press("End")
-            assert abs(centers()["time"] - half["duration"]) < 0.02
+            assert abs(position()["time"] - half["duration"]) < 0.02
             page.locator('[data-control="seek"]').press("Home")
 
             # Stems come from the other loopback name so their connections never starve API calls.
