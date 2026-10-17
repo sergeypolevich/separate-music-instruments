@@ -33,6 +33,9 @@ const confirmDeleteButton = document.querySelector("#confirm-delete");
 const updatesMessage = document.querySelector("#updates-message");
 const releaseList = document.querySelector("#release-list");
 const checkUpdatesButton = document.querySelector("#check-updates");
+const themeButtons = document.querySelectorAll("[data-theme-choice]");
+const accentHueField = document.querySelector("#accent-hue");
+const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const screens = new Map([
   ["project", document.querySelector("#screen-project")],
   ["settings", document.querySelector("#screen-settings")],
@@ -483,7 +486,7 @@ async function setupProjectPlayback(assets, setupId) {
       }
       try {
         await transport.play();
-        updateTransportButton(true);
+        updateTransportButton(transport.playing);
       } catch (_reason) {
         updateTransportButton(false);
         error.textContent = "Браузер не разрешил запустить все дорожки. Нажмите ▶ ещё раз.";
@@ -711,6 +714,29 @@ async function confirmProjectDeletion() {
     confirmDeleteButton.disabled = false;
   }
 }
+
+// Appearance: theme and accent hue live on <html>; index.html re-applies the saved values on load.
+function storeSetting(key, value) {
+  try { localStorage.setItem(key, value); } catch (_error) { /* private mode: setting lasts this page only */ }
+}
+
+function applyTheme(theme) {
+  if (theme === "light") document.documentElement.dataset.theme = "light";
+  else delete document.documentElement.dataset.theme;
+  themeButtons.forEach((button) => button.setAttribute("aria-pressed", String(button.dataset.themeChoice === theme)));
+  themeColorMeta.content = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+}
+
+themeButtons.forEach((button) => button.addEventListener("click", () => {
+  applyTheme(button.dataset.themeChoice);
+  storeSetting("audio-stems-theme", button.dataset.themeChoice);
+}));
+accentHueField.addEventListener("input", () => {
+  document.documentElement.style.setProperty("--accent-h", accentHueField.value);
+  storeSetting("audio-stems-accent-hue", accentHueField.value);
+});
+accentHueField.value = getComputedStyle(document.documentElement).getPropertyValue("--accent-h").trim() || "84";
+applyTheme(document.documentElement.dataset.theme === "light" ? "light" : "dark");
 
 searchTrigger.addEventListener("click", openSearch);
 document.querySelector("#close-search").addEventListener("click", () => closeSearch());

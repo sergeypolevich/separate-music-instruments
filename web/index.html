@@ -5,6 +5,14 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#101614">
     <title>Audio Stems</title>
+    <script>
+      // Apply the saved theme and accent before the first paint (no flash of the other theme).
+      try {
+        if (localStorage.getItem("audio-stems-theme") === "light") document.documentElement.dataset.theme = "light";
+        const hue = localStorage.getItem("audio-stems-accent-hue");
+        if (hue !== null) document.documentElement.style.setProperty("--accent-h", hue);
+      } catch (_error) {}
+    </script>
     <link rel="stylesheet" href="app.css">
     <script src="app.js" defer></script>
   </head>
@@ -53,6 +61,21 @@
           <h1 id="settings-title">Настройки</h1>
           <p>Версия приложения и доступные обновления.</p>
         </header>
+        <section class="settings-card" aria-labelledby="appearance-title">
+          <div class="section-heading"><h2 id="appearance-title">Оформление</h2></div>
+          <div class="appearance-row">
+            <span>Тема</span>
+            <div class="theme-switch" role="group" aria-label="Тема">
+              <button type="button" class="quiet-button" data-theme-choice="dark" aria-pressed="true">Ночная</button>
+              <button type="button" class="quiet-button" data-theme-choice="light" aria-pressed="false">Дневная</button>
+            </div>
+          </div>
+          <div class="appearance-row">
+            <label for="accent-hue">Акцентный цвет</label>
+            <input id="accent-hue" type="range" min="0" max="360" step="1" value="84">
+            <span class="accent-swatch" aria-hidden="true"></span>
+          </div>
+        </section>
         <section class="settings-card" aria-labelledby="updates-title">
           <div class="section-heading">
             <h2 id="updates-title">Обновления</h2>

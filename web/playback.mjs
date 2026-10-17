@@ -95,14 +95,17 @@ export class SynchronizedTransport {
 
   async play() {
     if (this.playing) return;
+    // Playing as soon as the start is requested, so a quick second toggle pauses instead of
+    // starting again while the six tracks are still confirming playback.
+    this.playing = true;
     try {
       const ready = this.beforePlay();
       // Invoke every play() in the same gesture before awaiting any promise.
       const playPromises = this.tracks.map((track) => track.play());
       await Promise.all([ready, ...playPromises]);
-      this.playing = true;
-      this.scheduleFrame();
+      if (this.playing) this.scheduleFrame();
     } catch (error) {
+      if (!this.playing) return; // paused while starting: an intentional stop, not a failure
       this.pause();
       throw error;
     }
