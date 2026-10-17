@@ -11,7 +11,6 @@ from contracts import (
     FailureCategory,
     JobEvent,
     JobRepository,
-    JobService,
     JobStatus,
     JobView,
     MediaAsset,
@@ -101,14 +100,6 @@ class FakeStorage:
         return None
 
 
-class FakeJobs:
-    def submit_batch(self, owner_id, sources, idempotency_key=None):
-        return BatchReceipt(uuid4(), (uuid4(),))
-
-    def get_job(self, job_id, owner_id):
-        return JobView(job_id, uuid4(), owner_id, JobStatus.QUEUED)
-
-
 class FakeJobRepository:
     def create_batch(self, owner_id, sources, idempotency_key=None):
         return BatchReceipt(uuid4(), (uuid4(),))
@@ -120,9 +111,6 @@ class FakeJobRepository:
         return 0
 
     def list_jobs_for_batch(self, batch_id, owner_id):
-        return []
-
-    def list_batches(self, owner_id, limit=50):
         return []
 
     def update_project_source(self, job_id, source_id, title):
@@ -156,7 +144,6 @@ def test_fake_adapters_satisfy_public_protocols():
     assert isinstance(FakeSeparator(), StemSeparator)
     assert FakeSeparator().available_models()[0].name == "htdemucs_6s"
     assert isinstance(FakeStorage(), MediaStorage)
-    assert isinstance(FakeJobs(), JobService)
     assert isinstance(FakeJobRepository(), JobRepository)
 
 

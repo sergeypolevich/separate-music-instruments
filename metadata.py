@@ -67,13 +67,6 @@ class ProjectRecord:
 
 
 @dataclass(frozen=True)
-class ClientRecord:
-    client_id: str
-    display_name: str
-    created_at: datetime
-
-
-@dataclass(frozen=True)
 class ProjectDeletion:
     project_id: UUID
     owner_id: str
@@ -429,13 +422,6 @@ class SqliteMetadataStore:
             ).fetchall()
         return [self._job_view(row) for row in rows]
 
-    def get_client(self, client_id: str) -> ClientRecord | None:
-        with self._connection() as connection:
-            row = connection.execute("SELECT * FROM clients WHERE id = ?", (client_id,)).fetchone()
-        if row is None:
-            return None
-        return ClientRecord(row["id"], row["display_name"], _parse_datetime(row["created_at"]))
-
     def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None:
         with self._connection() as connection:
             result = connection.execute(
@@ -462,23 +448,6 @@ class SqliteMetadataStore:
             result_summary=row["result_summary"],
             created_at=_parse_datetime(row["created_at"]),
         )
-
-    def list_batches(self, owner_id: str, limit: int = 50) -> list[BatchRecord]:
-        if not 1 <= limit <= 100:
-            raise ValueError("Batch list limit must be between 1 and 100")
-        with self._connection() as connection:
-            rows = connection.execute(
-                "SELECT * FROM batches WHERE owner_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?",
-                (owner_id, limit),
-            ).fetchall()
-        return [
-            BatchRecord(
-                batch_id=UUID(row["id"]), owner_id=row["owner_id"],
-                submission_method=row["submission_method"], status=row["status"],
-                result_summary=row["result_summary"], created_at=_parse_datetime(row["created_at"]),
-            )
-            for row in rows
-        ]
 
     def list_events(self, job_id: UUID, owner_id: str) -> list[JobEvent]:
         with self._connection() as connection:

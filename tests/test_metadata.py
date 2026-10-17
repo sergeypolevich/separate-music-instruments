@@ -29,11 +29,12 @@ def test_metadata_relations_events_and_projects_survive_reopening(tmp_path):
     )
     job_id = receipt.job_ids[0]
     batch = store.get_batch(receipt.batch_id, "client-1")
-    client = store.get_client("client-1")
+    with sqlite3.connect(database) as connection:
+        client_name = connection.execute("SELECT display_name FROM clients WHERE id = 'client-1'").fetchone()
     updated = store.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
     assert updated.status is JobStatus.DOWNLOADING
     assert batch is not None and batch.status == "queued"
-    assert client is not None and client.display_name == "client-1"
+    assert client_name == ("client-1",)
 
     reopened = SqliteMetadataStore(database)
     job = reopened.get_job(job_id, "client-1")
