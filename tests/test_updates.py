@@ -8,12 +8,12 @@ from dataclasses import replace
 import httpx
 from urllib.parse import quote
 
-from api import create_app
-from demucs_adapter import DemucsSeparator
-from metadata import SqliteMetadataStore
-from settings import Settings
-from sources import YouTubeSourceAdapter
-from updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
+from audio_stems.api import create_app
+from audio_stems.separator import DemucsSeparator
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
+from audio_stems.models import YouTubeSourceAdapter
+from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
 
 
 PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==1.26.4\n"
@@ -227,9 +227,9 @@ def test_update_only_accepts_latest_stable_release_and_propagates_install_failur
 def test_update_api_checks_release_notes_and_returns_restart_requirement(tmp_path):
     settings = replace(
         Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
-        database_url=f"sqlite:///{(tmp_path / 'updates.db').as_posix()}",
+        database_url=f"sqlite:///{(tmp_path / 'audio_stems.updates.db').as_posix()}",
     )
-    repository = SqliteMetadataStore(tmp_path / "updates.db")
+    repository = SqliteMetadataStore(tmp_path / "audio_stems.updates.db")
 
     class Installer:
         def __init__(self):

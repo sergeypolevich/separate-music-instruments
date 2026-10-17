@@ -107,7 +107,7 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
     process = None
     with log_path.open("w", encoding="utf-8") as app_log:
         process = subprocess.Popen(
-            [sys.executable, str(ROOT / "desktop.py")],
+            [sys.executable, "-m", "audio_stems.desktop"],
             cwd=ROOT,
             env=environment,
             stdout=app_log,

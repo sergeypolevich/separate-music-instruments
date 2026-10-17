@@ -1,7 +1,7 @@
 from dataclasses import replace
 from pathlib import Path
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     BatchStatus,
     DownloadedAudio,
@@ -14,10 +14,10 @@ from contracts import (
     StemArtifact,
     VideoCandidate,
 )
-from jobs import BatchOrchestrator
-from local_storage import LocalMediaStorage
-from metadata import SqliteMetadataStore
-from settings import Settings
+from audio_stems.pipeline import BatchOrchestrator
+from audio_stems.storage import LocalMediaStorage
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
 
 
 STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
@@ -77,7 +77,7 @@ class FakeSeparator:
 
 def build_orchestrator(tmp_path, *, downloader=None, separator=None, delay_log=None):
     events = []
-    store = SqliteMetadataStore(tmp_path / "metadata.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.db.db")
     storage = LocalMediaStorage(tmp_path / "media")
     downloader = downloader or FakeDownloader(tmp_path / "downloads", events)
     separator = separator or FakeSeparator(events)

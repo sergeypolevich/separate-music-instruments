@@ -10,7 +10,7 @@ from threading import RLock
 from typing import Sequence
 from uuid import UUID, uuid4
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     DownloadedAudio,
     FailureCategory,
@@ -59,7 +59,7 @@ class LocalMediaStorage:
         self.temp_root = (temp_root or self.root / "_demucs_temp").expanduser().resolve()
         if not self.stems_root.is_relative_to(self.root):
             raise ValueError("The stems directory must be inside the storage root")
-        self._index_path = self.root / ".audio-stems" / "sources.json"
+        self._index_path = self.root / ".audio-stems" / "audio_stems.models.json"
 
     def _read_index(self) -> dict[str, str]:
         if not self._index_path.exists():

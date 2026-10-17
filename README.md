@@ -39,7 +39,7 @@ the app (API, worker, and browser — the same as `--app`). Demucs and its machi
 while and use substantial disk space on the first installation. If installation
 fails, the application is not started and the pip error is shown.
 
-Runtime defaults are validated by `settings.py`. Copy `.env.example` to `.env`
+Runtime defaults are validated by `audio_stems/config.py`. Copy `.env.example` to `.env`
 to override them; process environment variables take precedence over `.env`.
 Logs are written as rotating JSON Lines under `~/Audio Stems/logs/` and also
 shown in readable form in the console. Do not put real credentials in
@@ -117,7 +117,7 @@ Invoke-RestMethod http://127.0.0.1:8000/api/v1/projects
 
 Stop both the API and worker with Ctrl+C before copying the database and media.
 This lets SQLite finish and checkpoint any write-ahead log. The commands below
-use the default paths from `settings.py`; if `.env` overrides them, set `$dbPath`
+use the default paths from `audio_stems/config.py`; if `.env` overrides them, set `$dbPath`
 and `$mediaPath` to those configured locations instead.
 
 ```powershell

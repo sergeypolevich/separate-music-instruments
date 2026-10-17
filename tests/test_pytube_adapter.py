@@ -1,9 +1,9 @@
 from pathlib import Path
 
-from contracts import DownloadedAudio, Downloader, VideoCandidate
-from local_storage import LocalMediaStorage
-from pytube_adapter import PytubeDownloader
-from settings import Settings
+from audio_stems.models import DownloadedAudio, Downloader, VideoCandidate
+from audio_stems.storage import LocalMediaStorage
+from audio_stems.youtube import PytubeDownloader
+from audio_stems.config import Settings
 
 
 class FakeStream:
@@ -53,7 +53,7 @@ def test_search_adapter_returns_candidates_without_downloading(monkeypatch, tmp_
     candidate = type("Candidate", (), {
         "video_id": "source-1", "title": "Track", "watch_url": "https://youtube.com/watch?v=source-1"
     })()
-    monkeypatch.setattr("pytube_adapter.Search", lambda query: type("Result", (), {"videos": [candidate]})())
+    monkeypatch.setattr("audio_stems.youtube.Search", lambda query: type("Result", (), {"videos": [candidate]})())
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
 
@@ -68,7 +68,7 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     selected = FakeStream("webm")
     observed = {}
     monkeypatch.setattr(
-        "pytube_adapter.YouTube",
+        "audio_stems.youtube.YouTube",
         lambda url, client=None: observed.update(url=url, client=client) or FakeYoutube(
             url, client, streams=FakeStreams(selected)
         ),
@@ -91,7 +91,7 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
 def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp_path):
     fallback = FakeStream("m4a", data=b"0000ftypM4A ")
     monkeypatch.setattr(
-        "pytube_adapter.YouTube",
+        "audio_stems.youtube.YouTube",
         lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fallback)),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
@@ -106,7 +106,7 @@ def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp
 def test_invalid_existing_audio_is_quarantined_and_downloaded_again(monkeypatch, tmp_path):
     fresh = FakeStream("webm")
     monkeypatch.setattr(
-        "pytube_adapter.YouTube",
+        "audio_stems.youtube.YouTube",
         lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fresh)),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")

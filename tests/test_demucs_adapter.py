@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from contracts import AdapterError, FailureCategory, SeparationOptions
-from demucs_adapter import DemucsSeparator, detect_compute_devices
+from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
+from audio_stems.separator import DemucsSeparator, detect_compute_devices
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -82,7 +82,7 @@ def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_
         for name in ("vocals", "drums", "bass", "guitar", "piano", "other"):
             (result / f"{name}.wav").write_bytes(b"wav")
 
-    monkeypatch.setattr("demucs_adapter.subprocess.run", fake_run)
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
     source = tmp_path / "source.wav"
     source.write_bytes(b"RIFF0000WAVE")
     options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2, "overlap": 0.5})
@@ -116,7 +116,7 @@ def test_separator_rejects_unsupported_model_or_parameters(options, tmp_path):
 
 def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        "demucs_adapter.detect_compute_devices",
+        "audio_stems.separator.detect_compute_devices",
         lambda: ("cpu",),
     )
     with pytest.raises(AdapterError) as error:
@@ -125,7 +125,7 @@ def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, t
 
 
 def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_path):
-    monkeypatch.setattr("demucs_adapter.subprocess.run", lambda *args, **kwargs: None)
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", lambda *args, **kwargs: None)
     source = tmp_path / "source.wav"
     source.touch()
 
@@ -136,7 +136,7 @@ def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_
 
 
 def test_auto_device_resolves_to_the_best_available_backend(monkeypatch):
-    monkeypatch.setattr("demucs_adapter.detect_compute_devices", lambda: ("mps", "cpu"))
+    monkeypatch.setattr("audio_stems.separator.detect_compute_devices", lambda: ("mps", "cpu"))
 
     assert DemucsSeparator().resolve_device("auto") == "mps"
     assert DemucsSeparator().resolve_device("cpu") == "cpu"

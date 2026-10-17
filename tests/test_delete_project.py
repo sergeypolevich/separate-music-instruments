@@ -4,8 +4,8 @@ from uuid import uuid4
 
 import httpx
 
-from api import create_app
-from contracts import (
+from audio_stems.api import create_app
+from audio_stems.models import (
     AdapterError,
     BatchStatus,
     FailureCategory,
@@ -15,11 +15,11 @@ from contracts import (
     SourceKind,
     SourceRequest,
 )
-from demucs_adapter import DemucsSeparator
-from local_storage import LocalMediaStorage
-from metadata import SqliteMetadataStore
-from settings import Settings
-from sources import YouTubeSourceAdapter
+from audio_stems.separator import DemucsSeparator
+from audio_stems.storage import LocalMediaStorage
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
+from audio_stems.models import YouTubeSourceAdapter
 
 
 def make_delete_client(tmp_path):

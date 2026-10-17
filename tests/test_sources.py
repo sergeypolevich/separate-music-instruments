@@ -1,7 +1,7 @@
 import pytest
 
-from contracts import AdapterError, FailureCategory, SourceKind
-from sources import YouTubeSourceAdapter
+from audio_stems.models import AdapterError, FailureCategory, SourceKind
+from audio_stems.models import YouTubeSourceAdapter
 
 
 @pytest.fixture

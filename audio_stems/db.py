@@ -10,7 +10,7 @@ import sqlite3
 from typing import Iterator
 from uuid import UUID, uuid4
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     BatchStatus,
     BatchReceipt,

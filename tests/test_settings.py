@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from settings import Settings
+from audio_stems.config import Settings
 
 
 def test_settings_defaults_preserve_current_cli_behavior(tmp_path):
