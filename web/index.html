@@ -20,7 +20,6 @@
           <span id="search-preview">Найти песню или вставить YouTube-ссылку…</span>
         </button>
         <nav class="top-nav" aria-label="Навигация">
-          <a href="#help" data-screen="help">Справка</a>
           <a href="#settings" data-screen="settings" aria-label="Настройки">⚙</a>
         </nav>
       </div>
@@ -40,19 +39,10 @@
           </div>
           <article id="project-detail" class="project-detail" hidden>
             <header class="detail-heading">
-              <div class="detail-title-wrap">
-                <h1 id="detail-title"></h1>
-                <p id="detail-input" class="detail-input"></p>
-              </div>
-              <button id="refresh-projects" class="icon-button" type="button" aria-label="Обновить проекты" title="Обновить проекты">↻</button>
+              <h1 id="detail-title"></h1>
             </header>
             <p id="detail-error" class="detail-error" role="alert" hidden></p>
-            <p id="detail-model" class="detail-model"></p>
             <section id="playback-panel" class="playback-panel" aria-label="Синхронное воспроизведение" hidden></section>
-            <details class="asset-details">
-              <summary>Файлы проекта</summary>
-              <div id="asset-list" class="asset-list"></div>
-            </details>
             <button id="delete-project" class="delete-button" type="button" aria-label="Удалить проект" title="Удалить проект">♲</button>
           </article>
         </section>
@@ -72,22 +62,6 @@
           <p id="updates-message" class="empty-state" role="status" aria-live="polite">Проверка выполняется только по запросу.</p>
           <div id="release-list" class="release-list"></div>
         </section>
-      </section>
-
-      <section id="screen-help" class="screen secondary-screen shell" aria-labelledby="help-title" hidden>
-        <header class="screen-heading">
-          <a class="back-link" href="#project" data-screen="project">← Проект</a>
-          <h1 id="help-title">Как пользоваться Audio Stems</h1>
-          <p>Несколько простых шагов — и можно заниматься с отдельными партиями.</p>
-        </header>
-        <ol class="help-steps">
-          <li><h2>Найдите песню</h2><p>Нажмите на строку поиска в шапке. Введите название песни и исполнителя или вставьте ссылку на видео YouTube. Можно указать несколько песен, каждую с новой строки.</p></li>
-          <li><h2>Выберите настройки и запустите обработку</h2><p>В открывшейся панели выберите модель, затем нажмите «Начать разделение». Можно свернуть панель: ход работы будет виден по цвету вкладки проекта.</p></li>
-          <li><h2>Откройте проект</h2><p>Когда песня появится во вкладках под поиском, нажмите на её название. Зелёный цвет означает, что дорожки готовы; красный — что возникла ошибка. Текст ошибки появится внутри проекта.</p></li>
-          <li><h2>Слушайте и занимайтесь</h2><p>Нажмите ▶, чтобы начать, и Ⅱ, чтобы поставить на паузу. Кнопка |◀ остановит все дорожки и вернёт их в начало. Перетаскивайте общую шкалу времени, чтобы перейти к нужному месту.</p></li>
-          <li><h2>Настройте дорожки</h2><p>У каждой дорожки есть регулятор громкости. Кнопка S оставляет звучать выбранные дорожки, кнопка M отключает дорожку. Можно включать несколько S одновременно. Перетаскивайте шкалу до 150%; рядом со 100% регулятор мягко фиксируется на обычном уровне.</p></li>
-          <li><h2>Удалите ненужный проект</h2><p>Нажмите на красную кнопку с корзиной внизу проекта и подтвердите удаление в окне приложения. Вместе с проектом будут удалены сохранённое аудио и дорожки.</p></li>
-        </ol>
       </section>
     </main>
 

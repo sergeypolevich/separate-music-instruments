@@ -50,7 +50,9 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert page.text.index('id="search-trigger"') < page.text.index('id="project-tabs"')
     assert page.text.index('id="project-tabs"') < page.text.index('id="project-workspace"')
     assert 'id="screen-settings"' in page.text
-    assert 'id="screen-help"' in page.text
+    for removed in ('id="screen-help"', 'data-screen="help"', 'id="refresh-projects"', 'id="asset-list"',
+                    'id="detail-input"', 'id="detail-model"'):
+        assert removed not in page.text
     assert 'id="delete-dialog"' in page.text
     assert "РАЗДЕЛЕНИЕ АУДИО" not in page.text
     assert "звучать по-новому" not in page.text
@@ -73,7 +75,6 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert "/static/" not in page.text
     assert "class SynchronizedTransport" in playback.text
     assert 'data-screen="settings"' in page.text
-    assert 'data-screen="help"' in page.text
     assert "window.confirm" in script.text  # Dependency updates retain their existing confirmation.
     assert "deleteDialog.showModal()" in script.text
     assert "/api/v1/updates/apply" in script.text

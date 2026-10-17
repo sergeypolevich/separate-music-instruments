@@ -22,10 +22,7 @@ const projectWorkspace = document.querySelector("#project-workspace");
 const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");
-const detailInput = document.querySelector("#detail-input");
 const detailError = document.querySelector("#detail-error");
-const detailModel = document.querySelector("#detail-model");
-const assetList = document.querySelector("#asset-list");
 const playbackPanel = document.querySelector("#playback-panel");
 const deleteProjectButton = document.querySelector("#delete-project");
 const deleteDialog = document.querySelector("#delete-dialog");
@@ -38,7 +35,6 @@ const checkUpdatesButton = document.querySelector("#check-updates");
 const screens = new Map([
   ["project", document.querySelector("#screen-project")],
   ["settings", document.querySelector("#screen-settings")],
-  ["help", document.querySelector("#screen-help")],
 ]);
 let pollingTimer = null;
 let activeTransport = null;
@@ -126,11 +122,6 @@ function renderProjects(projects) {
   }));
 }
 
-function assetLabel(asset) {
-  if (asset.asset_type === "source_audio") return "Исходное аудио";
-  return asset.stem_name ? `Стем: ${asset.stem_name}` : "Стем";
-}
-
 async function drawWaveform(canvas, assetId) {
   try {
     const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform?levels=256`);
@@ -167,37 +158,6 @@ function cleanupPlayback() {
   playbackPanel.hidden = true;
 }
 
-function renderAssets(assets) {
-  const rows = assets.map((asset) => {
-    const row = document.createElement("div");
-    row.className = "asset-row";
-    const name = document.createElement("span");
-    name.textContent = assetLabel(asset);
-    const value = document.createElement("span");
-    value.className = asset.available ? "asset-available" : "asset-missing";
-    value.textContent = asset.available
-      ? `${asset.media_format || "файл"} · ${Math.ceil(asset.byte_size / 1024)} КБ`
-      : "Файл не найден";
-    row.append(name, value);
-    if (asset.available) {
-      const link = document.createElement("a");
-      link.href = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`;
-      link.textContent = "Открыть";
-      link.target = "_blank";
-      link.rel = "noopener noreferrer";
-      row.append(link);
-    }
-    return row;
-  });
-  assetList.replaceChildren(...rows);
-  if (assets.length === 0) {
-    const empty = document.createElement("p");
-    empty.className = "empty-state";
-    empty.textContent = "Файлы этого проекта пока не сохранены.";
-    assetList.append(empty);
-  }
-}
-
 function renderProject(project) {
   cleanupPlayback();
   selectedProjectId = project.project_id;
@@ -205,13 +165,9 @@ function renderProject(project) {
   projectEmpty.hidden = true;
   projectDetail.hidden = false;
   detailTitle.textContent = selectedProjectTitle;
-  detailInput.textContent = project.input_value;
   detailError.textContent = project.job.error_summary || "";
   detailError.hidden = !project.job.error_summary;
-  const options = project.job.separation_options;
-  detailModel.textContent = options ? `Модель: ${options.model_name} · ${options.device}` : "";
   deleteProjectButton.dataset.projectId = project.project_id;
-  renderAssets(project.assets);
   setupProjectPlayback(project.assets, ++playbackSetupId);
   document.querySelectorAll(".project-tab").forEach((tab) => {
     tab.setAttribute("aria-selected", String(tab.dataset.projectId === project.project_id));
@@ -647,7 +603,6 @@ deleteProjectButton.addEventListener("click", () => {
 });
 confirmDeleteButton.addEventListener("click", confirmProjectDeletion);
 document.querySelector("#cancel-delete").addEventListener("click", () => deleteDialog.close("cancel"));
-document.querySelector("#refresh-projects").addEventListener("click", () => loadProjects());
 checkUpdatesButton.addEventListener("click", checkUpdates);
 
 const initialScreen = location.hash.slice(1);
