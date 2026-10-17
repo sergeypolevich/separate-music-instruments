@@ -2,15 +2,14 @@
 from __future__ import annotations
 
 import logging
-import mimetypes
 from pathlib import Path
 import subprocess
-from typing import Annotated, Iterator, Protocol, Sequence
+from typing import Annotated, Protocol, Sequence
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from fastapi.staticfiles import StaticFiles
 
@@ -83,42 +82,6 @@ def _job_payload(job) -> dict[str, object]:
         "error_summary": job.error_summary,
         "input_value": job.input_value,
     }
-
-
-def _parse_byte_range(value: str | None, size: int) -> tuple[int, int, bool]:
-    if value is None:
-        return 0, max(0, size - 1), False
-    try:
-        unit, interval = value.strip().split("=", 1)
-        if unit != "bytes" or "," in interval or size <= 0:
-            raise ValueError
-        first, last = interval.split("-", 1)
-        if not first:
-            suffix_length = int(last)
-            if suffix_length <= 0:
-                raise ValueError
-            start = max(0, size - suffix_length)
-            end = size - 1
-        else:
-            start = int(first)
-            end = min(int(last), size - 1) if last else size - 1
-            if start < 0 or end < start or start >= size:
-                raise ValueError
-        return start, end, True
-    except (ValueError, TypeError) as exc:
-        raise ValueError("Requested byte range is not satisfiable") from exc
-
-
-def _file_chunks(path: Path, start: int, length: int, chunk_size: int = 64 * 1024) -> Iterator[bytes]:
-    with path.open("rb") as source:
-        source.seek(start)
-        remaining = length
-        while remaining:
-            chunk = source.read(min(chunk_size, remaining))
-            if not chunk:
-                break
-            remaining -= len(chunk)
-            yield chunk
 
 
 def create_app(
@@ -454,46 +417,21 @@ def create_app(
         return {"asset_id": str(asset.asset_id), **data}
 
     @app.get("/api/v1/assets/{asset_id}")
-    def stream_asset(asset_id: UUID, request: Request):
+    def stream_asset(asset_id: UUID) -> FileResponse:
         asset = repository.get_asset(asset_id, _OWNER_ID)
         if asset is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
         try:
             path = storage.resolve_path(asset.storage_key)
-            size = path.stat().st_size
             if not path.is_file():
                 raise FileNotFoundError
-        except (AdapterError, OSError, FileNotFoundError) as exc:
+        except (AdapterError, OSError) as exc:
             raise HTTPException(
                 status_code=404,
                 detail={"code": "asset_unavailable", "message": "Asset file is not available"},
             ) from exc
-        range_value = request.headers.get("range")
-        try:
-            start, end, partial = _parse_byte_range(range_value, size)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=416,
-                detail={"code": "invalid_range", "message": str(exc)},
-                headers={"Content-Range": f"bytes */{size}"},
-            ) from exc
-        length = end - start + 1 if size else 0
-        media_type = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
-        headers = {
-            "Accept-Ranges": "bytes",
-            "Content-Length": str(length),
-            "X-Content-Type-Options": "nosniff",
-        }
-        response_status = 200
-        if partial:
-            headers["Content-Range"] = f"bytes {start}-{end}/{size}"
-            response_status = 206
-        return StreamingResponse(
-            _file_chunks(path, start, length),
-            status_code=response_status,
-            media_type=media_type,
-            headers=headers,
-        )
+        # Starlette serves Range requests (206/416) itself.
+        return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
 
     web_root = Path(__file__).with_name("web")
 
