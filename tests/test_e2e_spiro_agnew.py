@@ -209,7 +209,7 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     arg=position,
                 )
 
-                # Real mouse click at the rendered midpoint of the shared timeline.
+                # Real mouse click at the midpoint of the waveform column (the position layer).
                 seek = page.locator('[data-control="seek"]')
                 box = seek.bounding_box()
                 assert box is not None

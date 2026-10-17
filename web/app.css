@@ -44,7 +44,7 @@ button { cursor: pointer; }
 .settings-link:hover { background: var(--panel-soft); }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */
-.project-tabs-shell { padding: 10px clamp(16px, 3vw, 48px) 0; }
+.project-tabs-shell { padding: 10px 16px 0; }
 .project-tabs { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #526449 transparent; padding: 0 0 8px; }
 .tabs-empty { flex: none; margin: 0; color: #718178; font-size: 11px; }
 .project-tab { position: relative; flex: 0 0 auto; max-width: min(240px, 65vw); min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(24, 33, 30, .82); color: var(--muted); text-align: left; font-size: 11px; }
@@ -56,21 +56,25 @@ button { cursor: pointer; }
 .project-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-tab-state { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.project-workspace { width: 100%; min-height: 280px; padding: 6px clamp(16px, 3vw, 48px) 34px; }
+.project-workspace { width: 100%; min-height: 280px; padding: 6px 0 34px; }
 .workspace-empty { min-height: 260px; display: grid; align-content: center; justify-items: center; gap: 9px; color: var(--muted); text-align: center; }
 .workspace-empty p { margin: 0; font-size: 13px; }
 .empty-mark { display: flex; color: var(--accent); font-size: 30px; }
-.project-detail { position: relative; width: 100%; min-width: 0; padding: 16px 18px 58px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(30, 42, 36, .96), rgba(23, 31, 28, .98)); box-shadow: 0 16px 48px rgba(0, 0, 0, .16); }
-.detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+/* The project is one grid: controls | title on top, then the mixer rows on the same two columns (subgrid). */
+.project-detail { position: relative; width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 8px 16px 58px; }
+.project-detail > * { grid-column: 1 / -1; }
+.project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
+.project-detail > #detail-title { grid-column: 2; grid-row: 1; }
 h1, h2, h3, p { margin-top: 0; }
-.detail-heading h1 { margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+#detail-title { margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
 .icon-button:hover { border-color: #526449; color: var(--accent); }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid rgba(255, 131, 120, .3); border-radius: 8px; background: rgba(255, 131, 120, .08); color: #ffaaa1; font-size: 12px; }
-.playback-panel { display: grid; gap: 8px; margin-top: 10px; }
+.playback-panel { display: grid; grid-template-columns: subgrid; row-gap: 8px; margin-top: 12px; }
+.playback-panel > * { grid-column: 1 / -1; }
 .playback-message, .playback-time, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
 .playback-buttons { display: flex; gap: 6px; }
-.transport-button { width: 38px; min-width: 38px; height: 34px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); font-size: 18px; }
+.transport-button { width: 57px; min-width: 57px; height: 51px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); color: var(--text); font-size: 27px; }
 .transport-button:hover { border-color: #80965e; color: var(--accent); }
 .playback-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .playback-panel audio {
@@ -82,31 +86,24 @@ h1, h2, h3, p { margin-top: 0; }
   pointer-events: none;
 }
 .playback-error { color: var(--danger); }
-/* One grid for the timeline and every stem row; subgrid keeps the waveform column identical in all rows. */
-.mixer-grid { --timeline-h: 24px; --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: minmax(170px, 218px) minmax(0, 1fr); column-gap: 12px; row-gap: var(--row-gap); }
-.timeline-row, .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
-/* The timeline sits at the bottom of its row so the playhead can start exactly at the thumb centre. */
-.timeline-row { grid-row: 1; align-items: end; padding-bottom: var(--row-pad); }
-.timeline-controls { align-self: center; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.timeline { position: relative; z-index: 3; height: var(--timeline-h); cursor: pointer; touch-action: none; }
-.timeline:focus-visible { outline: 2px solid rgba(184, 239, 104, .5); outline-offset: 2px; border-radius: 4px; }
-.timeline-track { position: absolute; top: 50%; left: 0; right: 0; height: 4px; overflow: hidden; border-radius: 2px; background: #2b3933; transform: translateY(-50%); }
-.timeline-fill { position: absolute; top: 0; bottom: 0; left: 0; width: calc(var(--progress, 0) * 100%); background: var(--accent); }
-.timeline-thumb { position: absolute; top: 50%; left: calc(var(--progress, 0) * 100%); width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(184, 239, 104, .18); transform: translate(-50%, -50%); pointer-events: none; }
+/* Stem rows reuse the project columns through subgrid, so the waveform column matches the title column. */
+.mixer-grid { --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: subgrid; row-gap: var(--row-gap); }
+.mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
 .mixer-row { min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid rgba(151, 180, 160, .11); }
-.mixer-left { min-width: 0; display: grid; grid-template-rows: 19px 17px 18px; align-content: center; gap: 1px; }
+.mixer-left { min-width: 0; display: grid; grid-template-rows: 20px 18px; align-content: center; gap: 4px; }
+.mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .mixer-name { overflow: hidden; color: #dbe3dd; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .mixer-switches { display: flex; gap: 4px; }
 .mixer-toggle { width: 25px; height: 16px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #425249; border-radius: 4px; background: transparent; color: #9aa9a1; font-size: 9px; font-weight: 700; line-height: 1; }
 .mixer-toggle:hover, .mixer-toggle[aria-pressed="true"] { border-color: var(--accent); background: rgba(184, 239, 104, .12); color: var(--accent); }
 .mixer-toggle[data-control="mute"][aria-pressed="true"] { border-color: var(--danger); background: rgba(255, 131, 120, .12); color: var(--danger); }
-.mixer-fader { display: grid; grid-template-columns: minmax(0, 1fr) 33px; align-items: center; gap: 6px; }
+.mixer-fader { display: flex; align-items: center; }
 .mixer-fader input { width: 100%; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); }
-.gain-value { color: #829087; text-align: right; font-size: 9px; font-variant-numeric: tabular-nums; }
-.mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); cursor: pointer; touch-action: pan-y; }
-.playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 2 / span 6; pointer-events: none; }
-/* 1px line from the timeline thumb centre to the bottom of the last waveform; no translate, so it stays crisp. */
-.playhead { position: absolute; top: calc(-1 * (var(--timeline-h) / 2 + var(--row-pad) + var(--row-gap))); bottom: var(--row-pad); left: calc(var(--progress, 0) * 100%); width: 1px; background: #f0f4f0; }
+.mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); }
+.playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
+.playhead-layer:focus-visible { outline: 2px solid rgba(184, 239, 104, .5); outline-offset: 2px; border-radius: 4px; }
+/* 1px line from the top of the first waveform to the bottom of the last; no translate, so it stays crisp. */
+.playhead { position: absolute; top: var(--row-pad); bottom: var(--row-pad); left: calc(var(--progress, 0) * 100%); width: 1px; background: #f0f4f0; }
 .waveform-preview { display: block; width: 100%; height: 48px; }
 .waveform-shape { fill: var(--accent); }
 /* Keeps silence visible as a hairline whatever the scaling. */
@@ -177,13 +174,12 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 8px; }
   .top-nav a { font-size: 11px; }
   .project-tabs-shell { padding: 7px 9px 0; }
-  .project-workspace { padding: 4px 9px 20px; }
-  .project-detail { padding: 12px 10px 52px; border-radius: 10px; }
-  .mixer-grid { grid-template-columns: minmax(108px, 34%) minmax(0, 1fr); column-gap: 7px; }
+  .project-workspace { padding: 4px 0 20px; }
+  .project-detail { grid-template-columns: minmax(112px, 34%) minmax(0, 1fr); column-gap: 7px; padding: 6px 9px 52px; }
   .mixer-row { min-height: 57px; }
   .mixer-left { grid-template-rows: 17px 16px 17px; }
   .waveform-preview { height: 42px; }
-  .transport-button { width: 33px; min-width: 33px; height: 31px; }
+  .transport-button { width: 50px; min-width: 50px; height: 46px; font-size: 24px; }
   .playback-time { font-size: 9px; }
   .search-overlay { padding: 14px 10px; }
   .search-dialog { min-height: calc(100dvh - 28px); padding: 20px 16px; border-radius: 13px; }
@@ -199,5 +195,5 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 6px; }
   .top-nav a { font-size: 10px; }
   .brand > span:last-child { display: none; }
-  .mixer-grid { grid-template-columns: minmax(98px, 36%) minmax(0, 1fr); }
+  .project-detail { grid-template-columns: minmax(104px, 36%) minmax(0, 1fr); }
 }

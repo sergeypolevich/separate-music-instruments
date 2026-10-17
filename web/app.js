@@ -22,6 +22,7 @@ const projectWorkspace = document.querySelector("#project-workspace");
 const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");
+const detailControls = document.querySelector("#detail-controls");
 const detailError = document.querySelector("#detail-error");
 const playbackPanel = document.querySelector("#playback-panel");
 const deleteProjectButton = document.querySelector("#delete-project");
@@ -180,6 +181,7 @@ function cleanupPlayback() {
   });
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
+  detailControls.replaceChildren();
   playbackKey = "";
 }
 
@@ -260,25 +262,20 @@ async function setupProjectPlayback(assets, setupId) {
 
     const time = document.createElement("span");
     time.className = "playback-time";
-    // The timeline and the waveforms share one grid column, and both draw the position from the
-    // same --progress ratio, so a point on the timeline lines up exactly with the waveforms below.
-    const timeline = document.createElement("div");
-    timeline.className = "timeline";
-    timeline.dataset.control = "seek";
-    timeline.tabIndex = 0;
-    timeline.setAttribute("role", "slider");
-    timeline.setAttribute("aria-label", "Позиция воспроизведения");
-    timeline.setAttribute("aria-valuemin", "0");
-    timeline.setAttribute("aria-valuemax", "0");
-    timeline.setAttribute("aria-valuenow", "0");
-    const timelineTrack = document.createElement("span");
-    timelineTrack.className = "timeline-track";
-    const timelineFill = document.createElement("span");
-    timelineFill.className = "timeline-fill";
-    timelineTrack.append(timelineFill);
-    const timelineThumb = document.createElement("span");
-    timelineThumb.className = "timeline-thumb";
-    timeline.append(timelineTrack, timelineThumb);
+    // One playhead layer over the waveform column of all six rows; it is the position slider
+    // for both pointer and keyboard.
+    const playheadLayer = document.createElement("div");
+    playheadLayer.className = "playhead-layer";
+    playheadLayer.dataset.control = "seek";
+    playheadLayer.tabIndex = 0;
+    playheadLayer.setAttribute("role", "slider");
+    playheadLayer.setAttribute("aria-label", "Позиция воспроизведения");
+    playheadLayer.setAttribute("aria-valuemin", "0");
+    playheadLayer.setAttribute("aria-valuemax", "0");
+    playheadLayer.setAttribute("aria-valuenow", "0");
+    const playhead = document.createElement("span");
+    playhead.className = "playhead";
+    playheadLayer.append(playhead);
     let duration = 0;
     const formatTime = (seconds) => {
       const safe = Math.max(0, Math.floor(seconds || 0));
@@ -287,8 +284,8 @@ async function setupProjectPlayback(assets, setupId) {
     const updateTime = (seconds) => {
       const ratio = duration > 0 ? Math.min(1, Math.max(0, seconds / duration)) : 0;
       playbackPanel.style.setProperty("--progress", String(ratio));
-      timeline.setAttribute("aria-valuenow", seconds.toFixed(1));
-      timeline.setAttribute("aria-valuetext", formatTime(seconds));
+      playheadLayer.setAttribute("aria-valuenow", seconds.toFixed(1));
+      playheadLayer.setAttribute("aria-valuetext", formatTime(seconds));
       time.textContent = `${formatTime(seconds)} / ${formatTime(duration)}`;
     };
     const play = document.createElement("button");
@@ -339,8 +336,9 @@ async function setupProjectPlayback(assets, setupId) {
         if (element.hasPointerCapture(event.pointerId)) seekFromPointer(event, element);
       });
     };
-    attachPointerSeek(timeline);
-    timeline.addEventListener("keydown", (event) => {
+    // The layer covers the whole waveform column, gaps included, so a click anywhere there seeks.
+    attachPointerSeek(playheadLayer);
+    playheadLayer.addEventListener("keydown", (event) => {
       const current = transport.tracks[0].currentTime;
       const target = { ArrowLeft: current - 5, ArrowRight: current + 5, Home: 0, End: duration }[event.key];
       if (target === undefined) return;
@@ -351,8 +349,8 @@ async function setupProjectPlayback(assets, setupId) {
     stems.forEach((asset, index) => {
       const row = document.createElement("div");
       row.className = "mixer-row";
-      // Explicit rows: the playhead layer spans rows 2-7, which would push auto-placed rows down.
-      row.style.gridRow = String(index + 2);
+      // Explicit rows: the playhead layer spans rows 1-6, which would push auto-placed rows down.
+      row.style.gridRow = String(index + 1);
       row.dataset.stem = asset.stem_name;
       const left = document.createElement("div");
       left.className = "mixer-left";
@@ -396,17 +394,16 @@ async function setupProjectPlayback(assets, setupId) {
       gain.value = "100";
       gain.dataset.control = "gain";
       gain.setAttribute("aria-label", `Громкость ${stemLabels[asset.stem_name]}`);
-      const gainValue = document.createElement("span");
-      gainValue.className = "gain-value";
-      gainValue.textContent = "100%";
       gain.addEventListener("input", () => {
         const percent = snapFaderPercent(Number(gain.value));
         gain.value = String(percent);
-        gainValue.textContent = `${percent}%`;
         mixer.setGain(index, percent / 100);
       });
-      fader.append(gain, gainValue);
-      left.append(name, switches, fader);
+      fader.append(gain);
+      const heading = document.createElement("div");
+      heading.className = "mixer-heading";
+      heading.append(name, switches);
+      left.append(heading, fader);
       const wave = document.createElement("div");
       wave.className = "mixer-waveform";
       const waveSvg = document.createElementNS(SVG_NS, "svg");
@@ -416,7 +413,6 @@ async function setupProjectPlayback(assets, setupId) {
       waveSvg.setAttribute("role", "img");
       waveSvg.setAttribute("aria-label", `Форма волны: ${stemLabels[asset.stem_name]}`);
       wave.append(waveSvg);
-      attachPointerSeek(wave);
       drawWaveform(waveSvg, asset.asset_id);
       row.append(left, wave);
       mixerRows.append(row);
@@ -444,23 +440,11 @@ async function setupProjectPlayback(assets, setupId) {
     tracks.forEach((audio) => audio.addEventListener("loadedmetadata", () => {
       if (transport.duration > 0) {
         duration = transport.duration;
-        timeline.setAttribute("aria-valuemax", duration.toFixed(1));
+        playheadLayer.setAttribute("aria-valuemax", duration.toFixed(1));
         updateTime(transport.tracks[0].currentTime);
       }
     }));
-    const controls = document.createElement("div");
-    controls.className = "timeline-controls";
-    controls.append(buttons, time);
-    const timelineRow = document.createElement("div");
-    timelineRow.className = "timeline-row";
-    timelineRow.append(controls, timeline);
-    mixerRows.prepend(timelineRow);
-    // One playhead over all six waveforms, continuous across the gaps between rows.
-    const playheadLayer = document.createElement("div");
-    playheadLayer.className = "playhead-layer";
-    const playhead = document.createElement("span");
-    playhead.className = "playhead";
-    playheadLayer.append(playhead);
+    detailControls.replaceChildren(buttons, time);
     mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
     playbackPanel.replaceChildren(error, mixerRows, ...tracks);
