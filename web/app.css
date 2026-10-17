@@ -92,7 +92,7 @@ h1, h2, h3, p { margin-top: 0; }
 /* Stem rows reuse the project columns through subgrid, so the waveform column matches the title column. */
 .mixer-grid { --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: subgrid; row-gap: var(--row-gap); }
 .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
-.mixer-row { min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid rgba(151, 180, 160, .11); }
+.mixer-row { position: relative; min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid rgba(151, 180, 160, .11); }
 .mixer-left { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
 .mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .mixer-name { overflow: hidden; color: #dbe3dd; font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
@@ -101,6 +101,8 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-toggle:hover { border-color: var(--accent); color: var(--accent); }
 .mixer-toggle[data-control="solo"][aria-pressed="true"] { border-color: transparent; background: var(--solo); color: #fff; }
 .mixer-toggle[data-control="mute"][aria-pressed="true"] { border-color: transparent; background: var(--mute); color: #fff; }
+/* The keyboard-selected stem: a 3px full-height bar in the gutter left of the row. */
+.mixer-row[data-selected="true"]::before { position: absolute; top: -1px; bottom: 0; left: -10px; width: 3px; background: var(--accent); content: ""; }
 /* Stems silenced by S/M fade to 20 % so the audible ones stand out. */
 .mixer-row[data-silenced="true"] .waveform-preview { opacity: .2; }
 .mixer-fader { display: flex; align-items: center; }
@@ -183,6 +185,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .project-workspace { padding: 4px 0 0; }
   .project-detail { grid-template-columns: minmax(112px, 34%) minmax(0, 1fr); column-gap: 7px; padding: 6px 9px 52px; }
   .mixer-row { min-height: 57px; }
+  .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
   .transport-button { width: 50px; min-width: 50px; height: 46px; font-size: 24px; }
   .playback-time { font-size: 9px; }

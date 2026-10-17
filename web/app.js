@@ -40,6 +40,8 @@ const screens = new Map([
 let pollingTimer = null;
 let activeTransport = null;
 let activeMixer = null;
+// Actions of the open project's player, used by the global hotkeys (null while none is ready).
+let activeControls = null;
 let activeAudioContext = null;
 let playbackSetupId = 0;
 let playbackKey = "";
@@ -171,6 +173,7 @@ function cleanupPlayback() {
   if (activeTransport) activeTransport.stop();
   activeTransport = null;
   activeMixer = null;
+  activeControls = null;
   if (activeAudioContext && activeAudioContext.state !== "closed") activeAudioContext.close().catch(() => {});
   activeAudioContext = null;
   // Detached <audio> keeps downloading and holds the browser's per-host connections; abort it.
@@ -317,6 +320,11 @@ async function setupProjectPlayback(assets, setupId) {
       play.setAttribute("aria-label", isPlaying ? "Пауза" : "Воспроизвести");
       play.title = isPlaying ? "Пауза" : "Воспроизвести";
     };
+    let selectedStem = 0;
+    const selectStem = (index) => {
+      selectedStem = Math.min(stems.length - 1, Math.max(0, index));
+      mixerRowElements.forEach((row, i) => { row.dataset.selected = String(i === selectedStem); });
+    };
     const transport = new SynchronizedTransport(tracks, {
       onTimeUpdate: updateTime,
       onEnded: () => updateTransportButton(false),
@@ -340,18 +348,12 @@ async function setupProjectPlayback(assets, setupId) {
     };
     // The layer covers the whole waveform column, gaps included, so a click anywhere there seeks.
     attachPointerSeek(playheadLayer);
-    playheadLayer.addEventListener("keydown", (event) => {
-      const current = transport.tracks[0].currentTime;
-      const target = { ArrowLeft: current - 5, ArrowRight: current + 5, Home: 0, End: duration }[event.key];
-      if (target === undefined) return;
-      event.preventDefault();
-      transport.seek(target);
-    });
 
     stems.forEach((asset, index) => {
       const row = document.createElement("div");
       row.className = "mixer-row";
       mixerRowElements.push(row);
+      row.addEventListener("pointerdown", () => selectStem(index));
       // Explicit rows: the playhead layer spans rows 1-6, which would push auto-placed rows down.
       row.style.gridRow = String(index + 1);
       row.dataset.stem = asset.stem_name;
@@ -396,6 +398,7 @@ async function setupProjectPlayback(assets, setupId) {
       gain.step = "1";
       gain.value = "100";
       gain.dataset.control = "gain";
+      gain.tabIndex = -1; // volume is mouse-only; arrow keys belong to the global hotkeys
       gain.setAttribute("aria-label", `Громкость ${stemLabels[asset.stem_name]}`);
       gain.addEventListener("input", () => {
         const percent = snapFaderPercent(Number(gain.value));
@@ -421,7 +424,7 @@ async function setupProjectPlayback(assets, setupId) {
       mixerRows.append(row);
     });
 
-    play.addEventListener("click", async () => {
+    const togglePlayback = async () => {
       error.textContent = "";
       if (transport.playing) {
         transport.pause();
@@ -435,7 +438,8 @@ async function setupProjectPlayback(assets, setupId) {
         updateTransportButton(false);
         error.textContent = "Браузер не разрешил запустить все дорожки. Нажмите ▶ ещё раз.";
       }
-    });
+    };
+    play.addEventListener("click", togglePlayback);
     reset.addEventListener("click", () => {
       transport.stop();
       updateTransportButton(false);
@@ -452,6 +456,15 @@ async function setupProjectPlayback(assets, setupId) {
     playbackPanel.style.setProperty("--progress", "0");
     playbackPanel.replaceChildren(error, mixerRows, ...tracks);
     playbackPanel.hidden = false;
+    selectStem(0);
+    activeControls = {
+      togglePlayback,
+      seekBy: (seconds) => transport.seek(transport.tracks[0].currentTime + seconds),
+      seekTo: (seconds) => transport.seek(seconds),
+      duration: () => duration,
+      moveSelection: (step) => selectStem(selectedStem + step),
+      press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
+    };
     tracks.forEach((audio) => audio.load());
   } catch (_error) {
     heading.textContent = "Не удалось подготовить синхронное воспроизведение в этом браузере.";
@@ -654,8 +667,49 @@ document.querySelector("#close-search").addEventListener("click", () => closeSea
 searchOverlay.addEventListener("click", (event) => {
   if (event.target === searchOverlay) closeSearch();
 });
+function isTextEntry(target) {
+  if (!(target instanceof Element)) return false;
+  if (target.isContentEditable || target.matches("textarea, select")) return true;
+  return target.matches("input") && !["range", "checkbox", "radio", "button", "submit"].includes(target.type);
+}
+
+// Hotkeys work whenever a project is open and no text field has focus; event.code keeps
+// S/M working on any keyboard layout.
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !searchOverlay.hidden) closeSearch();
+  if ((event.ctrlKey || event.metaKey) && event.code === "KeyF") {
+    event.preventDefault();
+    openSearch();
+    return;
+  }
+  if (event.key === "Escape" && !searchOverlay.hidden) {
+    closeSearch();
+    return;
+  }
+  if (!activeControls || !searchOverlay.hidden || deleteDialog.open || screens.get("project").hidden) return;
+  if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
+  const controls = activeControls;
+  const actions = {
+    ArrowLeft: () => controls.seekBy(-5),
+    ArrowRight: () => controls.seekBy(5),
+    Home: () => controls.seekTo(0),
+    End: () => controls.seekTo(controls.duration()),
+    ArrowUp: () => controls.moveSelection(-1),
+    ArrowDown: () => controls.moveSelection(1),
+    Space: () => controls.togglePlayback(),
+    Enter: () => controls.togglePlayback(),
+    NumpadEnter: () => controls.togglePlayback(),
+    KeyS: () => controls.press("solo"),
+    KeyM: () => controls.press("mute"),
+  };
+  const action = actions[event.code];
+  if (action) {
+    // preventDefault stops a focused button or slider from also reacting to the key.
+    event.preventDefault();
+    const toggles = ["Space", "Enter", "NumpadEnter", "KeyS", "KeyM"].includes(event.code);
+    if (!(toggles && event.repeat)) action();
+  } else if (event.target instanceof Element && event.target.matches('[data-control="gain"]')) {
+    event.preventDefault(); // PageUp/PageDown must not change volume either
+  }
 });
 document.querySelectorAll("[data-screen]").forEach((link) => {
   link.addEventListener("click", (event) => {
