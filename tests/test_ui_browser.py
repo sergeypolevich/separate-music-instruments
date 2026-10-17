@@ -21,7 +21,7 @@ def _silent_wav() -> bytes:
         output.setnchannels(2)
         output.setsampwidth(2)
         output.setframerate(16_000)
-        output.writeframes(b"\0\0\0\0" * 16_000)
+        output.writeframes(b"\0\0\0\0" * 16_000 * 5)  # 5 s, so playback never ends mid-test
     return buffer.getvalue()
 
 
@@ -300,6 +300,61 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('[data-control="seek"]').press("End")
             assert abs(position()["time"] - half["duration"]) < 0.02
             page.locator('[data-control="seek"]').press("Home")
+
+            # Global hotkeys: they work without focusing anything in particular.
+            audio_state = "() => { const a = document.querySelector('#playback-panel audio'); return {t: a.currentTime, d: a.duration, paused: a.paused}; }"
+            page.evaluate("document.activeElement && document.activeElement.blur()")
+            page.keyboard.press("End")
+            assert abs(page.evaluate(audio_state)["t"] - page.evaluate(audio_state)["d"]) < 0.02
+            page.keyboard.press("ArrowLeft")
+            assert page.evaluate(audio_state)["t"] == 0
+            page.keyboard.press("ArrowRight")
+            assert page.evaluate(audio_state)["t"] > 0.9
+            page.keyboard.press("Home")
+            assert page.evaluate(audio_state)["t"] == 0
+            page.keyboard.press("Space")
+            page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
+            page.keyboard.press("Enter")
+            page.wait_for_function("document.querySelector('#playback-panel audio').paused")
+            page.keyboard.press("Home")
+            selected = "() => [...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)"
+            assert page.evaluate(selected) == ["true"] + ["false"] * 5
+            page.keyboard.press("ArrowUp")
+            assert page.evaluate(selected)[0] == "true"
+            page.keyboard.press("ArrowDown")
+            page.keyboard.press("ArrowDown")
+            assert page.evaluate(selected) == ["false", "false", "true", "false", "false", "false"]
+            bar = page.evaluate("""() => { const row = document.querySelector('.mixer-row[data-selected="true"]');
+                const s = getComputedStyle(row, '::before'); return [s.width, s.height, row.getBoundingClientRect().height]; }""")
+            assert bar[0] == "3px" and abs(float(bar[1][:-2]) - bar[2]) <= 0.5
+            page.keyboard.press("KeyS")
+            assert page.locator('[data-control="solo"]').nth(2).get_attribute("aria-pressed") == "true"
+            page.keyboard.press("KeyS")
+            page.keyboard.press("KeyM")
+            assert page.locator('[data-control="mute"]').nth(2).get_attribute("aria-pressed") == "true"
+            page.keyboard.press("KeyM")
+            for _ in range(8):
+                page.keyboard.press("ArrowDown")
+            assert page.evaluate(selected)[-1] == "true"
+            # On a volume slider the arrows still move the position, never the volume.
+            gain0 = page.locator('[data-control="gain"]').first
+            before_gain = gain0.input_value()
+            gain0.focus()
+            page.keyboard.press("ArrowRight")
+            page.keyboard.press("PageUp")
+            assert gain0.input_value() == before_gain and page.evaluate(audio_state)["t"] > 0.9
+            page.keyboard.press("Home")
+            # Ctrl+F opens the search; typing there never reaches the player.
+            page.keyboard.press("Control+KeyF")
+            assert page.locator("#search-overlay").is_visible()
+            assert page.evaluate("document.activeElement.id") == "inputs"
+            page.keyboard.type("s m ")
+            page.keyboard.press("ArrowRight")
+            assert page.locator("#inputs").input_value() == "s m "
+            assert page.evaluate(audio_state)["paused"] and page.evaluate(audio_state)["t"] == 0
+            assert page.locator('[data-control="solo"][aria-pressed="true"]').count() == 0
+            page.locator("#inputs").fill("")
+            page.keyboard.press("Escape")
 
             # Stems come from the other loopback name so their connections never starve API calls.
             assert page.evaluate(

@@ -232,14 +232,15 @@ def test_short_clip_full_desktop_browser_flow(tmp_path):
                 assert gains.count() == mutes.count() == solos.count() == 6
                 for index in range(6):
                     gain = gains.nth(index)
-                    gain.focus()
-                    gain.press("Home")
+                    # Volume is mouse-only: click the ends of the slider.
+                    gain_box = gain.bounding_box()
+                    page.mouse.click(gain_box["x"] + 1, gain_box["y"] + gain_box["height"] / 2)
                     page.wait_for_function(
                         "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 0",
                         arg=index,
                     )
                     assert gain.input_value() == "0"
-                    gain.press("End")
+                    page.mouse.click(gain_box["x"] + gain_box["width"] - 1, gain_box["y"] + gain_box["height"] / 2)
                     page.wait_for_function(
                         "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 1.5",
                         arg=index,
