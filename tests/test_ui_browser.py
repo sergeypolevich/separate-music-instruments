@@ -240,6 +240,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             _assert_icon_centred(page, "#search-trigger .icon", "#search-trigger", horizontal=False)
             _assert_icon_centred(page, "#search-trigger .icon", "#search-preview", horizontal=False, tolerance=1)
 
+            # Each waveform is one scalable SVG shape that fills its cell.
+            page.wait_for_function("document.querySelectorAll('.mixer-waveform svg path.waveform-shape').length === 6")
+            for cell in page.locator(".mixer-waveform").all():
+                svg_box = cell.locator("svg").bounding_box()
+                cell_box = cell.bounding_box()
+                assert cell.locator("svg path").count() == 1
+                assert abs(svg_box["width"] - cell_box["width"]) <= 0.5
+
             # The timeline spans exactly the waveform column, and its position matches the playhead.
             timeline_box = page.locator('[data-control="seek"]').bounding_box()
             for wave_box in [w.bounding_box() for w in page.locator(".mixer-waveform").all()]:
