@@ -55,7 +55,7 @@ py -m pytest -q
 By default, no live YouTube or Demucs smoke tests run. The separate opt-in
 command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It starts the
 API and worker, opens installed Edge or Chrome in a visible browser window, searches
-YouTube for Blur — Song 2, downloads it, runs Demucs, and checks project reopen,
+YouTube for John Denver — The Ballad of Spiro Agnew (16 s), downloads it, runs Demucs, and checks project reopen,
 playback, seek, per-track gain, and mute controls. It needs internet, the
 Playwright test dependency, installed Edge or Chrome, available disk space, and
 several minutes of CPU processing. Run it before every commit as required by

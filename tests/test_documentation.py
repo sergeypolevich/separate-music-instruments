@@ -31,7 +31,7 @@ def test_readme_describes_shared_api_worker_and_restart_limits():
     assert "Run it before every commit" in text
 
 
-def test_project_skill_requires_visible_playwright_song2_browser_gate():
+def test_project_skill_requires_visible_playwright_browser_gate():
     root = Path(__file__).parents[1]
     skill = (root / "skills" / "audio-stems-development.md").read_text(encoding="utf-8")
     requirements = (root / "requirements-test.txt").read_text(encoding="utf-8")
