@@ -105,12 +105,23 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 asset_id = path.split("/")[-2]
                 self._json({"asset_id": asset_id, "levels": [0.0, 0.2, 0.5, 0.1] * 64})
             elif path.startswith("/api/v1/assets/"):
-                self.send_response(200)
+                # Like the real API, honour single byte ranges so the browser can seek.
+                start, end = 0, len(wav_bytes) - 1
+                requested = self.headers.get("Range", "")
+                if requested.startswith("bytes="):
+                    first, _, last = requested[6:].partition("-")
+                    start = int(first or 0)
+                    end = min(int(last), end) if last else end
+                body = wav_bytes[start:end + 1]
+                self.send_response(206 if requested else 200)
                 self.send_header("Content-Type", "audio/wav")
+                self.send_header("Accept-Ranges", "bytes")
                 self.send_header("Access-Control-Allow-Origin", "*")
-                self.send_header("Content-Length", str(len(wav_bytes)))
+                if requested:
+                    self.send_header("Content-Range", f"bytes {start}-{end}/{len(wav_bytes)}")
+                self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
-                self.wfile.write(wav_bytes)
+                self.wfile.write(body)
             elif path.startswith("/api/v1/batches/"):
                 self._json({"batch_id": batch_id, "status": "completed", "jobs": []})
             else:
@@ -193,6 +204,45 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
                 timeout=15_000,
             )
+
+            # The timeline spans exactly the waveform column, and its position matches the playhead.
+            timeline_box = page.locator('[data-control="seek"]').bounding_box()
+            for wave_box in [w.bounding_box() for w in page.locator(".mixer-waveform").all()]:
+                assert abs(timeline_box["x"] - wave_box["x"]) <= 0.5
+                assert abs(timeline_box["x"] + timeline_box["width"] - wave_box["x"] - wave_box["width"]) <= 0.5
+
+            def centers():
+                return page.evaluate("""() => {
+                    const mid = (el) => { const r = el.getBoundingClientRect(); return r.left + r.width / 2; };
+                    return {
+                        thumb: mid(document.querySelector('.timeline-thumb')),
+                        playheads: [...document.querySelectorAll('.playhead')].map(mid),
+                        time: document.querySelector('#playback-panel audio').currentTime,
+                        duration: document.querySelector('#playback-panel audio').duration,
+                    };
+                }""")
+
+            at_start = centers()
+            assert abs(at_start["thumb"] - timeline_box["x"]) <= 1
+            assert all(abs(x - timeline_box["x"]) <= 1 for x in at_start["playheads"])
+
+            vocal_wave = page.locator(".mixer-waveform").first.bounding_box()
+            page.mouse.click(vocal_wave["x"] + vocal_wave["width"] * 0.25, vocal_wave["y"] + vocal_wave["height"] / 2)
+            quarter = centers()
+            assert abs(quarter["time"] / quarter["duration"] - 0.25) < 0.02
+            expected_x = timeline_box["x"] + timeline_box["width"] * quarter["time"] / quarter["duration"]
+            assert abs(quarter["thumb"] - expected_x) <= 1
+            assert all(abs(x - expected_x) <= 1 for x in quarter["playheads"])
+            assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => Math.abs(a.currentTime - document.querySelector('#playback-panel audio').currentTime) < 0.01)")
+
+            page.mouse.click(timeline_box["x"] + timeline_box["width"] / 2, timeline_box["y"] + timeline_box["height"] / 2)
+            half = centers()
+            assert abs(half["time"] / half["duration"] - 0.5) < 0.02
+            page.locator('[data-control="seek"]').press("Home")
+            assert centers()["time"] == 0
+            page.locator('[data-control="seek"]').press("End")
+            assert abs(centers()["time"] - half["duration"]) < 0.02
+            page.locator('[data-control="seek"]').press("Home")
 
             # Stems come from the other loopback name so their connections never starve API calls.
             assert page.evaluate(
