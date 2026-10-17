@@ -38,7 +38,8 @@ button { cursor: pointer; }
 .top-nav a:hover, .back-link:hover { color: var(--accent); }
 .top-nav a[data-screen="settings"] { font-size: 18px; }
 
-.project-tabs-shell { padding-top: 10px; }
+/* Same side gutters as .project-workspace so tabs span the project card's width. */
+.project-tabs-shell { padding: 10px clamp(16px, 3vw, 48px) 0; }
 .project-tabs { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #526449 transparent; padding: 0 0 8px; }
 .tabs-empty { flex: none; margin: 0; color: #718178; font-size: 11px; }
 .project-tab { position: relative; flex: 0 0 auto; max-width: min(240px, 65vw); min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(24, 33, 30, .82); color: var(--muted); text-align: left; font-size: 11px; }
@@ -154,7 +155,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .search-trigger > span:last-child::after { font-size: 11px; content: "Поиск песни или ссылки"; }
   .top-nav { gap: 8px; }
   .top-nav a { font-size: 11px; }
-  .project-tabs-shell { padding-top: 7px; }
+  .project-tabs-shell { padding: 7px 9px 0; }
   .project-workspace { padding: 4px 9px 20px; }
   .project-detail { padding: 12px 10px 52px; border-radius: 10px; }
   .mixer-row { min-height: 57px; grid-template-columns: minmax(108px, 34%) minmax(0, 1fr); gap: 7px; }
