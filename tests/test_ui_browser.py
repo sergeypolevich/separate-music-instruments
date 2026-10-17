@@ -164,6 +164,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="networkidle")
             page.locator(".mixer-row").first.wait_for()
+            # An open project shows only its card: no empty-state hint, subtitle, model line or file list.
+            assert not page.locator("#project-empty").is_visible()
+            for removed in ("#refresh-projects", "#asset-list", "#detail-input", "#detail-model", "#screen-help"):
+                assert page.locator(removed).count() == 0
             assert page.locator(".project-tab").count() == 14
             assert page.locator(".project-tab").first.get_attribute("data-status") == "completed"
             assert "Ошибка" not in page.locator("#project-tabs").inner_text()
@@ -220,8 +224,6 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('[data-control="mute"]').first.click()
             assert float(audio.get_attribute("data-effective-gain")) == 1.5
 
-            page.locator('[data-screen="help"]').click()
-            assert page.locator("#screen-help").is_visible()
             page.locator('[data-screen="settings"]').click()
             assert page.locator("#screen-settings").is_visible()
             page.locator('[data-screen="project"]').first.click()

@@ -198,7 +198,8 @@ def test_short_clip_full_desktop_browser_flow(tmp_path):
                     print("Asset request failures:", asset_request_failures)
                     raise
                 assert [tracks.nth(index).get_attribute("data-stem") for index in range(6)] == list(EXPECTED_STEMS)
-                assert page.locator("#asset-list .asset-available").count() == 7
+                assert page.locator(".mixer-row").count() == 6
+                assert not page.locator("#project-empty").is_visible()
 
                 page.locator('[data-action="toggle"]').click()
                 page.wait_for_function("Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => !audio.paused)")
