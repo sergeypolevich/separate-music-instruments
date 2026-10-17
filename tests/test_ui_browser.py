@@ -255,6 +255,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             at_start = centers()
             assert abs(at_start["thumb"] - timeline_box["x"]) <= 1
             assert all(abs(x - timeline_box["x"]) <= 1 for x in at_start["playheads"])
+            # A single 1px playhead runs from the timeline thumb centre to the bottom of the last waveform.
+            assert page.locator(".playhead").count() == 1
+            line = page.locator(".playhead").bounding_box()
+            thumb = page.locator(".timeline-thumb").bounding_box()
+            last_wave = page.locator(".mixer-waveform").last.bounding_box()
+            assert line["width"] == 1
+            assert abs(line["y"] - (thumb["y"] + thumb["height"] / 2)) <= 1
+            assert abs(line["y"] + line["height"] - (last_wave["y"] + last_wave["height"])) <= 1
 
             vocal_wave = page.locator(".mixer-waveform").first.bounding_box()
             page.mouse.click(vocal_wave["x"] + vocal_wave["width"] * 0.25, vocal_wave["y"] + vocal_wave["height"] / 2)
