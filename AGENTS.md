@@ -10,7 +10,7 @@ This file is the shared project specification. Read it before making changes. Im
 
 ## 2. Non-negotiable engineering rules
 
-1. **Preserve the working behavior before refactoring.** The current script is the behavioral baseline. Add tests around it before moving logic. Do not replace or rewrite the entire working script in one step.
+1. **Preserve the working behavior before refactoring.** The current application — described from the user's perspective in [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) and covered by the test suite — is the behavioral baseline. Add tests around behavior before moving logic. Do not rewrite large parts of working code in one step.
 2. Make small, reviewable changes. For every change, explain the intent, run the relevant tests, and report what passed and what could not be verified.
 3. Do not silently change output paths, output naming, processing order, model settings, format-selection policy, retry behavior, or skip behavior. Change these only when explicitly requested and update tests.
 4. Keep downloader, separator, source/input adapters, job orchestration, authentication, metadata, logging, and storage behind explicit interfaces. A module must not depend on another module's concrete implementation unless it is the adapter/composition layer.
@@ -22,7 +22,7 @@ This file is the shared project specification. Read it before making changes. Im
 
 ## 3. Current working baseline — preserve it
 
-The current standalone Python script is considered working. Its behavior must be captured in tests before refactoring.
+The application's current behavior is considered working and is captured in tests. (The original standalone script `download_tracks.py` was retired in version 4; its behaviors are tested at the service level.)
 
 - Primary operating system: Windows. Use `pathlib.Path`; avoid hard-coded Windows path separators.
 - Current output root: `Path.home() / "Audio Stems" / "YouTube Audio"`.
@@ -30,8 +30,8 @@ The current standalone Python script is considered working. Its behavior must be
 - Stem files are saved in a flat per-track directory: `Stems/<safe YouTube title>/vocals.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `piano.wav`, and `other.wav`. Do **not** create one subdirectory per stem.
 - A batch is processed in two phases: (1) attempt to download all requested tracks; (2) after the download phase ends, run separation for each successfully available audio file. A failed item must not stop processing the remaining items.
 - The current downloader uses `pytubefix`: for a search query it selects the first search result; it prefers an audio-only `audio/webm` stream ordered by descending bitrate, then falls back to another available audio-only stream.
-- Download attempts are retried up to three times with delays between attempts. If a non-empty target audio file already exists, the current script reuses it instead of downloading again.
-- The current separator uses Demucs model `htdemucs_6s` on CPU.
+- Download attempts are retried up to three times with delays between attempts. If a target audio file already exists and passes container validation, it is reused instead of downloading again; an invalid one is quarantined and downloaded again.
+- The current separator uses Demucs model `htdemucs_6s`. The device comes from `AUDIO_STEMS_MODEL_DEVICE`; the default `auto` picks CUDA, then Apple MPS, then CPU. Users do not choose the device in the UI.
 - Temporary Demucs outputs are cleaned up only after all six expected stems exist. Existing complete stem sets are skipped.
 - Filenames are sanitized for Windows-invalid characters and reserved device names.
 - Current hard-coded example queries are test fixtures/examples only. In the product, users must be able to supply inputs through a client; the production workflow must not require editing the Python source to change the track list.
@@ -68,6 +68,8 @@ Shared infrastructure: database, local/object storage, structured logs
 ```
 
 ### Module responsibilities
+
+Code lives in the `audio_stems/` package; the responsibilities below map to these modules: `models` (contracts, data models, and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
 
 - `sources`: normalizes search-query and direct-URL submissions. It must not download audio itself.
 - `downloader`: searches source candidates and downloads audio. It must not know about web pages, browser extensions, user sessions, or stem models.
@@ -260,7 +262,7 @@ Work through these milestones in order. Do not skip ahead without reporting the 
 - Inspect the repository and existing script before changing files.
 - Record current dependency/Python versions and output structure.
 - Add regression tests around current behavior using fakes and temporary directories.
-- Keep the original runnable script intact.
+- Keep the original runnable script intact. (Completed; the script was retired in version 4 after its behaviors were covered by service-level tests.)
 - Deliver: tests, a short baseline note, and evidence of test results.
 
 ### Milestone 2 — Core module boundaries
