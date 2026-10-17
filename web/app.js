@@ -135,7 +135,57 @@ function renderProjects(projects) {
     button.addEventListener("click", () => openProject(project.project_id));
     return button;
   }));
+  updateTabFades();
 }
+
+// Fades mark the edges where more tabs are hidden.
+function updateTabFades() {
+  const hidden = projectTabs.scrollWidth - projectTabs.clientWidth;
+  projectTabs.classList.toggle("fade-left", projectTabs.scrollLeft > 1);
+  projectTabs.classList.toggle("fade-right", projectTabs.scrollLeft < hidden - 1);
+}
+
+projectTabs.addEventListener("scroll", updateTabFades, { passive: true });
+window.addEventListener("resize", updateTabFades);
+// The mouse wheel scrolls the tab strip sideways.
+projectTabs.addEventListener("wheel", (event) => {
+  if (projectTabs.scrollWidth <= projectTabs.clientWidth) return;
+  event.preventDefault();
+  projectTabs.scrollLeft += Math.abs(event.deltaY) > Math.abs(event.deltaX) ? event.deltaY : event.deltaX;
+}, { passive: false });
+// Dragging scrolls the strip; past a 5px threshold the drag no longer counts as a tab click.
+let tabDrag = null;
+let suppressTabClick = false;
+projectTabs.addEventListener("pointerdown", (event) => {
+  if (event.button !== 0 || event.pointerType === "touch") return; // touch already scrolls natively
+  tabDrag = { id: event.pointerId, x: event.clientX, left: projectTabs.scrollLeft, moved: false };
+});
+projectTabs.addEventListener("pointermove", (event) => {
+  if (!tabDrag || event.pointerId !== tabDrag.id) return;
+  const dx = event.clientX - tabDrag.x;
+  if (!tabDrag.moved && Math.abs(dx) > 5) {
+    tabDrag.moved = true;
+    projectTabs.setPointerCapture(event.pointerId);
+    projectTabs.classList.add("dragging");
+  }
+  if (tabDrag.moved) projectTabs.scrollLeft = tabDrag.left - dx;
+});
+function endTabDrag() {
+  if (!tabDrag) return;
+  if (tabDrag.moved) {
+    suppressTabClick = true;
+    window.setTimeout(() => { suppressTabClick = false; }, 0);
+  }
+  projectTabs.classList.remove("dragging");
+  tabDrag = null;
+}
+projectTabs.addEventListener("pointerup", endTabDrag);
+projectTabs.addEventListener("pointercancel", endTabDrag);
+projectTabs.addEventListener("click", (event) => {
+  if (!suppressTabClick) return;
+  event.preventDefault();
+  event.stopPropagation();
+}, true);
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

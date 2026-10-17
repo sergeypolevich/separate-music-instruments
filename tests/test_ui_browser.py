@@ -219,9 +219,38 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.locator('[data-action="reset"]').get_attribute("aria-label") == "В начало и пауза"
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             tabs = page.locator("#project-tabs")
-            tabs.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
-            # Tabs that do not fit scroll horizontally; on wide screens they may all fit.
-            assert tabs.evaluate("el => el.scrollWidth <= el.clientWidth || el.scrollLeft > 0")
+            # No visible scrollbar under the tabs.
+            assert tabs.evaluate("el => getComputedStyle(el).scrollbarWidth") == "none"
+            assert tabs.evaluate("el => el.offsetHeight - el.clientHeight") == 0
+            if tabs.evaluate("el => el.scrollWidth > el.clientWidth"):
+                fades = "el => [el.classList.contains('fade-left'), el.classList.contains('fade-right')]"
+                tabs.evaluate("el => { el.scrollLeft = 0; }")
+                page.wait_for_function("!document.querySelector('#project-tabs').classList.contains('fade-left')")
+                assert tabs.evaluate(fades) == [False, True]
+                # Mouse wheel scrolls the strip sideways.
+                strip = tabs.bounding_box()
+                page.mouse.move(strip["x"] + strip["width"] / 2, strip["y"] + strip["height"] / 2)
+                page.mouse.wheel(0, 200)
+                page.wait_for_function("document.querySelector('#project-tabs').scrollLeft > 0")
+                assert tabs.evaluate(fades) == [True, True]
+                # Dragging a tab scrolls the strip and does not open that tab.
+                tabs.evaluate("el => { el.scrollLeft = 0; }")
+                title_before = page.locator("#detail-title").inner_text()
+                second_tab = page.locator(".project-tab").nth(1).bounding_box()
+                start_x, y = second_tab["x"] + 20, second_tab["y"] + second_tab["height"] / 2
+                page.mouse.move(start_x, y)
+                page.mouse.down()
+                page.mouse.move(start_x - 60, y, steps=6)
+                page.mouse.move(start_x - 120, y, steps=6)
+                page.mouse.up()
+                assert abs(tabs.evaluate("el => el.scrollLeft") - 120) <= 6
+                page.wait_for_timeout(300)
+                assert page.locator("#detail-title").inner_text() == title_before
+                tabs.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
+                page.wait_for_function("!document.querySelector('#project-tabs').classList.contains('fade-right')")
+                assert tabs.evaluate(fades) == [True, False]
+            else:
+                assert tabs.evaluate("el => el.classList.contains('fade-left') || el.classList.contains('fade-right')") is False
             page.wait_for_function(
                 "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
                 "&& Array.from(document.querySelectorAll('#playback-panel audio')).every(" 

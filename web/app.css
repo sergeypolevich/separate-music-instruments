@@ -48,7 +48,12 @@ button { cursor: pointer; }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */
 .project-tabs-shell { padding: 10px 16px 0; }
-.project-tabs { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: #526449 transparent; padding: 0 0 8px; }
+.project-tabs { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 0 0 8px; }
+.project-tabs::-webkit-scrollbar { display: none; }
+.project-tabs.dragging { cursor: grabbing; user-select: none; }
+.project-tabs.fade-left { mask-image: linear-gradient(to right, transparent, #000 32px); }
+.project-tabs.fade-right { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
+.project-tabs.fade-left.fade-right { mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
 .tabs-empty { flex: none; margin: 0; color: #718178; font-size: 11px; }
 .project-tab { position: relative; flex: 0 0 auto; max-width: min(240px, 65vw); min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: rgba(24, 33, 30, .82); color: var(--muted); text-align: left; font-size: 11px; }
 .project-tab:hover, .project-tab[aria-selected="true"] { border-color: #72865e; color: var(--text); background: var(--panel); }
