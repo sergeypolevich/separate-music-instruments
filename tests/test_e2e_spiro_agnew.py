@@ -218,6 +218,13 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     "() => { const audio = document.querySelector('#playback-panel audio'); "
                     "return !audio.paused && Math.abs(audio.currentTime / audio.duration - 0.5) < 0.08; }"
                 )
+                # Clicking a waveform seeks to the same relative point.
+                wave = page.locator(".mixer-waveform").first.bounding_box()
+                page.mouse.click(wave["x"] + wave["width"] * 0.25, wave["y"] + wave["height"] / 2)
+                page.wait_for_function(
+                    "() => { const audio = document.querySelector('#playback-panel audio'); "
+                    "return !audio.paused && Math.abs(audio.currentTime / audio.duration - 0.25) < 0.08; }"
+                )
 
                 gains = page.locator('[data-control="gain"]')
                 mutes = page.locator('[data-control="mute"]')

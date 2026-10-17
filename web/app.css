@@ -64,11 +64,9 @@ h1, h2, h3, p { margin-top: 0; }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid rgba(255, 131, 120, .3); border-radius: 8px; background: rgba(255, 131, 120, .08); color: #ffaaa1; font-size: 12px; }
 .playback-panel { display: grid; gap: 8px; margin-top: 10px; }
 .playback-message, .playback-time, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
-.playback-toolbar { display: grid; grid-template-columns: auto minmax(100px, 1fr) auto; align-items: center; gap: 12px; }
 .playback-buttons { display: flex; gap: 6px; }
 .transport-button { width: 38px; min-width: 38px; height: 34px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); font-size: 17px; }
 .transport-button:hover { border-color: #80965e; color: var(--accent); }
-.playback-panel input[type="range"] { width: 100%; min-width: 0; accent-color: var(--accent); }
 .playback-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .playback-panel audio {
   position: absolute;
@@ -79,8 +77,17 @@ h1, h2, h3, p { margin-top: 0; }
   pointer-events: none;
 }
 .playback-error { color: var(--danger); }
-.mixer-list { display: grid; gap: 4px; }
-.mixer-row { min-height: 61px; display: grid; grid-template-columns: minmax(170px, 218px) minmax(0, 1fr); align-items: stretch; gap: 12px; padding: 4px 0; border-top: 1px solid rgba(151, 180, 160, .11); }
+/* One grid for the timeline and every stem row; subgrid keeps the waveform column identical in all rows. */
+.mixer-grid { display: grid; grid-template-columns: minmax(170px, 218px) minmax(0, 1fr); column-gap: 12px; row-gap: 4px; }
+.timeline-row, .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+.timeline-row { align-items: center; padding-bottom: 4px; }
+.timeline-controls { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.timeline { position: relative; height: 24px; cursor: pointer; touch-action: none; }
+.timeline:focus-visible { outline: 2px solid rgba(184, 239, 104, .5); outline-offset: 2px; border-radius: 4px; }
+.timeline-track { position: absolute; top: 50%; left: 0; right: 0; height: 4px; overflow: hidden; border-radius: 2px; background: #2b3933; transform: translateY(-50%); }
+.timeline-fill { position: absolute; top: 0; bottom: 0; left: 0; width: calc(var(--progress, 0) * 100%); background: var(--accent); }
+.timeline-thumb { position: absolute; top: 50%; left: calc(var(--progress, 0) * 100%); width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(184, 239, 104, .18); transform: translate(-50%, -50%); pointer-events: none; }
+.mixer-row { min-height: 61px; align-items: stretch; padding: 4px 0; border-top: 1px solid rgba(151, 180, 160, .11); }
 .mixer-left { min-width: 0; display: grid; grid-template-rows: 19px 17px 18px; align-content: center; gap: 1px; }
 .mixer-name { overflow: hidden; color: #dbe3dd; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .mixer-switches { display: flex; gap: 4px; }
@@ -90,7 +97,8 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader { display: grid; grid-template-columns: minmax(0, 1fr) 33px; align-items: center; gap: 6px; }
 .mixer-fader input { width: 100%; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); }
 .gain-value { color: #829087; text-align: right; font-size: 9px; font-variant-numeric: tabular-nums; }
-.mixer-waveform { min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); }
+.mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); cursor: pointer; touch-action: pan-y; }
+.playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--progress, 0) * 100%); width: 2px; background: #f0f4f0; box-shadow: 0 0 6px rgba(240, 244, 240, .45); transform: translateX(-50%); pointer-events: none; }
 .waveform-preview { display: block; width: 100%; height: 48px; }
 .delete-button { position: absolute; right: 12px; bottom: 10px; width: 31px; min-width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid rgba(255, 131, 120, .4); border-radius: 8px; background: rgba(255, 131, 120, .08); color: var(--danger); font-size: 19px; }
 .delete-button:hover { background: rgba(255, 131, 120, .2); }
@@ -158,10 +166,10 @@ button:disabled { opacity: .55; cursor: wait; }
   .project-tabs-shell { padding: 7px 9px 0; }
   .project-workspace { padding: 4px 9px 20px; }
   .project-detail { padding: 12px 10px 52px; border-radius: 10px; }
-  .mixer-row { min-height: 57px; grid-template-columns: minmax(108px, 34%) minmax(0, 1fr); gap: 7px; }
+  .mixer-grid { grid-template-columns: minmax(108px, 34%) minmax(0, 1fr); column-gap: 7px; }
+  .mixer-row { min-height: 57px; }
   .mixer-left { grid-template-rows: 17px 16px 17px; }
   .waveform-preview { height: 42px; }
-  .playback-toolbar { grid-template-columns: auto minmax(65px, 1fr) auto; gap: 7px; }
   .transport-button { width: 33px; min-width: 33px; height: 31px; }
   .playback-time { font-size: 9px; }
   .search-overlay { padding: 14px 10px; }
@@ -178,5 +186,5 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 6px; }
   .top-nav a { font-size: 10px; }
   .brand > span:last-child { display: none; }
-  .mixer-row { grid-template-columns: minmax(98px, 36%) minmax(0, 1fr); }
+  .mixer-grid { grid-template-columns: minmax(98px, 36%) minmax(0, 1fr); }
 }
