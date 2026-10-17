@@ -9,6 +9,8 @@
   --accent: #b8ef68;
   --accent-dark: #17200c;
   --danger: #ff8378;
+  --solo: #dcce1a;
+  --mute: #e22020;
   --radius: 14px;
   font-family: 'DM Sans', system-ui, sans-serif;
 }
@@ -94,10 +96,13 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-left { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
 .mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .mixer-name { overflow: hidden; color: #dbe3dd; font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
-.mixer-switches { display: flex; gap: 16px; }
+.mixer-switches { display: flex; gap: 11px; }
 .mixer-toggle { width: 25px; height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #425249; border-radius: 4px; background: transparent; color: #9aa9a1; font-size: 11px; font-weight: 700; line-height: 1; }
-.mixer-toggle:hover, .mixer-toggle[aria-pressed="true"] { border-color: var(--accent); background: rgba(184, 239, 104, .12); color: var(--accent); }
-.mixer-toggle[data-control="mute"][aria-pressed="true"] { border-color: var(--danger); background: rgba(255, 131, 120, .12); color: var(--danger); }
+.mixer-toggle:hover { border-color: var(--accent); color: var(--accent); }
+.mixer-toggle[data-control="solo"][aria-pressed="true"] { border-color: transparent; background: var(--solo); color: #fff; }
+.mixer-toggle[data-control="mute"][aria-pressed="true"] { border-color: transparent; background: var(--mute); color: #fff; }
+/* Stems silenced by S/M fade to 20 % so the audible ones stand out. */
+.mixer-row[data-silenced="true"] .waveform-preview { opacity: .2; }
 .mixer-fader { display: flex; align-items: center; }
 .mixer-fader input { width: 100%; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); }
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); }

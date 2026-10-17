@@ -106,6 +106,17 @@ test("mute, multiple solo, and clearing solo compose with each track gain", () =
   assert.equal(nodes[0].gain.value, 0.4);
 });
 
+test("mixer reports which tracks S/M silence, independent of gain", () => {
+  const reports = [];
+  const mixer = new MixerSession(makeGainNodes(), (_gains, audible) => reports.push(audible));
+  mixer.setGain(3, 0);
+  assert.deepEqual(reports.at(-1), [true, true, true, true, true, true]);
+  mixer.setMute(1, true);
+  assert.deepEqual(reports.at(-1), [true, false, true, true, true, true]);
+  mixer.setSolo(4, true);
+  assert.deepEqual(reports.at(-1), [false, false, false, false, true, false]);
+});
+
 test("mixer updates preserve the current shared playback position", async () => {
   const { tracks, transport } = makeTransport();
   const mixer = new MixerSession(makeGainNodes());
