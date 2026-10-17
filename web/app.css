@@ -29,7 +29,7 @@
   --danger: #ff8378;
   --danger-text: #ffaaa1;
   --danger-ink: #30100c;
-  --solo: #dcce1a;
+  --solo: #d8c200;
   --mute: #e22020;
   --radius: 14px;
   font-family: 'DM Sans', system-ui, sans-serif;
@@ -123,7 +123,7 @@ button { cursor: pointer; }
 .project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
 /* Title on the left of the waveform column, timer pushed to its right edge. */
 .project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
-.detail-time { flex: none; color: var(--text); font: 300 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.detail-time { flex: none; color: var(--text); font: 300 15px/1.2 Manrope, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
 h1, h2, h3, p { margin-top: 0; }
 #detail-title { min-width: 0; margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
@@ -160,16 +160,20 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-row[data-selected="true"]::before { position: absolute; top: -1px; bottom: 0; left: -10px; width: 3px; background: var(--accent); content: ""; }
 /* Stems silenced by S/M fade to 20 % so the audible ones stand out. */
 .mixer-row[data-silenced="true"] .waveform-preview { opacity: .2; }
-/* Borderless volume slider: 4px track, 12px thumb. The thumb centre travels from 6px to width-6px,
-   so the 100 % mark (100 of 150) sits at 6px + (width - 12px) * 2/3; it is 2px taller than the thumb. */
-.mixer-fader { position: relative; display: flex; align-items: center; }
-.mixer-fader::before { position: absolute; top: 50%; left: calc(6px + (100% - 12px) * 2 / 3); width: 1px; height: 14px; background: var(--muted); transform: translateY(-50%); pointer-events: none; content: ""; }
-.mixer-fader input { position: relative; z-index: 1; width: 100%; min-width: 0; height: 16px; margin: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
-.mixer-fader input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 66.67%), var(--line) var(--fill, 66.67%)); }
-.mixer-fader input::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--accent); -webkit-appearance: none; appearance: none; }
-.mixer-fader input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
+/* Borderless sliders (volume and accent hue): 4px track, 12px thumb. The thumb centre travels from
+   6px to width-6px, so a mark for value v of max sits at 6px + (width - 12px) * v / max. The mark
+   is the track colour and as tall as the thumb: volume marks 100 of 150, accent marks the default hue. */
+.mixer-fader, .accent-slider { position: relative; display: flex; align-items: center; }
+.mixer-fader::before, .accent-slider::before { position: absolute; top: 50%; left: calc(6px + (100% - 12px) * var(--mark)); width: 1px; height: 12px; background: var(--line); transform: translateY(-50%); pointer-events: none; content: ""; }
+.mixer-fader { --mark: 100 / 150; }
+.accent-slider { --mark: 84 / 360; width: min(320px, 100%); }
+.mixer-fader input, .accent-slider input { position: relative; z-index: 1; width: 100%; min-width: 0; height: 16px; margin: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
+.accent-slider input { --fill: 0%; }
+.mixer-fader input::-webkit-slider-runnable-track, .accent-slider input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 66.67%), var(--line) var(--fill, 66.67%)); }
+.mixer-fader input::-webkit-slider-thumb, .accent-slider input::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--accent); -webkit-appearance: none; appearance: none; }
+.mixer-fader input::-moz-range-track, .accent-slider input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
 .mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
-.mixer-fader input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
+.mixer-fader input::-moz-range-thumb, .accent-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
 .playhead-layer:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: 2px; border-radius: 4px; }
@@ -203,7 +207,6 @@ h1, h2, h3, p { margin-top: 0; }
 .appearance-row > span:first-child, .appearance-row label { color: var(--text-soft); font-size: 12px; }
 .theme-switch { display: inline-flex; gap: 6px; }
 .theme-switch button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
-#accent-hue { width: min(320px, 100%); accent-color: var(--accent); }
 .accent-swatch { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
 
 .search-overlay { position: fixed; z-index: 10; inset: 0; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: clamp(22px, 9vh, 80px) 18px 24px; background: var(--overlay); backdrop-filter: blur(8px); }
