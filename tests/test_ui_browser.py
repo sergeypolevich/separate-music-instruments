@@ -168,6 +168,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not page.locator("#project-empty").is_visible()
             for removed in ("#refresh-projects", "#asset-list", "#detail-input", "#detail-model", "#screen-help"):
                 assert page.locator(removed).count() == 0
+            # Tabs span the same width as the project card.
+            tabs_box = page.locator("#project-tabs").bounding_box()
+            card_box = page.locator("#project-detail").bounding_box()
+            assert abs(tabs_box["x"] - card_box["x"]) <= 1 and abs(tabs_box["width"] - card_box["width"]) <= 1
             assert page.locator(".project-tab").count() == 14
             assert page.locator(".project-tab").first.get_attribute("data-status") == "completed"
             assert "Ошибка" not in page.locator("#project-tabs").inner_text()
@@ -181,7 +185,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             tabs = page.locator("#project-tabs")
             tabs.evaluate("el => { el.scrollLeft = el.scrollWidth; }")
-            assert tabs.evaluate("el => el.scrollLeft > 0")
+            # Tabs that do not fit scroll horizontally; on wide screens they may all fit.
+            assert tabs.evaluate("el => el.scrollWidth <= el.clientWidth || el.scrollLeft > 0")
             page.wait_for_function(
                 "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
                 "&& Array.from(document.querySelectorAll('#playback-panel audio')).every(" 
