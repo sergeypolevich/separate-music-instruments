@@ -333,8 +333,21 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert float(audio.get_attribute("data-effective-gain")) == 1.5
             page.locator('[data-control="mute"]').first.click()
             assert float(audio.get_attribute("data-effective-gain")) == 0
+            # Pressed S/M are solid yellow/red with white letters; S/M-silenced waveforms fade to 20 %.
+            mute_style = page.locator('[data-control="mute"]').first.evaluate("el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]")
+            assert mute_style == ["rgb(226, 32, 32)", "rgb(255, 255, 255)"]
+            opacity = "i => getComputedStyle(document.querySelectorAll('.mixer-waveform svg')[i]).opacity"
+            assert page.evaluate(opacity, 0) == "0.2" and page.evaluate(opacity, 1) == "1"
             page.locator('[data-control="mute"]').first.click()
             assert float(audio.get_attribute("data-effective-gain")) == 1.5
+            page.locator('[data-control="solo"]').nth(2).click()
+            solo_style = page.locator('[data-control="solo"]').nth(2).evaluate("el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]")
+            assert solo_style == ["rgb(220, 206, 26)", "rgb(255, 255, 255)"]
+            assert [page.evaluate(opacity, i) for i in range(6)] == ["0.2", "0.2", "1", "0.2", "0.2", "0.2"]
+            page.locator('[data-control="solo"]').nth(2).click()
+            assert [page.evaluate(opacity, i) for i in range(6)] == ["1"] * 6
+            switches_gap = page.locator(".mixer-switches").first.evaluate("el => getComputedStyle(el).columnGap")
+            assert switches_gap == "11px"
 
             page.locator('[data-screen="settings"]').click()
             assert page.locator("#screen-settings").is_visible()

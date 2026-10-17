@@ -255,8 +255,10 @@ async function setupProjectPlayback(assets, setupId) {
       return gain;
     });
     activeAudioContext = audioContext;
-    const mixer = new MixerSession(gainNodes, (values) => {
+    const mixerRowElements = [];
+    const mixer = new MixerSession(gainNodes, (values, audible) => {
       tracks.forEach((audio, index) => { audio.dataset.effectiveGain = String(values[index]); });
+      mixerRowElements.forEach((row, index) => { row.dataset.silenced = String(!audible[index]); });
     });
     activeMixer = mixer;
 
@@ -349,6 +351,7 @@ async function setupProjectPlayback(assets, setupId) {
     stems.forEach((asset, index) => {
       const row = document.createElement("div");
       row.className = "mixer-row";
+      mixerRowElements.push(row);
       // Explicit rows: the playhead layer spans rows 1-6, which would push auto-placed rows down.
       row.style.gridRow = String(index + 1);
       row.dataset.stem = asset.stem_name;

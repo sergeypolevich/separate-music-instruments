@@ -40,12 +40,11 @@ export class MixerSession {
 
   apply() {
     const hasSolo = this.solos.some(Boolean);
-    const effectiveGains = this.gainNodes.map((_node, index) => {
-      const audible = !this.mutes[index] && (!hasSolo || this.solos[index]);
-      return audible ? this.gains[index] : 0;
-    });
+    // Silenced by S/M (not by a gain of 0), so the UI can dim those waveforms.
+    const audible = this.gainNodes.map((_node, index) => !this.mutes[index] && (!hasSolo || this.solos[index]));
+    const effectiveGains = audible.map((isAudible, index) => (isAudible ? this.gains[index] : 0));
     this.gainNodes.forEach((node, index) => { node.gain.value = effectiveGains[index]; });
-    this.onEffectiveGain(effectiveGains);
+    this.onEffectiveGain(effectiveGains, audible);
   }
 }
 
