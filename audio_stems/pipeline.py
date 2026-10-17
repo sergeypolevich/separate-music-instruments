@@ -1,4 +1,4 @@
-"""Batch job orchestration with persisted states and download-first phases."""
+"""Batch orchestration (download-first phases, persisted states) and the database-backed worker loop."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,7 +10,7 @@ from typing import Callable, Sequence
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     BatchReceipt,
     BatchStatus,
@@ -28,7 +28,11 @@ from contracts import (
     StemSeparator,
     VideoCandidate,
 )
-from settings import Settings
+from audio_stems.config import Settings
+import threading
+import time
+from typing import Callable
+from audio_stems.models import JobRepository, SeparationOptions
 
 
 logger = logging.getLogger("audio_stems.jobs")
@@ -313,3 +317,101 @@ class BatchOrchestrator:
                 extra={"event": "job_state_persist_failed", "ClientID": owner_id,
                        "batch_id": str(batch_id), "job_id": str(job_id)},
             )
+
+
+worker_logger = logging.getLogger("audio_stems.worker")
+
+
+class DatabaseWorker:
+    def __init__(
+        self,
+        repository: JobRepository,
+        orchestrator: BatchOrchestrator,
+        *,
+        poll_seconds: float = 1.0,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        if poll_seconds <= 0:
+            raise ValueError("poll_seconds must be positive")
+        self.repository = repository
+        self.orchestrator = orchestrator
+        self.poll_seconds = poll_seconds
+        self.sleep = sleep
+
+    def recover_on_start(self) -> int:
+        count = self.repository.recover_interrupted_batches()
+        if count:
+            worker_logger.warning(
+                "Interrupted batches were marked failed; their downloaded audio remains reusable",
+                extra={"event": "worker_batches_recovered", "recovered_batches": count},
+            )
+        return count
+
+    def run_once(self) -> bool:
+        claimed = self.repository.claim_next_batch()
+        if claimed is None:
+            return False
+        try:
+            self.orchestrator.process_batch(
+                claimed.receipt,
+                claimed.sources,
+                already_processing=True,
+            )
+        except Exception:
+            worker_logger.exception(
+                "Worker failed while processing a batch",
+                extra={"event": "worker_batch_failed", "batch_id": str(claimed.receipt.batch_id)},
+            )
+            self.repository.recover_interrupted_batches()
+            return False
+        return True
+
+    def run_forever(self, stop_event: threading.Event | None = None) -> None:
+        stop_event = stop_event or threading.Event()
+        self.recover_on_start()
+        worker_logger.info("Worker started", extra={"event": "worker_started"})
+        while not stop_event.is_set():
+            if not self.run_once():
+                stop_event.wait(self.poll_seconds)
+
+
+def build_worker(settings: Settings | None = None) -> DatabaseWorker:
+    """Compose local adapters only in the worker process entry point."""
+    from audio_stems.separator import DemucsSeparator
+    from audio_stems.storage import LocalMediaStorage
+    from audio_stems.db import SqliteMetadataStore
+    from audio_stems.youtube import PytubeDownloader
+
+    settings = settings or Settings.load()
+    if not settings.database_url.startswith("sqlite:///"):
+        raise ValueError("The local worker currently supports SQLite database URLs only")
+    database_path = settings.database_url.removeprefix("sqlite:///")
+    repository = SqliteMetadataStore(database_path)
+    storage = LocalMediaStorage(
+        settings.storage_root,
+        temp_root=settings.temp_root,
+    )
+    separator = DemucsSeparator()
+    downloader = PytubeDownloader(storage, settings)
+    options = SeparationOptions(settings.model_name, separator.resolve_device(settings.model_device))
+    orchestrator = BatchOrchestrator(
+        repository=repository,
+        downloader=downloader,
+        separator=separator,
+        storage=storage,
+        options=options,
+        expected_stems=("vocals", "drums", "bass", "guitar", "piano", "other"),
+        settings=settings,
+        sleep=time.sleep,
+    )
+    return DatabaseWorker(repository, orchestrator)
+
+
+if __name__ == "__main__":
+    from audio_stems.config import configure_logging
+
+    configure_logging(Settings.load())
+    try:
+        build_worker().run_forever()
+    except KeyboardInterrupt:
+        worker_logger.info("Worker stopped", extra={"event": "worker_stopped"})

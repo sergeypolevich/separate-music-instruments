@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     BatchReceipt,
     DownloadedAudio,
@@ -169,7 +169,7 @@ def test_adapter_failures_expose_category_and_retryability():
 
 
 def test_contract_module_does_not_import_provider_implementations():
-    source = Path(__file__).parents[1] / "contracts.py"
+    source = Path(__file__).parents[1] / "audio_stems" / "models.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
     imported = {
         alias.name.split(".")[0]

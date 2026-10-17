@@ -7,15 +7,15 @@ from urllib.parse import parse_qs, urlparse
 
 from pytubefix import Search, YouTube
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     DownloadedAudio,
     Downloader,
     FailureCategory,
     VideoCandidate,
 )
-from local_storage import LocalMediaStorage
-from settings import Settings
+from audio_stems.storage import LocalMediaStorage
+from audio_stems.config import Settings
 
 
 logger = logging.getLogger("audio_stems.pytube")

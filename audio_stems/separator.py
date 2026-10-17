@@ -5,7 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 
-from contracts import (
+from audio_stems.models import (
     AdapterError,
     FailureCategory,
     SeparationOptions,

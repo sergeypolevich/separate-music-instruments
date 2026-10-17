@@ -8,11 +8,11 @@ from uuid import UUID
 import httpx
 import uvicorn
 
-from api import create_app
-from demucs_adapter import DemucsSeparator
-from metadata import SqliteMetadataStore
-from settings import Settings
-from sources import YouTubeSourceAdapter
+from audio_stems.api import create_app
+from audio_stems.separator import DemucsSeparator
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
+from audio_stems.models import YouTubeSourceAdapter
 
 
 def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):

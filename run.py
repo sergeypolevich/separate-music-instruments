@@ -11,9 +11,9 @@ import sys
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
-WORKER = ROOT / "worker.py"
-API = ROOT / "api.py"
-DESKTOP = ROOT / "desktop.py"
+WORKER = ("-m", "audio_stems.pipeline")
+API = ("-m", "audio_stems.api")
+DESKTOP = ("-m", "audio_stems.desktop")
 RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn")
 USAGE = "Usage: py run.py [--worker | --api | --app]"
 
@@ -78,7 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Dependency installation failed (exit code {exc.returncode}); application was not started.")
         return exc.returncode or 1
 
-    return subprocess.run([sys.executable, str(target)], cwd=ROOT).returncode
+    return subprocess.run([sys.executable, *target], cwd=ROOT).returncode
 
 
 if __name__ == "__main__":

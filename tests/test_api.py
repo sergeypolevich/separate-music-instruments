@@ -4,12 +4,12 @@ from uuid import UUID, uuid4
 
 import httpx
 
-from contracts import JobStatus, SourceKind, SourceRequest
-from demucs_adapter import DemucsSeparator
-from metadata import SqliteMetadataStore
-from settings import Settings
-from sources import YouTubeSourceAdapter
-from api import create_app
+from audio_stems.models import JobStatus, SourceKind, SourceRequest
+from audio_stems.separator import DemucsSeparator
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
+from audio_stems.models import YouTubeSourceAdapter
+from audio_stems.api import create_app
 
 
 class SyncASGIClient:
@@ -37,10 +37,10 @@ class SyncASGIClient:
 def build_client(tmp_path):
     settings = replace(
         Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
-        database_url=f"sqlite:///{(tmp_path / 'api.db').as_posix()}",
+        database_url=f"sqlite:///{(tmp_path / 'audio_stems.api.db').as_posix()}",
         batch_limit=2,
     )
-    repository = SqliteMetadataStore(tmp_path / "api.db")
+    repository = SqliteMetadataStore(tmp_path / "audio_stems.api.db")
     app = create_app(
         repository=repository,
         settings=settings,
@@ -144,7 +144,7 @@ def test_idempotency_key_returns_the_existing_batch_without_duplicate_jobs(tmp_p
 
 
 def test_batch_records_the_best_detected_device_and_has_no_device_selection(tmp_path, monkeypatch):
-    monkeypatch.setattr("demucs_adapter.detect_compute_devices", lambda: ("cuda", "cpu"))
+    monkeypatch.setattr("audio_stems.separator.detect_compute_devices", lambda: ("cuda", "cpu"))
     client, repository = build_client(tmp_path)
 
     created = client.post("/api/v1/batches", json={"inputs": ["Track"]})

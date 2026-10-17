@@ -44,7 +44,7 @@ def test_worker_mode_launches_worker_script_after_dependency_check(monkeypatch):
     )
 
     assert run.main(["--worker"]) == 0
-    assert calls[0][0] == [run.sys.executable, str(run.WORKER)]
+    assert calls[0][0] == [run.sys.executable, *run.WORKER]
 
 
 def test_api_mode_launches_local_api_script(monkeypatch):
@@ -57,7 +57,7 @@ def test_api_mode_launches_local_api_script(monkeypatch):
     )
 
     assert run.main(["--api"]) == 0
-    assert calls == [[run.sys.executable, str(run.API)]]
+    assert calls == [[run.sys.executable, *run.API]]
 
 
 def test_launcher_rejects_unknown_arguments(monkeypatch):
@@ -77,7 +77,7 @@ def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, argume
     )
 
     assert run.main(arguments) == 0
-    assert calls[0][0] == [run.sys.executable, str(run.DESKTOP)]
+    assert calls[0][0] == [run.sys.executable, *run.DESKTOP]
 
 
 def test_launcher_usage_includes_app_mode():

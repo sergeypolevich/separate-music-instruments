@@ -1,6 +1,6 @@
 import json
-from settings import Settings
-from logging_setup import configure_logging
+from audio_stems.config import Settings
+from audio_stems.config import configure_logging
 
 
 def test_json_log_has_stable_fields_and_redacts_credentials(tmp_path, capsys):

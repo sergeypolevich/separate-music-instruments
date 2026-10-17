@@ -1,8 +1,6 @@
 from pathlib import Path
 
-import desktop
-
-
+import audio_stems.desktop as desktop
 class FakeProcess:
     def __init__(self, args, **_kwargs):
         self.args = args
@@ -44,8 +42,8 @@ def test_supervisor_starts_api_and_worker_then_opens_local_browser(tmp_path, mon
     )
 
     assert result == 0
-    assert processes[0].args[-1] == str(desktop.API)
-    assert processes[1].args[-1] == str(desktop.WORKER)
+    assert processes[0].args[1:] == list(desktop.API)
+    assert processes[1].args[1:] == list(desktop.WORKER)
     assert opened == ["http://127.0.0.1:8000"]
     assert all(process.terminated for process in processes)
 

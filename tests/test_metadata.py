@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from contracts import (
+from audio_stems.models import (
     JobStatus,
     JobRepository,
     MediaAsset,
@@ -12,11 +12,11 @@ from contracts import (
     SourceRequest,
     SeparationOptions,
 )
-from metadata import SqliteMetadataStore
+from audio_stems.db import SqliteMetadataStore
 
 
 def test_metadata_relations_events_and_projects_survive_reopening(tmp_path):
-    database = tmp_path / "metadata.db"
+    database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
     assert isinstance(store, JobRepository)
     receipt = store.create_batch(
@@ -55,7 +55,7 @@ def test_metadata_relations_events_and_projects_survive_reopening(tmp_path):
 
 
 def test_assets_are_metadata_with_relative_keys_not_media_blobs(tmp_path):
-    database = tmp_path / "metadata.db"
+    database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
     receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")])
     job_id = receipt.job_ids[0]
@@ -87,7 +87,7 @@ def test_assets_are_metadata_with_relative_keys_not_media_blobs(tmp_path):
 
 
 def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
-    database = tmp_path / "metadata.db"
+    database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
     SqliteMetadataStore(database)
     connection = sqlite3.connect(database)
@@ -111,7 +111,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
 
 
 def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "metadata.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.db.db")
     receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")])
     job_id = receipt.job_ids[0]
 
@@ -123,7 +123,7 @@ def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
 
 
 def test_job_separation_options_survive_database_reopen(tmp_path):
-    database = tmp_path / "metadata.db"
+    database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
     options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2, "overlap": 0.5})
 
@@ -139,7 +139,7 @@ def test_job_separation_options_survive_database_reopen(tmp_path):
 
 
 def test_idempotent_resubmission_returns_original_separation_options(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "metadata.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.db.db")
     request = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
     original = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2})
     changed = SeparationOptions("htdemucs", "cpu", {})

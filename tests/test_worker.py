@@ -1,12 +1,12 @@
 from dataclasses import replace
 
-from contracts import BatchStatus, JobStatus, SeparationOptions, SourceKind, SourceRequest
-from demucs_adapter import DemucsSeparator
-from metadata import SqliteMetadataStore
+from audio_stems.models import BatchStatus, JobStatus, SeparationOptions, SourceKind, SourceRequest
+from audio_stems.separator import DemucsSeparator
+from audio_stems.db import SqliteMetadataStore
 from tests import test_jobs as job_fixtures
-from pytube_adapter import PytubeDownloader
-from settings import Settings
-from worker import DatabaseWorker, build_worker
+from audio_stems.youtube import PytubeDownloader
+from audio_stems.config import Settings
+from audio_stems.pipeline import DatabaseWorker, build_worker
 
 
 class FakeOrchestrator:
@@ -23,7 +23,7 @@ class FakeOrchestrator:
 
 
 def test_worker_claims_persisted_batch_and_passes_saved_inputs_and_options(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "jobs.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.pipeline.db")
     requests = [
         SourceRequest(SourceKind.SEARCH_QUERY, "Track one"),
         SourceRequest(SourceKind.VIDEO_URL, "https://youtube.com/watch?v=video-2"),
@@ -42,7 +42,7 @@ def test_worker_claims_persisted_batch_and_passes_saved_inputs_and_options(tmp_p
 
 
 def test_worker_exception_is_recovered_to_failed_without_claiming_as_resumable(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "jobs.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.pipeline.db")
     requests = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
     receipt = store.create_batch("client-1", requests)
     orchestrator = FakeOrchestrator(store, fail=True)
@@ -59,7 +59,7 @@ def test_worker_exception_is_recovered_to_failed_without_claiming_as_resumable(t
 
 
 def test_restart_recovery_keeps_completed_jobs_and_fails_only_unfinished_jobs(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "jobs.db")
+    store = SqliteMetadataStore(tmp_path / "audio_stems.pipeline.db")
     requests = [
         SourceRequest(SourceKind.SEARCH_QUERY, "Complete"),
         SourceRequest(SourceKind.SEARCH_QUERY, "Interrupted"),
@@ -81,7 +81,7 @@ def test_restart_recovery_keeps_completed_jobs_and_fails_only_unfinished_jobs(tm
 
 
 def test_worker_composition_uses_local_adapters_and_configured_database(tmp_path):
-    database = tmp_path / "worker.db"
+    database = tmp_path / "audio_stems.pipeline.db"
     settings = replace(
         Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
         database_url=f"sqlite:///{database.as_posix()}",

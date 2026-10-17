@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from contracts import AdapterError, DownloadedAudio, FailureCategory, MediaAssetType, MediaStorage, StemArtifact, VideoCandidate
-from local_storage import LocalMediaStorage
+from audio_stems.models import AdapterError, DownloadedAudio, FailureCategory, MediaAssetType, MediaStorage, StemArtifact, VideoCandidate
+from audio_stems.storage import LocalMediaStorage
 
 
 def test_storage_preserves_audio_root_and_flat_stem_layout(tmp_path):

@@ -11,12 +11,12 @@ from urllib.error import URLError
 from urllib.request import urlopen
 import webbrowser
 
-from settings import Settings
+from audio_stems.config import Settings
 
 
-ROOT = Path(__file__).resolve().parent
-API = ROOT / "api.py"
-WORKER = ROOT / "worker.py"
+ROOT = Path(__file__).resolve().parents[1]
+API = ("-m", "audio_stems.api")
+WORKER = ("-m", "audio_stems.pipeline")
 
 
 def wait_for_api(
@@ -69,9 +69,9 @@ def run(
     browser_opener = open_browser or webbrowser.open
     try:
         print("Starting the local API and background worker...", flush=True)
-        api_process = popen([sys.executable, str(API)], cwd=ROOT)
+        api_process = popen([sys.executable, *API], cwd=ROOT)
         processes.append(api_process)
-        worker_process = popen([sys.executable, str(WORKER)], cwd=ROOT)
+        worker_process = popen([sys.executable, *WORKER], cwd=ROOT)
         processes.append(worker_process)
         wait_for_api(settings.api_port, api_process=api_process)
         print(f"Audio Stems is ready at {url}", flush=True)

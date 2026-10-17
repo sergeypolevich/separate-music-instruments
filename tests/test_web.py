@@ -4,12 +4,12 @@ from pathlib import Path
 
 import httpx
 
-from api import create_app
-from contracts import JobStatus, SourceKind, SourceRequest
-from demucs_adapter import DemucsSeparator
-from metadata import SqliteMetadataStore
-from settings import Settings
-from sources import YouTubeSourceAdapter
+from audio_stems.api import create_app
+from audio_stems.models import JobStatus, SourceKind, SourceRequest
+from audio_stems.separator import DemucsSeparator
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.config import Settings
+from audio_stems.models import YouTubeSourceAdapter
 
 
 def get_app_client(tmp_path):
