@@ -78,12 +78,6 @@ class SeparatorModel:
     parameters: Mapping[str, str]
 
 
-@dataclass(frozen=True)
-class ComputeDevice:
-    name: str
-    label: str
-
-
 class MediaAssetType(Enum):
     SOURCE_AUDIO = "source_audio"
     STEM = "stem"
@@ -203,7 +197,9 @@ class StemSeparator(Protocol):
 
     def available_models(self) -> Sequence[SeparatorModel]: ...
 
-    def available_devices(self) -> Sequence[ComputeDevice]: ...
+    def resolve_device(self, configured: str) -> str:
+        """Map the configured device ("auto" = best available) to a concrete one."""
+        ...
 
     def validate_options(self, options: SeparationOptions) -> None: ...
 

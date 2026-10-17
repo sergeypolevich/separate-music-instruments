@@ -122,7 +122,7 @@ class Settings:
             raise ValueError("AUDIO_STEMS_DATABASE_URL must use sqlite or PostgreSQL")
 
         model_name = value("MODEL_NAME", "htdemucs_6s")
-        model_device = value("MODEL_DEVICE", "cpu")
+        model_device = value("MODEL_DEVICE", "auto")
         if not model_name or not model_device:
             raise ValueError("AUDIO_STEMS_MODEL_NAME and AUDIO_STEMS_MODEL_DEVICE cannot be empty")
 

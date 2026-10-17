@@ -85,7 +85,7 @@ def build_worker(settings: Settings | None = None) -> DatabaseWorker:
     )
     separator = DemucsSeparator()
     downloader = PytubeDownloader(storage, settings)
-    options = SeparationOptions(settings.model_name, settings.model_device)
+    options = SeparationOptions(settings.model_name, separator.resolve_device(settings.model_device))
     orchestrator = BatchOrchestrator(
         repository=repository,
         downloader=downloader,

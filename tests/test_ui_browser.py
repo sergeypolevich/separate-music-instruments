@@ -70,6 +70,12 @@ def _project_detail(project_id: str, job_id: str, title: str):
     }
 
 
+class _Server(ThreadingHTTPServer):
+    # The default backlog of 5 drops connections when six stems are aborted and re-requested at once.
+    request_queue_size = 64
+    daemon_threads = True
+
+
 class _QuietHandler(SimpleHTTPRequestHandler):
     def log_message(self, *_args):
         pass
@@ -95,8 +101,6 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json(_project_detail(item["project_id"], item["job_id"], item["title"]))
             elif path == "/api/v1/models":
                 self._json([{"name": "htdemucs_6s", "stems": list(STEMS), "parameters": {}, "default": True}])
-            elif path == "/api/v1/devices":
-                self._json({"devices": [{"name": "cpu", "label": "CPU"}], "default": "cpu"})
             elif path.startswith("/api/v1/assets/") and path.endswith("/waveform"):
                 asset_id = path.split("/")[-2]
                 self._json({"asset_id": asset_id, "levels": [0.0, 0.2, 0.5, 0.1] * 64})
@@ -140,7 +144,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             self.wfile.write(encoded)
 
     handler = lambda *args, **kwargs: ApiHandler(*args, directory=str(ROOT / "web"), **kwargs)
-    server = ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    server = _Server(("127.0.0.1", 0), handler)
     server_thread = threading.Thread(target=server.serve_forever, daemon=True)
     server_thread.start()
     browser = None
