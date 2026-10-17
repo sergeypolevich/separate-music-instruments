@@ -69,6 +69,21 @@ test("animation loop corrects slave drift to the master track", async () => {
   assert.equal(tracks[2].currentTime, 2.04);
 });
 
+test("pausing while the start is pending wins and is not reported as a failure", async () => {
+  const { tracks, transport, tick } = makeTransport();
+  tracks.forEach((track) => {
+    track.play = () => { track.paused = false; return new Promise((_resolve, reject) => { track.abort = reject; }); };
+  });
+  const starting = transport.play();
+  assert.equal(transport.playing, true);
+  transport.pause();
+  tracks.forEach((track) => track.abort(new Error("AbortError: play() was interrupted by pause()")));
+  await starting;
+  tick();
+  assert.equal(transport.playing, false);
+  assert.ok(tracks.every((track) => track.paused));
+});
+
 test("a rejected play pauses every track and reports the failure", async () => {
   const { tracks, transport } = makeTransport();
   tracks[3].rejectPlay = true;
