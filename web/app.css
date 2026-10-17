@@ -16,7 +16,8 @@
 * { box-sizing: border-box; }
 /* Class display rules must not override the hidden attribute. */
 [hidden] { display: none !important; }
-body { margin: 0; min-width: 320px; background: radial-gradient(ellipse at 50% -28%, rgba(93, 133, 71, .19), transparent 60%), var(--bg); color: var(--text); }
+/* no-repeat: the body background is painted on the whole canvas, and a repeated gradient tile showed as a band below short pages. */
+body { margin: 0; min-width: 320px; min-height: 100vh; background: radial-gradient(ellipse at 50% -28%, rgba(93, 133, 71, .19), transparent 60%) no-repeat, var(--bg); color: var(--text); }
 button, a, input, textarea, select { font: inherit; }
 /* SVG icons are block boxes sized by font-size, so flex centering centers the drawing itself. */
 .icon { display: block; width: 1em; height: 1em; flex: none; }
@@ -56,7 +57,7 @@ button { cursor: pointer; }
 .project-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-tab-state { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
-.project-workspace { width: 100%; min-height: 280px; padding: 6px 0 34px; }
+.project-workspace { width: 100%; min-height: 280px; padding: 6px 0 0; }
 .workspace-empty { min-height: 260px; display: grid; align-content: center; justify-items: center; gap: 9px; color: var(--muted); text-align: center; }
 .workspace-empty p { margin: 0; font-size: 13px; }
 .empty-mark { display: flex; color: var(--accent); font-size: 30px; }
@@ -90,11 +91,11 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-grid { --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: subgrid; row-gap: var(--row-gap); }
 .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
 .mixer-row { min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid rgba(151, 180, 160, .11); }
-.mixer-left { min-width: 0; display: grid; grid-template-rows: 20px 18px; align-content: center; gap: 4px; }
+.mixer-left { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
 .mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
-.mixer-name { overflow: hidden; color: #dbe3dd; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.mixer-name { overflow: hidden; color: #dbe3dd; font-size: 15px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
 .mixer-switches { display: flex; gap: 4px; }
-.mixer-toggle { width: 25px; height: 16px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #425249; border-radius: 4px; background: transparent; color: #9aa9a1; font-size: 9px; font-weight: 700; line-height: 1; }
+.mixer-toggle { width: 25px; height: 22px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid #425249; border-radius: 4px; background: transparent; color: #9aa9a1; font-size: 9px; font-weight: 700; line-height: 1; }
 .mixer-toggle:hover, .mixer-toggle[aria-pressed="true"] { border-color: var(--accent); background: rgba(184, 239, 104, .12); color: var(--accent); }
 .mixer-toggle[data-control="mute"][aria-pressed="true"] { border-color: var(--danger); background: rgba(255, 131, 120, .12); color: var(--danger); }
 .mixer-fader { display: flex; align-items: center; }
@@ -174,10 +175,9 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 8px; }
   .top-nav a { font-size: 11px; }
   .project-tabs-shell { padding: 7px 9px 0; }
-  .project-workspace { padding: 4px 0 20px; }
+  .project-workspace { padding: 4px 0 0; }
   .project-detail { grid-template-columns: minmax(112px, 34%) minmax(0, 1fr); column-gap: 7px; padding: 6px 9px 52px; }
   .mixer-row { min-height: 57px; }
-  .mixer-left { grid-template-rows: 17px 16px 17px; }
   .waveform-preview { height: 42px; }
   .transport-button { width: 50px; min-width: 50px; height: 46px; font-size: 24px; }
   .playback-time { font-size: 9px; }

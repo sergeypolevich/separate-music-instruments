@@ -259,6 +259,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             fader_box = page.locator('[data-control="gain"]').first.bounding_box()
             assert abs((name_box["y"] + name_box["height"] / 2) - (mute_box["y"] + mute_box["height"] / 2)) <= 1
             assert abs((mute_box["x"] + mute_box["width"]) - (fader_box["x"] + fader_box["width"])) <= 1
+            assert mute_box["height"] == 22
+            assert page.locator(".mixer-name").first.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == ["15px", "400"]
+            # No bottom gap under the workspace, and the page gradient never repeats as a band.
+            assert page.locator("#project-workspace").evaluate("el => getComputedStyle(el).paddingBottom") == "0px"
+            assert page.evaluate("getComputedStyle(document.body).backgroundRepeat").startswith("no-repeat")
 
             # The position layer covers exactly the waveform column; one 1px line spans all stems.
             seek_box = page.locator('[data-control="seek"]').bounding_box()
