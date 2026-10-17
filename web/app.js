@@ -330,6 +330,8 @@ async function setupProjectPlayback(assets, setupId) {
     stems.forEach((asset, index) => {
       const row = document.createElement("div");
       row.className = "mixer-row";
+      // Explicit rows: the playhead layer spans rows 2-7, which would push auto-placed rows down.
+      row.style.gridRow = String(index + 2);
       row.dataset.stem = asset.stem_name;
       const left = document.createElement("div");
       left.className = "mixer-left";
@@ -391,9 +393,7 @@ async function setupProjectPlayback(assets, setupId) {
       canvas.width = 1200;
       canvas.height = 64;
       canvas.setAttribute("aria-label", `Форма волны: ${stemLabels[asset.stem_name]}`);
-      const playhead = document.createElement("span");
-      playhead.className = "playhead";
-      wave.append(canvas, playhead);
+      wave.append(canvas);
       attachPointerSeek(wave);
       drawWaveform(canvas, asset.asset_id);
       row.append(left, wave);
@@ -433,6 +433,13 @@ async function setupProjectPlayback(assets, setupId) {
     timelineRow.className = "timeline-row";
     timelineRow.append(controls, timeline);
     mixerRows.prepend(timelineRow);
+    // One playhead over all six waveforms, continuous across the gaps between rows.
+    const playheadLayer = document.createElement("div");
+    playheadLayer.className = "playhead-layer";
+    const playhead = document.createElement("span");
+    playhead.className = "playhead";
+    playheadLayer.append(playhead);
+    mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
     playbackPanel.replaceChildren(error, mixerRows, ...tracks);
     playbackPanel.hidden = false;

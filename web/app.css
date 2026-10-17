@@ -83,16 +83,17 @@ h1, h2, h3, p { margin-top: 0; }
 }
 .playback-error { color: var(--danger); }
 /* One grid for the timeline and every stem row; subgrid keeps the waveform column identical in all rows. */
-.mixer-grid { display: grid; grid-template-columns: minmax(170px, 218px) minmax(0, 1fr); column-gap: 12px; row-gap: 4px; }
+.mixer-grid { --timeline-h: 24px; --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: minmax(170px, 218px) minmax(0, 1fr); column-gap: 12px; row-gap: var(--row-gap); }
 .timeline-row, .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
-.timeline-row { align-items: center; padding-bottom: 4px; }
-.timeline-controls { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
-.timeline { position: relative; height: 24px; cursor: pointer; touch-action: none; }
+/* The timeline sits at the bottom of its row so the playhead can start exactly at the thumb centre. */
+.timeline-row { grid-row: 1; align-items: end; padding-bottom: var(--row-pad); }
+.timeline-controls { align-self: center; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.timeline { position: relative; z-index: 3; height: var(--timeline-h); cursor: pointer; touch-action: none; }
 .timeline:focus-visible { outline: 2px solid rgba(184, 239, 104, .5); outline-offset: 2px; border-radius: 4px; }
 .timeline-track { position: absolute; top: 50%; left: 0; right: 0; height: 4px; overflow: hidden; border-radius: 2px; background: #2b3933; transform: translateY(-50%); }
 .timeline-fill { position: absolute; top: 0; bottom: 0; left: 0; width: calc(var(--progress, 0) * 100%); background: var(--accent); }
 .timeline-thumb { position: absolute; top: 50%; left: calc(var(--progress, 0) * 100%); width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px rgba(184, 239, 104, .18); transform: translate(-50%, -50%); pointer-events: none; }
-.mixer-row { min-height: 61px; align-items: stretch; padding: 4px 0; border-top: 1px solid rgba(151, 180, 160, .11); }
+.mixer-row { min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid rgba(151, 180, 160, .11); }
 .mixer-left { min-width: 0; display: grid; grid-template-rows: 19px 17px 18px; align-content: center; gap: 1px; }
 .mixer-name { overflow: hidden; color: #dbe3dd; font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
 .mixer-switches { display: flex; gap: 4px; }
@@ -103,7 +104,9 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader input { width: 100%; min-width: 0; height: 16px; margin: 0; accent-color: var(--accent); }
 .gain-value { color: #829087; text-align: right; font-size: 9px; font-variant-numeric: tabular-nums; }
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); cursor: pointer; touch-action: pan-y; }
-.playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--progress, 0) * 100%); width: 2px; background: #f0f4f0; box-shadow: 0 0 6px rgba(240, 244, 240, .45); transform: translateX(-50%); pointer-events: none; }
+.playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 2 / span 6; pointer-events: none; }
+/* 1px line from the timeline thumb centre to the bottom of the last waveform; no translate, so it stays crisp. */
+.playhead { position: absolute; top: calc(-1 * (var(--timeline-h) / 2 + var(--row-pad) + var(--row-gap))); bottom: var(--row-pad); left: calc(var(--progress, 0) * 100%); width: 1px; background: #f0f4f0; }
 .waveform-preview { display: block; width: 100%; height: 48px; }
 .delete-button { position: absolute; right: 12px; bottom: 10px; width: 31px; min-width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid rgba(255, 131, 120, .4); border-radius: 8px; background: rgba(255, 131, 120, .08); color: var(--danger); font-size: 17px; }
 .delete-button:hover { background: rgba(255, 131, 120, .2); }
