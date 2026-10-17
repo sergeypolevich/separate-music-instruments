@@ -43,6 +43,8 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     playback = request("GET", "/playback.mjs")
 
     assert page.status_code == script.status_code == styles.status_code == playback.status_code == 200
+    # UI files must be revalidated so an update never mixes new HTML with cached JS/CSS.
+    assert all(r.headers["cache-control"] == "no-cache" for r in (page, script, styles, playback))
     assert "Audio Stems" in page.text
     assert 'id="search-trigger"' in page.text
     assert 'id="search-overlay"' in page.text
