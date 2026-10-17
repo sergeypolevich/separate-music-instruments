@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 import run
@@ -82,3 +84,37 @@ def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, argume
 
 def test_launcher_usage_includes_app_mode():
     assert "--app" in run.USAGE
+
+
+def test_outside_the_venv_it_creates_the_project_venv_and_reruns_itself(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.setattr(run, "in_project_venv", lambda: False)
+    monkeypatch.setattr(run, "VENV_DIR", tmp_path / ".venv")
+    monkeypatch.setattr(run.subprocess, "run", lambda args, **kwargs: calls.append((args, kwargs)))
+
+    assert run.main(["--app"]) == 0
+
+    venv_python = run.venv_python()
+    assert calls[0][0] == [run.sys.executable, "-m", "venv", str(tmp_path / ".venv")]
+    assert calls[1][0] == [str(venv_python), str(Path(run.__file__).resolve()), "--app"]
+    assert calls[1][1]["cwd"] == run.ROOT
+
+
+def test_project_paths_are_next_to_the_launcher():
+    root = Path(run.__file__).resolve().parent
+    assert run.ROOT == root
+    assert run.VENV_DIR == root / ".venv"
+    assert run.REQUIREMENTS == root / "requirements.txt" and run.REQUIREMENTS.is_file()
+
+
+def test_failed_dependency_install_stops_before_starting_the_app(monkeypatch):
+    def failing_install():
+        raise run.subprocess.CalledProcessError(7, ["pip"])
+
+    started = []
+    monkeypatch.setattr(run, "in_project_venv", lambda: True)
+    monkeypatch.setattr(run, "install_runtime_dependencies", failing_install)
+    monkeypatch.setattr(run.subprocess, "run", lambda *args, **kwargs: started.append(args))
+
+    assert run.main(["--app"]) == 7
+    assert started == []

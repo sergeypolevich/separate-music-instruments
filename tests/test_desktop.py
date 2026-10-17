@@ -83,3 +83,41 @@ def test_windows_one_click_launcher_uses_pinned_official_python_installer():
     assert "InstallAllUsers=0" in bootstrap
     assert "run.py" in bootstrap and "--app" in bootstrap
     assert "Start-Audio-Stems.ps1" in button
+
+
+def test_supervisor_returns_the_exit_code_of_a_crashed_service_and_stops_the_other(monkeypatch):
+    processes = []
+
+    def popen(args, **_kwargs):
+        process = FakeProcess(args)
+        processes.append(process)
+        return process
+
+    def worker_crashes(_seconds):
+        processes[1].returncode = 3
+
+    monkeypatch.setattr(desktop, "wait_for_api", lambda *_args, **_kwargs: None)
+    monkeypatch.setenv("AUDIO_STEMS_OPEN_BROWSER", "0")
+
+    result = desktop.run(stop_file=None, popen=popen, sleep=worker_crashes, open_browser=lambda *_a, **_k: True)
+
+    assert result == 3
+    assert processes[0].terminated  # the API is stopped when the worker dies
+
+
+def test_wait_for_api_fails_fast_when_the_api_process_exits(monkeypatch):
+    exited = FakeProcess(["api"])
+    exited.returncode = 1
+    try:
+        desktop.wait_for_api(1, api_process=exited, sleep=lambda _seconds: None)
+    except RuntimeError as error:
+        assert "stopped before it became ready" in str(error)
+    else:
+        raise AssertionError("wait_for_api should fail when the API process has exited")
+
+
+def test_services_start_from_the_project_root_with_package_modules():
+    root = Path(desktop.__file__).resolve().parents[1]
+    assert desktop.ROOT == root
+    assert (root / "audio_stems" / "api.py").is_file() and (root / "web" / "index.html").is_file()
+    assert desktop.API == ("-m", "audio_stems.api") and desktop.WORKER == ("-m", "audio_stems.pipeline")

@@ -75,7 +75,7 @@ class FakeSeparator:
         return SeparationResult(tuple(artifacts))
 
 
-def build_orchestrator(tmp_path, *, downloader=None, separator=None, delay_log=None):
+def build_orchestrator(tmp_path, *, downloader=None, separator=None, delay_log=None, retry_delays=(0.0, 0.0)):
     events = []
     store = SqliteMetadataStore(tmp_path / "audio_stems.db.db")
     storage = LocalMediaStorage(tmp_path / "media")
@@ -84,7 +84,7 @@ def build_orchestrator(tmp_path, *, downloader=None, separator=None, delay_log=N
     settings = replace(
         Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
         retry_count=3,
-        retry_delays=(0.0, 0.0),
+        retry_delays=retry_delays,
     )
     orchestrator = BatchOrchestrator(
         repository=store,
@@ -256,4 +256,53 @@ def test_successful_separation_removes_temporary_outputs(tmp_path):
     result = orchestrator.process_batch(receipt, requests)
 
     assert result.jobs[0].status is JobStatus.COMPLETED
+    assert not storage.temporary_directory("id-track").exists()
+
+
+def test_retry_waits_use_the_configured_delays(tmp_path):
+    events = []
+    downloader = FakeDownloader(tmp_path / "downloads", events, transient_failures={"id-track": 2})
+    waits = []
+    orchestrator, store, _, _, _, _ = build_orchestrator(
+        tmp_path, downloader=downloader, delay_log=waits.append, retry_delays=(3.0, 6.0)
+    )
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert waits == [3.0, 6.0]
+    assert result.jobs[0].status is JobStatus.COMPLETED
+
+
+def test_exhausted_retries_fail_only_that_job_and_the_batch_continues(tmp_path):
+    events = []
+    downloader = FakeDownloader(tmp_path / "downloads", events, transient_failures={"id-flaky": 99})
+    orchestrator, store, _, _, _, separator = build_orchestrator(tmp_path, downloader=downloader)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "flaky"), SourceRequest(SourceKind.SEARCH_QUERY, "steady")]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert downloader.attempts["id-flaky"] == 3  # retry_count attempts, then give up
+    assert [job.status for job in result.jobs] == [JobStatus.FAILED, JobStatus.COMPLETED]
+    assert result.jobs[0].error_summary == "Temporary service error"  # safe text, no provider details
+    assert separator.calls == ["id-steady"]
+    assert result.status is BatchStatus.PARTIAL
+
+
+def test_incomplete_stems_are_repaired_by_a_later_run(tmp_path):
+    events = []
+    broken = FakeSeparator(events, incomplete={"id-track"})
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path, separator=broken)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    first = orchestrator.process_batch(store.create_batch("client-1", requests), requests)
+    assert first.jobs[0].status is JobStatus.FAILED
+
+    repaired, store, storage, _, _, separator = build_orchestrator(tmp_path)
+    second = repaired.process_batch(store.create_batch("client-1", requests), requests)
+
+    assert second.jobs[0].status is JobStatus.COMPLETED
+    assert separator.calls == ["id-track"]
+    assert storage.stems_complete("id-track", STEMS)
     assert not storage.temporary_directory("id-track").exists()
