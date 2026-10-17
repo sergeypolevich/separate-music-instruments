@@ -18,6 +18,8 @@
 [hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; background: radial-gradient(ellipse at 50% -28%, rgba(93, 133, 71, .19), transparent 60%), var(--bg); color: var(--text); }
 button, a, input, textarea, select { font: inherit; }
+/* SVG icons are block boxes sized by font-size, so flex centering centers the drawing itself. */
+.icon { display: block; width: 1em; height: 1em; flex: none; }
 button { cursor: pointer; }
 .shell { width: min(calc(100% - 40px), 760px); margin: 0 auto; }
 .app-header { position: relative; z-index: 3; border-bottom: 1px solid rgba(190, 218, 200, .1); }
@@ -32,11 +34,14 @@ button { cursor: pointer; }
 .search-trigger { min-width: 0; height: 40px; display: flex; align-items: center; justify-content: flex-start; gap: 9px; padding: 0 13px; border: 1px solid var(--line); border-radius: 10px; background: #111815; color: var(--muted); text-align: left; font-size: 12px; overflow: hidden; }
 .search-trigger:hover { border-color: #536b59; color: var(--text); }
 .search-trigger > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.search-icon { color: var(--accent); font-size: 21px; line-height: 1; }
+.search-icon { color: var(--accent); font-size: 16px; }
 .top-nav { display: flex; align-items: center; gap: 13px; }
 .top-nav a, .back-link { color: var(--muted); text-decoration: none; font-size: 12px; }
+.back-link { display: inline-flex; align-items: center; gap: 6px; }
+.back-link .icon { font-size: 14px; }
 .top-nav a:hover, .back-link:hover { color: var(--accent); }
-.top-nav a[data-screen="settings"] { font-size: 18px; }
+.settings-link { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 19px !important; }
+.settings-link:hover { background: var(--panel-soft); }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */
 .project-tabs-shell { padding: 10px clamp(16px, 3vw, 48px) 0; }
@@ -54,18 +59,18 @@ button { cursor: pointer; }
 .project-workspace { width: 100%; min-height: 280px; padding: 6px clamp(16px, 3vw, 48px) 34px; }
 .workspace-empty { min-height: 260px; display: grid; align-content: center; justify-items: center; gap: 9px; color: var(--muted); text-align: center; }
 .workspace-empty p { margin: 0; font-size: 13px; }
-.empty-mark { color: var(--accent); font-size: 30px; }
+.empty-mark { display: flex; color: var(--accent); font-size: 30px; }
 .project-detail { position: relative; width: 100%; min-width: 0; padding: 16px 18px 58px; border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(30, 42, 36, .96), rgba(23, 31, 28, .98)); box-shadow: 0 16px 48px rgba(0, 0, 0, .16); }
 .detail-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 h1, h2, h3, p { margin-top: 0; }
 .detail-heading h1 { margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
-.icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 20px; }
+.icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
 .icon-button:hover { border-color: #526449; color: var(--accent); }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid rgba(255, 131, 120, .3); border-radius: 8px; background: rgba(255, 131, 120, .08); color: #ffaaa1; font-size: 12px; }
 .playback-panel { display: grid; gap: 8px; margin-top: 10px; }
 .playback-message, .playback-time, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
 .playback-buttons { display: flex; gap: 6px; }
-.transport-button { width: 38px; min-width: 38px; height: 34px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); font-size: 17px; }
+.transport-button { width: 38px; min-width: 38px; height: 34px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--panel-soft); color: var(--text); font-size: 18px; }
 .transport-button:hover { border-color: #80965e; color: var(--accent); }
 .playback-time { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .playback-panel audio {
@@ -100,7 +105,7 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: rgba(9, 14, 12, .34); cursor: pointer; touch-action: pan-y; }
 .playhead { position: absolute; top: 0; bottom: 0; left: calc(var(--progress, 0) * 100%); width: 2px; background: #f0f4f0; box-shadow: 0 0 6px rgba(240, 244, 240, .45); transform: translateX(-50%); pointer-events: none; }
 .waveform-preview { display: block; width: 100%; height: 48px; }
-.delete-button { position: absolute; right: 12px; bottom: 10px; width: 31px; min-width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid rgba(255, 131, 120, .4); border-radius: 8px; background: rgba(255, 131, 120, .08); color: var(--danger); font-size: 19px; }
+.delete-button { position: absolute; right: 12px; bottom: 10px; width: 31px; min-width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid rgba(255, 131, 120, .4); border-radius: 8px; background: rgba(255, 131, 120, .08); color: var(--danger); font-size: 17px; }
 .delete-button:hover { background: rgba(255, 131, 120, .2); }
 
 .secondary-screen { padding-top: 24px; padding-bottom: 36px; }
@@ -139,6 +144,8 @@ h1, h2, h3, p { margin-top: 0; }
 .form-message.error { color: var(--danger); }
 .primary-button, #submit-button, .danger-action { min-height: 40px; padding: 0 15px; border: 0; border-radius: 9px; font-size: 12px; font-weight: 700; }
 .primary-button, #submit-button { background: var(--accent); color: var(--accent-dark); }
+#submit-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; }
+#submit-button .icon { font-size: 15px; }
 .primary-button:hover, #submit-button:hover { background: #c9f78b; }
 .danger-action { background: var(--danger); color: #30100c; }
 .danger-action:hover { background: #ffaaa1; }
