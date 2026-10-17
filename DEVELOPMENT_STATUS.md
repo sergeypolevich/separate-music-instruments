@@ -148,3 +148,9 @@ Stage 1 publication, stage 3 regression coverage, and stage 4 settings/logging a
 - **Status:** complete.
 - **Changes:** vendored the MIT-licensed ponytail ruleset (DietrichGebert/ponytail `AGENTS.md` at `16352ac`) as `skills/ponytail.md`, imported it from `CLAUDE.md`, and referenced it from the development skill so Codex follows it too. Project test and live-gate rules stay authoritative where stricter. The Claude Code plugin (Node hooks, `/ponytail-*` commands) was not installed.
 - **Checks:** `pytest -q` passed (151 passed, 1 skipped); live Short Spoken Clip E2E passed (1 passed in 97 s).
+
+## Version 4 — simplification and performance
+
+- **Plan:** (1) user-facing functionality inventory; (2) fix slow project opening; (3) simplify: remove legacy CLI and device selection, drop unused endpoints/protocols, move code into an `audio_stems/` package, update docs. One commit per step; push only after the user's manual check.
+- **Root cause of slow opening (measured):** each project open requests six `/waveform` endpoints; `waveform.py` scans every sample in pure Python with no cache — 18.6 s per 45 MB stem, ~110 s CPU per open. The six long requests also occupy the browser's six HTTP/1.1 connections, so stem `<audio>` loads queue behind them. numpy computes the same envelope in 0.12 s.
+- **Step 1 complete:** `docs/FUNCTIONALITY.md` describes current behavior from the user's perspective and marks the features being removed. Checks: `pytest -q` 151 passed, 1 skipped; live E2E 1 passed.
