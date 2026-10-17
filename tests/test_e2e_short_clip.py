@@ -23,7 +23,7 @@ import pytest
 
 pytestmark = pytest.mark.e2e
 ROOT = Path(__file__).parents[1]
-QUERY = "Band - Rock Song (Official Music Video)"
+QUERY = "Singer - Short Spoken Clip
 EXPECTED_VIDEO_ID = "<video-id>"
 EXPECTED_STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 
@@ -62,7 +62,7 @@ def _launch_visible_browser(playwright):
     raise AssertionError("Install Microsoft Edge or Chrome: " + " | ".join(failures))
 
 
-def test_rock_song_full_desktop_browser_flow(tmp_path):
+def test_short_clip_full_desktop_browser_flow(tmp_path):
     if os.getenv("RUN_LIVE_E2E") != "1":
         pytest.skip("Set RUN_LIVE_E2E=1 to run the full YouTube + Demucs browser test")
 
@@ -172,10 +172,10 @@ def test_rock_song_full_desktop_browser_flow(tmp_path):
                 status = page.locator(".project-tab").first.get_attribute("data-status")
                 if status != "completed":
                     failure = page.locator("#detail-error").inner_text() if not page.locator("#detail-error").is_hidden() else "no error summary"
-                    raise AssertionError(f"Rock Song job finished with status {status!r}: {failure}")
+                    raise AssertionError(f"Short Spoken Clip job finished with status {status!r}: {failure}")
                 project = page.locator(".project-tab").first
                 project.wait_for(timeout=60_000)
-                assert "blur" in project.inner_text().lower() and "rock song" in project.inner_text().lower()
+                assert "short spoken clip" in project.inner_text().lower()
                 if reuse_root is None:
                     project.click()
 

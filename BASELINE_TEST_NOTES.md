@@ -16,7 +16,7 @@ These tests are designed to be copied into the root of the existing project, nex
 
 ## Live end-to-end test
 
-`tests/test_e2e_rock_song.py` is opt-in. It performs a real YouTube search for `Band - Rock Song (Official Music Video)`, verifies that the first result is the official video ID `<video-id>`, downloads the audio, runs the real `htdemucs_6s` CPU model, and checks for six non-empty WAV files in the flat per-track output directory.
+`tests/test_e2e_short_clip.py` is opt-in. It performs a real YouTube search for `Singer - Short Spoken Clip`, verifies that the first result is the video ID `<video-id>`, downloads the audio, runs the real `htdemucs_6s` CPU model, and checks for six non-empty WAV files in the flat per-track output directory.
 
 The E2E test is intentionally skipped during ordinary `pytest` runs. It needs network access, the current `pytubefix` package, `demucs`, model-weight download on first use, and enough CPU time/disk space. It fails rather than downloading a different video if search returns a different first result.
 
