@@ -1,4 +1,4 @@
-"""Set up the local runtime environment and launch the CLI or worker."""
+"""Set up the local runtime environment and launch the app, API, or worker."""
 from __future__ import annotations
 
 import importlib.util
@@ -11,7 +11,6 @@ import sys
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
-APP = ROOT / "download_tracks.py"
 WORKER = ROOT / "worker.py"
 API = ROOT / "api.py"
 DESKTOP = ROOT / "desktop.py"
@@ -66,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
     target = (
         WORKER if arguments == ["--worker"] else
         API if arguments == ["--api"] else
-        DESKTOP if arguments == ["--app"] else APP
+        DESKTOP
     )
     if not in_project_venv():
         python = ensure_project_venv()

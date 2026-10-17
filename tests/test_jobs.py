@@ -233,3 +233,27 @@ def test_batch_specific_model_options_are_persisted_and_passed_to_separator(tmp_
 
     assert store.get_job(receipt.job_ids[0], "owner-1").separation_options == selected
     assert separator.options == [selected]
+
+
+def test_direct_url_uses_the_exact_video_without_search(tmp_path):
+    orchestrator, store, _, events, _, _ = build_orchestrator(tmp_path)
+    url = "https://www.youtube.com/watch?v=exact-id"
+    requests = [SourceRequest(SourceKind.VIDEO_URL, url)]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert not [event for event in events if event[0] == "search"]
+    assert ("download", "exact-id") in events
+    assert result.jobs[0].status is JobStatus.COMPLETED
+
+
+def test_successful_separation_removes_temporary_outputs(tmp_path):
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert result.jobs[0].status is JobStatus.COMPLETED
+    assert not storage.temporary_directory("id-track").exists()

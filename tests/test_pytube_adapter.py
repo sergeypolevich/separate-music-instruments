@@ -101,3 +101,23 @@ def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp
 
     assert downloaded.media_format == "m4a"
     assert downloaded.path.suffix == ".m4a"
+
+
+def test_invalid_existing_audio_is_quarantined_and_downloaded_again(monkeypatch, tmp_path):
+    fresh = FakeStream("webm")
+    monkeypatch.setattr(
+        "pytube_adapter.YouTube",
+        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fresh)),
+    )
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    storage = LocalMediaStorage(tmp_path / "media", temp_root=tmp_path / "temp")
+    broken = storage.audio_target("A Track", "webm", "canonical").path
+    broken.write_bytes(b"not webm")
+
+    downloaded = PytubeDownloader(storage, settings).download(
+        VideoCandidate("canonical", "A Track", "https://youtube.com/watch?v=canonical")
+    )
+
+    assert fresh.download_args is not None
+    assert downloaded.path.read_bytes() == fresh.data
+    assert [p.read_bytes() for p in (tmp_path / "temp" / "_recovery").iterdir()] == [b"not webm"]
