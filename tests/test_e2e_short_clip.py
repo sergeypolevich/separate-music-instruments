@@ -117,7 +117,7 @@ def test_short_clip_full_desktop_browser_flow(tmp_path):
             _wait_for_health(f"{base_url}/api/v1/health", process)
             with sync_playwright() as playwright:
                 browser = _launch_visible_browser(playwright)
-                page = browser.new_page()
+                page = browser.new_page(no_viewport=True)  # fill the visible window instead of a 1280x720 viewport
                 page.set_default_timeout(30_000)
                 page_errors = []
                 asset_responses = []

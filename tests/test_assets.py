@@ -209,3 +209,27 @@ def test_waveform_of_a_long_stereo_stem_is_fast(tmp_path):
 
     assert time.perf_counter() - started < 2  # the pure-Python scan took ~5 s here
     assert len(data["levels"]) == 256 and max(data["levels"]) == 0
+
+
+def test_open_ended_media_range_is_answered_in_bounded_chunks(tmp_path):
+    request, _, storage, asset = build_asset_api(tmp_path)
+    storage.resolve_path(asset.storage_key).write_bytes(bytes(3 * 1024 * 1024))
+
+    first = request("GET", f"/api/v1/assets/{asset.asset_id}", {"Range": "bytes=0-"})
+    tail = request("GET", f"/api/v1/assets/{asset.asset_id}", {"Range": "bytes=2621440-"})
+    whole = request("GET", f"/api/v1/assets/{asset.asset_id}")
+
+    assert first.status_code == 206
+    assert first.headers["content-range"] == f"bytes 0-1048575/{3 * 1024 * 1024}"
+    assert tail.status_code == 206 and len(tail.content) == 3 * 1024 * 1024 - 2621440
+    assert whole.status_code == 200 and len(whole.content) == 3 * 1024 * 1024
+
+
+def test_stems_may_be_loaded_only_from_the_loopback_alias(tmp_path):
+    request, _, _, asset = build_asset_api(tmp_path)
+
+    alias = request("GET", f"/api/v1/assets/{asset.asset_id}", {"Origin": "http://localhost:8000"})
+    foreign = request("GET", f"/api/v1/assets/{asset.asset_id}", {"Origin": "https://example.com"})
+
+    assert alias.headers["access-control-allow-origin"] == "http://localhost:8000"
+    assert "access-control-allow-origin" not in foreign.headers

@@ -103,6 +103,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             elif path.startswith("/api/v1/assets/"):
                 self.send_response(200)
                 self.send_header("Content-Type", "audio/wav")
+                self.send_header("Access-Control-Allow-Origin", "*")
                 self.send_header("Content-Length", str(len(wav_bytes)))
                 self.end_headers()
                 self.wfile.write(wav_bytes)
@@ -176,6 +177,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function(
                 "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
                 "&& Array.from(document.querySelectorAll('#playback-panel audio')).every(" 
+                "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
+                timeout=15_000,
+            )
+
+            # Stems come from the other loopback name so their connections never starve API calls.
+            assert page.evaluate(
+                "[...document.querySelectorAll('#playback-panel audio')].every(a => new URL(a.src).hostname === 'localhost')"
+            )
+            # Switching projects must stop the old stems and abort their downloads.
+            page.evaluate("window.oldStems = [...document.querySelectorAll('#playback-panel audio')]")
+            page.locator('.project-tab[data-project-id="project-2"]').click()
+            page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 2'")
+            assert page.evaluate("window.oldStems.every(a => a.paused && !a.hasAttribute('src'))")
+            page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.wait_for_function(
+                "document.querySelector('#detail-title').textContent === 'Track 0' "
+                "&& Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
+                "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
                 "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
                 timeout=15_000,
             )

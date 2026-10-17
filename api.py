@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import Path
 import subprocess
 from typing import Annotated, Protocol, Sequence
@@ -9,6 +10,7 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
 from fastapi.staticfiles import StaticFiles
@@ -37,6 +39,7 @@ from updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, Up
 
 
 _OWNER_ID = "local"
+_MEDIA_CHUNK_BYTES = 1024 * 1024
 logger = logging.getLogger("audio_stems.api")
 _ParameterValue = StrictBool | StrictInt | StrictFloat | StrictStr
 
@@ -103,6 +106,12 @@ def create_app(
         DependencyUpdater(application_root),
     )
     app = FastAPI(title="Audio Stems API", version="1.0.0")
+    # The UI loads stems from the other loopback name (see web/app.js); allow only those two origins.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[f"http://{host}:{settings.api_port}" for host in ("127.0.0.1", "localhost")],
+        allow_methods=["GET"],
+    )
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_request: Request, exc: RequestValidationError):
@@ -417,7 +426,7 @@ def create_app(
         return {"asset_id": str(asset.asset_id), **data}
 
     @app.get("/api/v1/assets/{asset_id}")
-    def stream_asset(asset_id: UUID) -> FileResponse:
+    def stream_asset(asset_id: UUID, request: Request) -> FileResponse:
         asset = repository.get_asset(asset_id, _OWNER_ID)
         if asset is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
@@ -430,6 +439,15 @@ def create_app(
                 status_code=404,
                 detail={"code": "asset_unavailable", "message": "Asset file is not available"},
             ) from exc
+        # <audio> asks for "bytes=N-" and holds the connection while buffering; six stems then use
+        # all of the browser's per-host connections and every API call stalls. Answer open-ended
+        # ranges with a bounded chunk so each request finishes; the browser fetches the next one.
+        open_range = re.fullmatch(r"bytes=(\d+)-", request.headers.get("range", "").strip())
+        if open_range:
+            start = int(open_range[1])
+            request.scope["headers"] = [
+                (name, value) for name, value in request.scope["headers"] if name != b"range"
+            ] + [(b"range", f"bytes={start}-{start + _MEDIA_CHUNK_BYTES - 1}".encode())]
         # Starlette serves Range requests (206/416) itself.
         return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
 
