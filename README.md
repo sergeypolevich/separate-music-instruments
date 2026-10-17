@@ -35,7 +35,7 @@ when starting the app. Edit `.env` only for local settings; keep it out of Git.
 
 The Python launcher creates a project-local `.venv` on first run, checks for the runtime
 libraries listed in `requirements.txt`, installs them when needed, and starts
-`download_tracks.py`. Demucs and its machine-learning dependencies can take a
+the app (API, worker, and browser — the same as `--app`). Demucs and its machine-learning dependencies can take a
 while and use substantial disk space on the first installation. If installation
 fails, the application is not started and the pip error is shown.
 

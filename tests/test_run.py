@@ -1,3 +1,5 @@
+import pytest
+
 import run
 
 
@@ -64,7 +66,8 @@ def test_launcher_rejects_unknown_arguments(monkeypatch):
     assert run.main(["--unknown"]) == 2
 
 
-def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch):
+@pytest.mark.parametrize("arguments", [["--app"], []], ids=["app-flag", "no-arguments"])
+def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, arguments):
     calls = []
     monkeypatch.setattr(run, "in_project_venv", lambda: True)
     monkeypatch.setattr(run, "install_runtime_dependencies", lambda: None)
@@ -73,7 +76,7 @@ def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch):
         lambda args, **kwargs: calls.append((args, kwargs)) or type("Result", (), {"returncode": 0})(),
     )
 
-    assert run.main(["--app"]) == 0
+    assert run.main(arguments) == 0
     assert calls[0][0] == [run.sys.executable, str(run.DESKTOP)]
 
 
