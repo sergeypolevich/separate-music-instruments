@@ -52,6 +52,15 @@ class BatchSubmission(BaseModel):
     parameters: dict[str, _ParameterValue] = Field(default_factory=dict, max_length=10)
 
 
+class _UiFiles(StaticFiles):
+    # Without Cache-Control browsers cache UI files heuristically and can pair a new index.html
+    # with a stale app.js/app.css after an update; revalidate (cheap 304 via ETag) on every load.
+    def file_response(self, *args, **kwargs):
+        response = super().file_response(*args, **kwargs)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 class UpdateApplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tag_name: Annotated[str, Field(min_length=1, max_length=64)]
@@ -464,7 +473,7 @@ def create_app(
 
     web_root = Path(__file__).resolve().parents[1] / "web"
 
-    app.mount("/", StaticFiles(directory=web_root, html=True), name="web")
+    app.mount("/", _UiFiles(directory=web_root, html=True), name="web")
 
     return app
 
