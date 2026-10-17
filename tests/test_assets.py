@@ -115,7 +115,7 @@ def test_waveform_is_bounded_and_mapped_to_the_requested_asset(tmp_path):
     )
     repository.add_asset(waveform_asset)
 
-    response = request("GET", f"/api/v1/assets/{waveform_asset.asset_id}/waveform?levels=4")
+    response = request("GET", f"/api/v1/assets/{waveform_asset.asset_id}/waveform")
     body = response.json()
 
     assert response.status_code == 200
@@ -123,12 +123,12 @@ def test_waveform_is_bounded_and_mapped_to_the_requested_asset(tmp_path):
     assert body["sample_rate"] == 8000
     assert body["channels"] == 1
     assert body["frame_count"] == 8
-    assert len(body["levels"]) == 4
+    assert len(body["levels"]) == 8  # WAVEFORM_POINTS, capped at the frame count of this tiny file
     assert body["levels"] == sorted(body["levels"])
     assert all(0 <= peak <= 1 for peak in body["levels"])
 
 
-def test_waveform_rejects_non_wav_assets_and_excessive_level_counts(tmp_path):
+def test_waveform_rejects_non_wav_assets(tmp_path):
     request, repository, storage, _ = build_asset_api(tmp_path)
     target = storage.audio_target("Compressed", "webm", "video-2")
     target.path.write_bytes(b"\x1aE\xdf\xa3audio")
@@ -140,12 +140,9 @@ def test_waveform_rejects_non_wav_assets_and_excessive_level_counts(tmp_path):
     repository.add_asset(asset)
 
     unsupported = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform")
-    too_many = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform?levels=999999")
 
     assert unsupported.status_code == 415
     assert unsupported.json()["error"]["code"] == "unsupported_waveform_format"
-    assert too_many.status_code == 422
-    assert too_many.json()["error"]["code"] == "invalid_request"
 
 
 def test_waveform_rejects_corrupt_wav_with_safe_error(tmp_path):
@@ -233,3 +230,53 @@ def test_stems_may_be_loaded_only_from_the_loopback_alias(tmp_path):
 
     assert alias.headers["access-control-allow-origin"] == "http://localhost:8000"
     assert "access-control-allow-origin" not in foreign.headers
+
+
+def _stem_asset(repository, storage, values):
+    target = storage.stem_file_target("Stored", "vocals", "video-9")
+    with wave.open(str(target.path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(8000)
+        output.writeframes(b"".join(struct.pack("<h", value) for value in values))
+    receipt = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Stored")])
+    asset = MediaAsset(
+        uuid4(), receipt.job_ids[0], MediaAssetType.STEM, target.storage_key, target.path.stat().st_size,
+        stem_name="vocals", media_format="wav",
+    )
+    repository.add_asset(asset)
+    return asset, target.path
+
+
+def test_waveform_is_computed_once_and_kept_in_the_database(tmp_path, monkeypatch):
+    import audio_stems.api as api_module
+
+    request, repository, storage, _ = build_asset_api(tmp_path)
+    asset, _path = _stem_asset(repository, storage, [3000] * 4096)
+    calls = []
+    original = api_module.waveform_data
+    monkeypatch.setattr(api_module, "waveform_data", lambda *args: calls.append(args) or original(*args))
+
+    first = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform")
+    # A fresh app on the same database (as after a restart) must not read the WAV again.
+    restarted, _, _, _ = build_asset_api(tmp_path)
+    second = restarted("GET", f"/api/v1/assets/{asset.asset_id}/waveform")
+
+    assert first.status_code == second.status_code == 200
+    assert len(first.json()["levels"]) == api_module.WAVEFORM_POINTS
+    assert first.json() == second.json()
+    assert len(calls) == 1
+
+
+def test_rewritten_stem_file_gets_a_fresh_waveform(tmp_path):
+    request, repository, storage, _ = build_asset_api(tmp_path)
+    asset, path = _stem_asset(repository, storage, [1000] * 2048)
+    quiet = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform").json()
+    with wave.open(str(path), "wb") as output:  # a repaired stem: different content and size
+        output.setnchannels(1)
+        output.setsampwidth(2)
+        output.setframerate(8000)
+        output.writeframes(struct.pack("<h", 16000) * 4096)
+    loud = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform").json()
+
+    assert max(quiet["levels"]) < 0.05 < 0.45 < min(loud["levels"])

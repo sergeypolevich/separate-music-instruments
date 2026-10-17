@@ -105,7 +105,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 3
+    assert version == 4
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
 

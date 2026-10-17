@@ -197,6 +197,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not page.locator("#project-empty").is_visible()
             for removed in ("#refresh-projects", "#asset-list", "#detail-input", "#detail-model", "#screen-help"):
                 assert page.locator(removed).count() == 0
+            # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
+            page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
+            page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.wait_for_load_state("networkidle")
+            assert page.evaluate("document.querySelector('#playback-panel audio') === window.firstStem")
             # Tabs span the same width as the project card.
             tabs_box = page.locator("#project-tabs").bounding_box()
             card_box = page.locator("#project-detail").bounding_box()
