@@ -158,6 +158,12 @@ function cleanupPlayback() {
   activeMixer = null;
   if (activeAudioContext && activeAudioContext.state !== "closed") activeAudioContext.close().catch(() => {});
   activeAudioContext = null;
+  // Detached <audio> keeps downloading and holds the browser's per-host connections; abort it.
+  playbackPanel.querySelectorAll("audio").forEach((audio) => {
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+  });
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
 }
@@ -233,7 +239,16 @@ async function setupProjectPlayback(assets, setupId) {
     const tracks = stems.map((asset) => {
       const audio = document.createElement("audio");
       audio.preload = "metadata";
-      audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`;
+      // Browsers allow six HTTP/1.1 connections per host, and six buffering stems would take
+      // them all; loading stems from the other loopback name keeps API calls responsive.
+      const path = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`;
+      const url = new URL(path, window.location.href);
+      url.hostname = { "127.0.0.1": "localhost", localhost: "127.0.0.1" }[url.hostname] || url.hostname;
+      audio.crossOrigin = "anonymous";
+      audio.src = url.href;
+      audio.addEventListener("error", () => {
+        if (audio.getAttribute("src") === url.href && url.href !== new URL(path, window.location.href).href) audio.src = path;
+      }, { once: true });
       audio.setAttribute("aria-label", stemLabels[asset.stem_name]);
       audio.dataset.stem = asset.stem_name;
       return audio;
@@ -419,6 +434,7 @@ async function setupProjectPlayback(assets, setupId) {
 }
 
 async function openProject(projectId) {
+  if (projectId !== selectedProjectId) cleanupPlayback();
   try {
     const project = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`);
     renderProject(project);

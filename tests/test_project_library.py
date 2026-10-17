@@ -139,7 +139,8 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     assert "/api/v1/projects/" in source
     assert 'await import("./playback.mjs")' in source
     assert 'asset.media_format !== "wav"' in source
-    assert 'audio.src = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`' in source
+    assert "const path = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`" in source
+    assert 'audio.crossOrigin = "anonymous"' in source
     assert 'new MixerSession(gainNodes,' in source
     assert 'mixer.setGain(index, percent / 100)' in source
     assert 'mixer.setMute(index, muted)' in source
