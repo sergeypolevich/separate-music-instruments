@@ -94,7 +94,7 @@ def test_ui_covers_persisted_job_states_and_renders_project_tabs_safely():
     assert "projects.map" in source
     assert "textContent" in source
     assert "/api/v1/batches/" in source
-    assert "/waveform?levels=256" in source
+    assert "/waveform`" in source
     assert 'button.className = "project-tab"' in source
     assert 'button.dataset.status = statusBucket(project.job_status)' in source
     assert 'deleteDialog.showModal()' in source

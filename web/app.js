@@ -41,6 +41,7 @@ let activeTransport = null;
 let activeMixer = null;
 let activeAudioContext = null;
 let playbackSetupId = 0;
+let playbackKey = "";
 let selectedProjectId = null;
 let selectedProjectTitle = "";
 
@@ -135,7 +136,7 @@ function renderProjects(projects) {
 
 async function drawWaveform(canvas, assetId) {
   try {
-    const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform?levels=256`);
+    const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform`);
     if (waveform.asset_id !== assetId) return;
     const context = canvas.getContext("2d");
     if (!context) return;
@@ -167,10 +168,15 @@ function cleanupPlayback() {
   });
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
+  playbackKey = "";
 }
 
 function renderProject(project) {
-  cleanupPlayback();
+  // Re-rendering the same project (tab click, job-finished refresh) must not restart playback;
+  // rebuild only when the project or its stem files change.
+  const key = `${project.project_id}:${project.assets.map((a) => `${a.asset_id}${a.available ? "" : "?"}`).join(",")}`;
+  const rebuild = key !== playbackKey;
+  if (rebuild) cleanupPlayback();
   selectedProjectId = project.project_id;
   selectedProjectTitle = project.title || project.input_value;
   projectEmpty.hidden = true;
@@ -179,7 +185,10 @@ function renderProject(project) {
   detailError.textContent = project.job.error_summary || "";
   detailError.hidden = !project.job.error_summary;
   deleteProjectButton.dataset.projectId = project.project_id;
-  setupProjectPlayback(project.assets, ++playbackSetupId);
+  if (rebuild) {
+    playbackKey = key;
+    setupProjectPlayback(project.assets, ++playbackSetupId);
+  }
   document.querySelectorAll(".project-tab").forEach((tab) => {
     tab.setAttribute("aria-selected", String(tab.dataset.projectId === project.project_id));
   });
@@ -495,7 +504,10 @@ async function refreshBatch(batchId, selectedJobId) {
     await loadProjects();
     if (!batchActiveStates.has(batch.status)) {
       const matching = [...projectTabs.querySelectorAll(".project-tab")].find((tab) => tab.dataset.jobId === selectedJobId);
-      if (matching) await openProject(matching.dataset.projectId);
+      // Show the finished project only if the user has not moved on to another one meanwhile.
+      if (matching && (!selectedProjectId || selectedProjectId === matching.dataset.projectId)) {
+        await openProject(matching.dataset.projectId);
+      }
       pollingTimer = null;
       return;
     }

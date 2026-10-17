@@ -8,7 +8,7 @@ import subprocess
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Query, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -29,12 +29,13 @@ from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
 from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
-from functools import lru_cache
 import wave
 import numpy as np
 
 
 _OWNER_ID = "local"
+# Fixed waveform resolution: enough detail for a full-width desktop mixer, small enough to store.
+WAVEFORM_POINTS = 1024
 _MEDIA_CHUNK_BYTES = 1024 * 1024
 logger = logging.getLogger("audio_stems.api")
 _ParameterValue = StrictBool | StrictInt | StrictFloat | StrictStr
@@ -104,14 +105,8 @@ def waveform_data(path: Path, levels: int) -> dict[str, object]:
         stat = path.stat()
     except OSError as exc:
         raise WaveformError("WAV file could not be read") from exc
-    # Keyed by mtime and size so a rewritten stem is recomputed instead of served stale.
-    return _cached_waveform(str(path), stat.st_mtime_ns, stat.st_size, levels)
-
-
-@lru_cache(maxsize=64)
-def _cached_waveform(path: str, _mtime_ns: int, _size: int, levels: int) -> dict[str, object]:
     try:
-        with wave.open(path, "rb") as source:
+        with wave.open(str(path), "rb") as source:
             channels = source.getnchannels()
             sample_width = source.getsampwidth()
             sample_rate = source.getframerate()
@@ -414,7 +409,7 @@ def create_app(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/api/v1/assets/{asset_id}/waveform")
-    def get_waveform(asset_id: UUID, levels: int = Query(default=512, ge=1, le=2048)) -> dict[str, object]:
+    def get_waveform(asset_id: UUID) -> dict[str, object]:
         asset = repository.get_asset(asset_id, _OWNER_ID)
         if asset is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
@@ -427,7 +422,16 @@ def create_app(
             path = storage.resolve_path(asset.storage_key)
             if not path.is_file():
                 raise FileNotFoundError
-            data = waveform_data(path, levels)
+            stat = path.stat()
+            # Peaks are computed once per file version and kept in the database.
+            stored = repository.get_waveform(asset.asset_id)
+            if stored and stored.get("byte_size") == stat.st_size and stored.get("mtime_ns") == stat.st_mtime_ns:
+                data = stored["waveform"]
+            else:
+                data = waveform_data(path, WAVEFORM_POINTS)
+                repository.save_waveform(
+                    asset.asset_id, {"byte_size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "waveform": data}
+                )
         except FileNotFoundError as exc:
             raise HTTPException(
                 status_code=404,

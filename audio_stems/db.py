@@ -502,6 +502,17 @@ class SqliteMetadataStore:
             ).fetchone()
         return self._asset(row) if row else None
 
+    def get_waveform(self, asset_id: UUID) -> dict[str, object] | None:
+        with self._connection() as connection:
+            row = connection.execute("SELECT waveform_json FROM media_assets WHERE id = ?", (str(asset_id),)).fetchone()
+        return json.loads(row["waveform_json"]) if row and row["waveform_json"] else None
+
+    def save_waveform(self, asset_id: UUID, data: dict[str, object]) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE media_assets SET waveform_json = ? WHERE id = ?", (json.dumps(data), str(asset_id))
+            )
+
     @staticmethod
     def _project(row: sqlite3.Row) -> ProjectRecord:
         return ProjectRecord(
