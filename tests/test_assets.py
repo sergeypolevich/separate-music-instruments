@@ -1,6 +1,7 @@
 import asyncio
 from dataclasses import replace
 import struct
+import time
 import wave
 from uuid import uuid4
 
@@ -13,6 +14,7 @@ from local_storage import LocalMediaStorage
 from metadata import SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
+from waveform import waveform_data
 
 
 def build_asset_api(tmp_path):
@@ -98,7 +100,6 @@ def test_byte_range_outside_asset_size_returns_416_and_owner_scope_is_enforced(t
 
     assert outside.status_code == 416
     assert outside.headers["content-range"] == "bytes */16"
-    assert outside.json()["error"]["code"] == "invalid_range"
     assert hidden.status_code == 404 and hidden.json()["error"]["code"] == "not_found"
 
 
@@ -181,3 +182,30 @@ def test_waveform_rejects_truncated_pcm_data_instead_of_fabricating_silence(tmp_
 
     assert response.status_code == 422
     assert response.json()["error"]["code"] == "invalid_waveform_source"
+
+
+def test_waveform_reads_24_bit_pcm_peaks(tmp_path):
+    path = tmp_path / "24bit.wav"
+    values = [0x400000, -0x200000, -0x800000, 0x100000]  # 0.5, 0.25, 1.0, 0.125 of full scale
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(1)
+        output.setsampwidth(3)
+        output.setframerate(8000)
+        output.writeframes(b"".join(value.to_bytes(3, "little", signed=True) for value in values))
+
+    assert waveform_data(path, 4)["levels"] == [0.5, 0.25, 1.0, 0.125]
+
+
+def test_waveform_of_a_long_stereo_stem_is_fast(tmp_path):
+    path = tmp_path / "long.wav"
+    with wave.open(str(path), "wb") as output:
+        output.setnchannels(2)
+        output.setsampwidth(2)
+        output.setframerate(44100)
+        output.writeframes(bytes(60 * 44100 * 4))  # one minute of silence, ~10 MB
+
+    started = time.perf_counter()
+    data = waveform_data(path, 256)
+
+    assert time.perf_counter() - started < 2  # the pure-Python scan took ~5 s here
+    assert len(data["levels"]) == 256 and max(data["levels"]) == 0

@@ -1,8 +1,11 @@
 """Bounded-memory peak envelope extraction for PCM WAV assets."""
 from __future__ import annotations
 
+from functools import lru_cache
 from pathlib import Path
 import wave
+
+import numpy as np
 
 
 class WaveformError(ValueError):
@@ -11,15 +14,16 @@ class WaveformError(ValueError):
 
 def _sample_peak(data: bytes, sample_width: int) -> float:
     max_value = 1 << (sample_width * 8 - 1)
-    peak = 0
     if sample_width == 1:
-        for value in data:
-            peak = max(peak, abs(value - 128))
+        samples = np.frombuffer(data, np.uint8).astype(np.int16) - 128
+    elif sample_width == 3:
+        raw = np.frombuffer(data, np.uint8).reshape(-1, 3).astype(np.int32)
+        samples = raw[:, 0] | raw[:, 1] << 8 | raw[:, 2] << 16
+        samples = np.where(samples & 0x800000, samples - (1 << 24), samples)
     else:
-        for offset in range(0, len(data), sample_width):
-            value = int.from_bytes(data[offset:offset + sample_width], "little", signed=True)
-            peak = max(peak, abs(value))
-    return min(1.0, peak / max_value)
+        samples = np.frombuffer(data, {2: "<i2", 4: "<i4"}[sample_width])
+    # max/min on the native dtype avoids a widened copy; int() keeps -min from overflowing.
+    return min(1.0, max(int(samples.max()), -int(samples.min())) / max_value)
 
 
 def waveform_data(path: Path, levels: int) -> dict[str, object]:
@@ -27,7 +31,17 @@ def waveform_data(path: Path, levels: int) -> dict[str, object]:
     if levels < 1 or levels > 2048:
         raise WaveformError("Waveform level count is outside supported bounds")
     try:
-        with wave.open(str(path), "rb") as source:
+        stat = path.stat()
+    except OSError as exc:
+        raise WaveformError("WAV file could not be read") from exc
+    # Keyed by mtime and size so a rewritten stem is recomputed instead of served stale.
+    return _cached_waveform(str(path), stat.st_mtime_ns, stat.st_size, levels)
+
+
+@lru_cache(maxsize=64)
+def _cached_waveform(path: str, _mtime_ns: int, _size: int, levels: int) -> dict[str, object]:
+    try:
+        with wave.open(path, "rb") as source:
             channels = source.getnchannels()
             sample_width = source.getsampwidth()
             sample_rate = source.getframerate()
