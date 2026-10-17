@@ -103,8 +103,8 @@ saved projects and `/api/v1/models` lists model options. Errors use an
 `error.code` and safe `error.message` response. The API never accepts file paths.
 Project details provide opaque asset IDs. `GET /api/v1/assets/{asset_id}` streams
 an available asset and supports single byte-range requests. The corresponding
-`/waveform` endpoint returns bounded PCM WAV peak levels so the page does not
-need to download an entire audio file just to draw its waveform.
+`/waveform` endpoint returns 1024 PCM WAV peak levels, computed once per stem file
+and stored in SQLite, so the page never downloads an audio file just to draw it.
 
 For a quick local API check, with the API running in its own window:
 

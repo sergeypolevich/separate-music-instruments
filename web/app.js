@@ -134,22 +134,34 @@ function renderProjects(projects) {
   }));
 }
 
-async function drawWaveform(canvas, assetId) {
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+// One filled shape: the peak envelope on top and its mirror below, in a 1024x100 viewBox that the
+// browser scales to any width (preserveAspectRatio="none"), so nothing overlaps at any size.
+function waveformPath(levels) {
+  const step = 1024 / Math.max(1, levels.length);
+  const point = (peak, index, sign) => `${((index + 0.5) * step).toFixed(2)} ${(50 + sign * Math.min(1, peak) * 48).toFixed(2)}`;
+  const top = levels.map((peak, index) => point(peak, index, -1));
+  const bottom = levels.map((peak, index) => point(peak, index, 1)).reverse();
+  return `M0 50L${top.join("L")}L1024 50L${bottom.join("L")}Z`;
+}
+
+async function drawWaveform(svg, assetId) {
   try {
     const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform`);
     if (waveform.asset_id !== assetId) return;
-    const context = canvas.getContext("2d");
-    if (!context) return;
-    const center = canvas.height / 2;
-    const step = canvas.width / Math.max(1, waveform.levels.length);
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    context.fillStyle = "#b8ef68";
-    waveform.levels.forEach((peak, index) => {
-      const height = Math.max(1, peak * (canvas.height - 4));
-      context.fillRect(index * step, center - height / 2, Math.max(1, step - 1), height);
-    });
+    const axis = document.createElementNS(SVG_NS, "line");
+    axis.setAttribute("class", "waveform-axis");
+    axis.setAttribute("x1", "0");
+    axis.setAttribute("y1", "50");
+    axis.setAttribute("x2", "1024");
+    axis.setAttribute("y2", "50");
+    const shape = document.createElementNS(SVG_NS, "path");
+    shape.setAttribute("class", "waveform-shape");
+    shape.setAttribute("d", waveformPath(waveform.levels));
+    svg.replaceChildren(axis, shape);
   } catch (_error) {
-    canvas.setAttribute("aria-label", "Форма волны недоступна");
+    svg.setAttribute("aria-label", "Форма волны недоступна");
   }
 }
 
@@ -397,14 +409,15 @@ async function setupProjectPlayback(assets, setupId) {
       left.append(name, switches, fader);
       const wave = document.createElement("div");
       wave.className = "mixer-waveform";
-      const canvas = document.createElement("canvas");
-      canvas.className = "waveform-preview";
-      canvas.width = 1200;
-      canvas.height = 64;
-      canvas.setAttribute("aria-label", `Форма волны: ${stemLabels[asset.stem_name]}`);
-      wave.append(canvas);
+      const waveSvg = document.createElementNS(SVG_NS, "svg");
+      waveSvg.setAttribute("class", "waveform-preview");
+      waveSvg.setAttribute("viewBox", "0 0 1024 100");
+      waveSvg.setAttribute("preserveAspectRatio", "none");
+      waveSvg.setAttribute("role", "img");
+      waveSvg.setAttribute("aria-label", `Форма волны: ${stemLabels[asset.stem_name]}`);
+      wave.append(waveSvg);
       attachPointerSeek(wave);
-      drawWaveform(canvas, asset.asset_id);
+      drawWaveform(waveSvg, asset.asset_id);
       row.append(left, wave);
       mixerRows.append(row);
     });
