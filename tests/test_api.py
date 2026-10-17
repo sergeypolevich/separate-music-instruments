@@ -99,7 +99,7 @@ def test_api_enforces_batch_limit_and_validates_model_settings(tmp_path):
     assert bad_parameter.json()["error"]["code"] == "invalid_model_options"
 
 
-def test_api_reads_jobs_events_projects_and_models_with_stable_not_found(tmp_path):
+def test_api_reads_batches_projects_and_models_with_stable_not_found(tmp_path):
     client, repository = build_client(tmp_path)
     request = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
     receipt = repository.create_batch("local", request)
@@ -107,27 +107,24 @@ def test_api_reads_jobs_events_projects_and_models_with_stable_not_found(tmp_pat
     repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
 
     batch = client.get(f"/api/v1/batches/{receipt.batch_id}")
-    job = client.get(f"/api/v1/jobs/{job_id}")
-    events = client.get(f"/api/v1/jobs/{job_id}/events")
     projects = client.get("/api/v1/projects")
-    batches = client.get("/api/v1/batches")
     models = client.get("/api/v1/models")
-    hidden = client.get(f"/api/v1/jobs/{uuid4()}")
+    hidden = client.get(f"/api/v1/batches/{uuid4()}")
 
     assert batch.status_code == 200 and batch.json()["jobs"][0]["status"] == "downloading"
-    assert job.json()["current_stage"] == "download"
-    assert [event["name"] for event in events.json()] == ["job_created", "job_state_changed"]
+    assert batch.json()["jobs"][0]["current_stage"] == "download"
     assert projects.json()[0]["input_value"] == "Track"
-    assert batches.json()[0]["batch_id"] == str(receipt.batch_id)
     assert "htdemucs_6s" in [model["name"] for model in models.json()]
     assert hidden.status_code == 404 and hidden.json()["error"]["code"] == "not_found"
+    assert client.get("/api/v1/batches").status_code == 404  # list endpoint removed; only POST remains
+    assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404
 
 
-def test_job_reads_are_owner_scoped_to_server_side_local_identity(tmp_path):
+def test_batch_reads_are_owner_scoped_to_server_side_local_identity(tmp_path):
     client, repository = build_client(tmp_path)
     foreign = repository.create_batch("another-owner", [SourceRequest(SourceKind.SEARCH_QUERY, "private")])
 
-    response = client.get(f"/api/v1/jobs/{foreign.job_ids[0]}")
+    response = client.get(f"/api/v1/batches/{foreign.batch_id}")
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"

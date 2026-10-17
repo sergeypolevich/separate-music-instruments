@@ -255,21 +255,6 @@ class MediaStorage(Protocol):
 
 
 @runtime_checkable
-class JobService(Protocol):
-    """Application-facing job API; failures use categorized ``AdapterError``."""
-
-    def submit_batch(
-        self,
-        owner_id: str,
-        sources: Sequence[SourceRequest],
-        idempotency_key: str | None = None,
-        separation_options: SeparationOptions | None = None,
-    ) -> BatchReceipt: ...
-
-    def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
-
-
-@runtime_checkable
 class JobRepository(Protocol):
     """Persist jobs/events; raise ``CONFLICT`` for invalid state/idempotency conflicts."""
 
@@ -286,8 +271,6 @@ class JobRepository(Protocol):
     def recover_interrupted_batches(self) -> int: ...
 
     def list_jobs_for_batch(self, batch_id: UUID, owner_id: str) -> Sequence[JobView]: ...
-
-    def list_batches(self, owner_id: str, limit: int = 50) -> Sequence[BatchView]: ...
 
     def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None: ...
 

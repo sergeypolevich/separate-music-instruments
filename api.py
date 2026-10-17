@@ -5,7 +5,7 @@ import logging
 import re
 from pathlib import Path
 import subprocess
-from typing import Annotated, Protocol, Sequence
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request, status
@@ -17,21 +17,15 @@ from fastapi.staticfiles import StaticFiles
 
 from contracts import (
     AdapterError,
-    BatchReceipt,
-    BatchView,
     FailureCategory,
-    JobEvent,
-    JobView,
-    MediaAsset,
     MediaStorage,
     SeparationOptions,
     SourceAdapter,
-    SourceRequest,
     StemSeparator,
 )
 from demucs_adapter import DemucsSeparator
 from local_storage import LocalMediaStorage
-from metadata import ProjectDeletion, ProjectRecord, SqliteMetadataStore
+from metadata import SqliteMetadataStore
 from settings import Settings
 from sources import YouTubeSourceAdapter
 from waveform import WaveformError, waveform_data
@@ -44,20 +38,7 @@ logger = logging.getLogger("audio_stems.api")
 _ParameterValue = StrictBool | StrictInt | StrictFloat | StrictStr
 
 
-class ApiRepository(Protocol):
-    def create_batch(self, owner_id: str, sources: Sequence[SourceRequest], idempotency_key: str | None,
-                     separation_options: SeparationOptions | None = None) -> BatchReceipt: ...
-    def get_batch(self, batch_id: UUID, owner_id: str) -> BatchView | None: ...
-    def list_batches(self, owner_id: str, limit: int = 50) -> Sequence[BatchView]: ...
-    def list_jobs_for_batch(self, batch_id: UUID, owner_id: str) -> Sequence[JobView]: ...
-    def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
-    def list_events(self, job_id: UUID, owner_id: str) -> Sequence[JobEvent]: ...
-    def list_projects(self, owner_id: str) -> Sequence[ProjectRecord]: ...
-    def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None: ...
-    def list_assets(self, job_id: UUID, owner_id: str) -> Sequence[MediaAsset]: ...
-    def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None: ...
-    def begin_project_deletion(self, project_id: UUID, owner_id: str) -> ProjectDeletion: ...
-    def complete_project_deletion(self, project_id: UUID, owner_id: str) -> None: ...
+
 
 
 class BatchSubmission(BaseModel):
@@ -88,7 +69,7 @@ def _job_payload(job) -> dict[str, object]:
 
 def create_app(
     *,
-    repository: ApiRepository,
+    repository: SqliteMetadataStore,
     settings: Settings,
     source_adapter: SourceAdapter | None = None,
     separator: StemSeparator | None = None,
@@ -246,19 +227,6 @@ def create_app(
             "jobs": [_job_payload(job) for job in stored_jobs],
         }
 
-    @app.get("/api/v1/batches")
-    def list_batches(limit: int = Query(default=50, ge=1, le=100)) -> list[dict[str, object]]:
-        return [
-            {
-                "batch_id": str(batch.batch_id),
-                "status": batch.status,
-                "submission_method": batch.submission_method,
-                "result_summary": batch.result_summary,
-                "created_at": batch.created_at.isoformat(),
-            }
-            for batch in repository.list_batches(_OWNER_ID, limit)
-        ]
-
     @app.get("/api/v1/batches/{batch_id}")
     def get_batch(batch_id: UUID) -> dict[str, object]:
         batch = repository.get_batch(batch_id, _OWNER_ID)
@@ -272,27 +240,6 @@ def create_app(
             "created_at": batch.created_at.isoformat(),
             "jobs": [_job_payload(job) for job in jobs],
         }
-
-    @app.get("/api/v1/jobs/{job_id}")
-    def get_job(job_id: UUID) -> dict[str, object]:
-        job = repository.get_job(job_id, _OWNER_ID)
-        if job is None:
-            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Job not found"})
-        return _job_payload(job)
-
-    @app.get("/api/v1/jobs/{job_id}/events")
-    def get_events(job_id: UUID) -> list[dict[str, object]]:
-        if repository.get_job(job_id, _OWNER_ID) is None:
-            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Job not found"})
-        return [
-            {
-                "event_id": str(event.event_id),
-                "name": event.name,
-                "occurred_at": event.occurred_at.isoformat(),
-                "details": dict(event.details),
-            }
-            for event in repository.list_events(job_id, _OWNER_ID)
-        ]
 
     @app.get("/api/v1/projects")
     def list_projects() -> list[dict[str, object]]:
@@ -442,11 +389,7 @@ def create_app(
 
     web_root = Path(__file__).with_name("web")
 
-    @app.get("/", include_in_schema=False)
-    def home() -> FileResponse:
-        return FileResponse(web_root / "index.html")
-
-    app.mount("/", StaticFiles(directory=web_root), name="web")
+    app.mount("/", StaticFiles(directory=web_root, html=True), name="web")
 
     return app
 

@@ -97,8 +97,8 @@ login screen; do not expose its port beyond the local machine.
 
 The API accepts `POST /api/v1/batches` with an `inputs` array of search queries
 or supported YouTube URLs and returns `202` with batch/job IDs. Use
-`GET /api/v1/batches`, `/api/v1/batches/{id}`, `/api/v1/jobs/{id}`, and
-`/api/v1/jobs/{id}/events` for persisted progress; `/api/v1/projects` lists
+`GET /api/v1/batches/{id}` for persisted job progress (job events are stored in
+the database for diagnostics but have no HTTP endpoint); `/api/v1/projects` lists
 saved projects and `/api/v1/models` lists model options. Errors use an
 `error.code` and safe `error.message` response. The API never accepts file paths.
 Project details provide opaque asset IDs. `GET /api/v1/assets/{asset_id}` streams
