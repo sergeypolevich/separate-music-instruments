@@ -278,6 +278,23 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 assert cell.locator("svg path").count() == 1
                 assert abs(svg_box["width"] - cell_box["width"]) <= 0.5
 
+            # The timer sits at the right edge of the title row, as large as the title and thin.
+            time_box = page.locator("#detail-time").bounding_box()
+            first_wave = page.locator(".mixer-waveform").first.bounding_box()
+            assert abs((time_box["x"] + time_box["width"]) - (first_wave["x"] + first_wave["width"])) <= 1
+            title_font = page.locator("#detail-title").evaluate("el => getComputedStyle(el).fontSize")
+            assert page.locator("#detail-time").evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == [title_font, "300"]
+            assert page.locator("#detail-controls .playback-time, #detail-controls #detail-time").count() == 0
+            # Borderless volume slider with a 1px mark under the thumb position for 100 %.
+            fader_geometry = page.locator(".mixer-fader").first.evaluate("""el => {
+                const input = el.querySelector('input'), r = input.getBoundingClientRect(), f = el.getBoundingClientRect();
+                const mark = getComputedStyle(el, '::before');
+                return {thumb100: r.left + 6 + (r.width - 12) * 100 / 150, mark: f.left + parseFloat(mark.left) + 0.5,
+                        markWidth: mark.width, markHeight: mark.height, border: getComputedStyle(input).borderTopWidth, value: input.value};
+            }""")
+            assert fader_geometry["value"] == "100" and fader_geometry["border"] == "0px"
+            assert abs(fader_geometry["thumb100"] - fader_geometry["mark"]) <= 1
+            assert fader_geometry["markWidth"] == "1px" and fader_geometry["markHeight"] == "14px"
             # The title sits over the waveform column; the transport buttons are 1.5x larger.
             waves = [w.bounding_box() for w in page.locator(".mixer-waveform").all()]
             assert abs(page.locator("#detail-title").bounding_box()["x"] - waves[0]["x"]) <= 0.5
