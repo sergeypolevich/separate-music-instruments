@@ -313,6 +313,7 @@ def create_app(
                 "created_at": project.created_at.isoformat(),
                 "job_id": str(project.job_id),
                 "job_status": project.job_status,
+                "progress": round(project.job_progress, 3),
             }
             for project in repository.list_projects(_OWNER_ID)
         ]

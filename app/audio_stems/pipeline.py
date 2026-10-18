@@ -92,6 +92,7 @@ class BatchOrchestrator:
         self.expected_stems = tuple(expected_stems)
         self.settings = settings
         self.sleep = sleep
+        self._progress_written: dict[UUID, tuple[float, float]] = {}
 
     def process_batch(
         self,
@@ -123,7 +124,11 @@ class BatchOrchestrator:
 
                 audio = self._retry(job_id, lambda: self.storage.find_existing_audio(candidate), owner_id, receipt.batch_id)
                 if audio is None:
-                    audio = self._retry(job_id, lambda: self.downloader.download(candidate), owner_id, receipt.batch_id)
+                    audio = self._retry(
+                        job_id,
+                        lambda: self.downloader.download(candidate, progress=self._progress_reporter(job_id, 0.02, 0.10)),
+                        owner_id, receipt.batch_id,
+                    )
                 else:
                     logger.info(
                         "Existing audio reused",
@@ -138,6 +143,7 @@ class BatchOrchestrator:
                 )
                 self.repository.add_asset(asset)
                 self.repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
+                self._report_progress(job_id, 0.10, force=True)
                 downloaded[job_id] = audio
             except AdapterError as error:
                 self._fail(job_id, error, "download", owner_id, receipt.batch_id)
@@ -190,6 +196,22 @@ class BatchOrchestrator:
         summary = json.dumps({"completed": completed, "failed": failed})
         self.repository.transition_batch(receipt.batch_id, batch_status, summary)
         return BatchProcessingResult(receipt.batch_id, batch_status, final_jobs)
+
+    def _report_progress(self, job_id: UUID, value: float, *, force: bool = False) -> None:
+        """Persist progress at most every 0.5 s and only after a 1 % change: SQLite commits are slow."""
+        last_value, last_time = self._progress_written.get(job_id, (0.0, 0.0))
+        now = time.monotonic()
+        if not force and (value - last_value < 0.01 or now - last_time < 0.5):
+            return
+        self._progress_written[job_id] = (value, now)
+        try:
+            self.repository.set_job_progress(job_id, value)
+        except Exception:
+            logger.warning("Job progress could not be saved", extra={"event": "job_progress_failed", "job_id": str(job_id)})
+
+    def _progress_reporter(self, job_id: UUID, start: float, end: float) -> Callable[[float], None]:
+        """Map a stage's own 0..1 progress onto its share of the job."""
+        return lambda fraction: self._report_progress(job_id, start + (end - start) * min(1.0, max(0.0, fraction)))
 
     def _resolve_source(
         self, job_id: UUID, request: SourceRequest, owner_id: str, batch_id: UUID
@@ -261,7 +283,9 @@ class BatchOrchestrator:
         temp_dir = self.storage.temporary_directory(title, source_id)
         result = self._retry(
             job_id,
-            lambda: self.separator.separate(audio.path, temp_dir, options),
+            lambda: self.separator.separate(
+                audio.path, temp_dir, options, progress=self._progress_reporter(job_id, 0.10, 0.97)
+            ),
             owner_id,
             batch_id,
         )

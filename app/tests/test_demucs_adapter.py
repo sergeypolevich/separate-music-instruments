@@ -1,6 +1,8 @@
 import math
 from pathlib import Path
 import struct
+import subprocess
+import sys
 import wave
 
 import imageio_ffmpeg
@@ -9,7 +11,7 @@ import pytest
 import soundfile
 
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
-from audio_stems.separator import DemucsSeparator, decode_to_wav, detect_compute_devices
+from audio_stems.separator import DemucsSeparator, decode_to_wav, detect_compute_devices, run_with_progress
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -91,6 +93,7 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
             (result / f"{name}.wav").write_bytes(b"wav")
 
     monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", lambda command, _passes, _progress: fake_run(command, check=True))
     source = tmp_path / "source.wav"
     source.write_bytes(b"RIFF0000WAVE")
     options = SeparationOptions("htdemucs_6s", "cpu")
@@ -137,6 +140,7 @@ def _decode_only(command, **_kwargs):
 
 def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_path):
     monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", lambda command, _passes, _progress: _decode_only(command, check=True))
     source = tmp_path / "source.wav"
     source.touch()
 
@@ -187,6 +191,7 @@ def test_separation_stops_before_demucs_when_the_disk_is_too_full(monkeypatch, t
         _decode_only(command, **kwargs)
 
     monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", lambda command, _passes, _progress: fake_run(command, check=True))
     monkeypatch.setattr("audio_stems.separator.shutil.disk_usage", lambda _path: type("Usage", (), {"free": 10})())
     source = tmp_path / "source.webm"
     source.write_bytes(b"audio")
@@ -198,3 +203,27 @@ def test_separation_stops_before_demucs_when_the_disk_is_too_full(monkeypatch, t
     assert "Недостаточно места на диске" in str(error.value) and "свободно 0 МБ" in str(error.value)
     assert len(calls) == 1  # only the decode ran
     assert not (tmp_path / "out" / "source.wav").exists()
+
+
+_TQDM_SCRIPT = r"""
+import sys
+for total in (10.0, 10.0):  # two model passes, each redrawing its bar with \r like tqdm
+    for done in (0.0, 2.5, 5.0, 10.0):
+        sys.stderr.write(f"\r {int(done * 10)}%|##   | {done}/{total} [00:01<00:02, 1.0seconds/s]")
+        sys.stderr.flush()
+    sys.stderr.write("\n")
+sys.exit(int(sys.argv[1]))
+"""
+
+
+def test_tqdm_bars_of_every_model_pass_become_one_rising_progress():
+    seen = []
+    run_with_progress([sys.executable, "-c", _TQDM_SCRIPT, "0"], 2, seen.append)
+
+    assert seen == [0.0, 0.125, 0.25, 0.5, 0.5, 0.625, 0.75, 1.0]
+
+
+def test_a_failing_separator_run_raises_with_the_end_of_its_output():
+    with pytest.raises(subprocess.CalledProcessError) as error:
+        run_with_progress([sys.executable, "-c", _TQDM_SCRIPT, "3"], 1, None)
+    assert error.value.returncode == 3 and b"10.0/10.0" in error.value.stderr

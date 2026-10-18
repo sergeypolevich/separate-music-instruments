@@ -64,6 +64,7 @@ class ProjectRecord:
     created_at: datetime
     job_id: UUID
     job_status: str
+    job_progress: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -329,8 +330,9 @@ class SqliteMetadataStore:
             if status not in _ALLOWED_JOB_TRANSITIONS[current_status]:
                 raise ValueError(f"Invalid job transition: {current_status.value} -> {status.value}")
             connection.execute(
-                "UPDATE jobs SET status = ?, current_stage = ?, error_summary = ?, updated_at = ? WHERE id = ?",
-                (status.value, stage, error_summary, now, str(job_id)),
+                "UPDATE jobs SET status = ?, current_stage = ?, error_summary = ?, updated_at = ?, "
+                "progress = CASE WHEN ? THEN 1 ELSE progress END WHERE id = ?",
+                (status.value, stage, error_summary, now, status is JobStatus.COMPLETED, str(job_id)),
             )
             details: dict[str, object] = {"status": status.value}
             if stage is not None:
@@ -368,6 +370,14 @@ class SqliteMetadataStore:
                 (status.value, result_summary, _utc_now(), str(batch_id)),
             )
             assert cursor.rowcount == 1
+
+    def set_job_progress(self, job_id: UUID, progress: float) -> None:
+        """Raise the job's progress (0..1); it never moves backwards. Not a job event."""
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE jobs SET progress = ? WHERE id = ? AND progress < ?",
+                (min(1.0, progress), str(job_id), min(1.0, progress)),
+            )
 
     def record_retry(self, job_id: UUID, attempt: int) -> None:
         with self._connection() as connection:
@@ -502,13 +512,13 @@ class SqliteMetadataStore:
             input_type=SourceKind(row["input_type"]), input_value=row["input_value"],
             source_id=row["source_id"], title=row["title"],
             created_at=_parse_datetime(row["created_at"]),
-            job_id=UUID(row["job_id"]), job_status=row["job_status"],
+            job_id=UUID(row["job_id"]), job_status=row["job_status"], job_progress=row["job_progress"],
         )
 
     def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None:
         with self._connection() as connection:
             row = connection.execute(
-                "SELECT p.*, j.id AS job_id, j.status AS job_status "
+                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress "
                 "FROM projects p JOIN jobs j ON j.project_id = p.id "
                 "WHERE p.id = ? AND p.owner_id = ?",
                 (str(project_id), owner_id),
@@ -518,7 +528,7 @@ class SqliteMetadataStore:
     def list_projects(self, owner_id: str) -> list[ProjectRecord]:
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT p.*, j.id AS job_id, j.status AS job_status "
+                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress "
                 "FROM projects p JOIN jobs j ON j.project_id = p.id "
                 "WHERE p.owner_id = ? ORDER BY p.created_at, p.rowid",
                 (owner_id,),

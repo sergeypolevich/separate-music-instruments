@@ -102,7 +102,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 4
+    assert version == 5
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
 
@@ -151,3 +151,19 @@ def test_options_stored_before_version_9_with_parameters_still_load(tmp_path):
 
     assert job.separation_options == SeparationOptions("htdemucs_6s", "cpu")
     assert claimed.receipt.separation_options == SeparationOptions("htdemucs_6s", "cpu")
+
+
+def test_job_progress_only_rises_and_completion_fills_it(tmp_path):
+    store = SqliteMetadataStore(tmp_path / "audio_stems.db")
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")])
+    job_id = receipt.job_ids[0]
+    progress = lambda: store.list_projects("client-1")[0].job_progress
+
+    assert progress() == 0
+    store.set_job_progress(job_id, 0.4)
+    store.set_job_progress(job_id, 0.2)
+    assert progress() == 0.4
+    for status in (JobStatus.SEARCHING, JobStatus.DOWNLOADING, JobStatus.DOWNLOADED, JobStatus.SEPARATING, JobStatus.COMPLETED):
+        store.transition_job(job_id, status)
+    assert progress() == 1.0
+    assert store.get_project(store.list_projects("client-1")[0].project_id, "client-1").job_progress == 1.0
