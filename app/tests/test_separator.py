@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import subprocess
 import sys
+import time
 import wave
 
 import imageio_ffmpeg
@@ -225,7 +226,7 @@ def test_tqdm_bars_of_every_model_pass_become_one_rising_progress():
     seen = []
     run_with_progress([sys.executable, "-c", _TQDM_SCRIPT, "0"], 2, seen.append)
 
-    assert seen == [0.0, 0.125, 0.25, 0.5, 0.5, 0.625, 0.75, 1.0]
+    assert seen == [0.0, 0.125, 0.25, 0.5, 0.625, 0.75, 1.0]
 
 
 def test_a_failing_separator_run_raises_with_the_end_of_its_output():
@@ -279,3 +280,20 @@ def test_a_bag_of_four_demucs_models_reports_four_progress_passes(monkeypatch, t
     result = StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_ft", "cpu"))
 
     assert runs == [4] and [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "other"]
+
+
+def test_progress_arrives_while_the_separator_runs_not_at_its_exit():
+    # Like tqdm in a pipe: carriage-return redraws, no explicit flush, then a pause before exit.
+    script = "\n".join([
+        "import sys, time",
+        "sys.stderr.write('\\r 1/2 [00:01<00:01]')",
+        "time.sleep(2)",
+        "sys.stderr.write('\\r 2/2 [00:02<00:00]\\n')",
+    ])
+    started = time.perf_counter()
+    seen = []
+    run_with_progress([sys.executable, "-c", script], 1, lambda value: seen.append((value, time.perf_counter() - started)))
+    finished = time.perf_counter() - started
+
+    assert [value for value, _ in seen] == [0.5, 1.0]
+    assert seen[0][1] < finished - 1.5  # the half-way value was not held back until exit
