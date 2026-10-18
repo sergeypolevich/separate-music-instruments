@@ -64,7 +64,7 @@ def _project_detail(project_id: str, job_id: str, title: str):
             "job_id": job_id,
             "status": "completed",
             "error_summary": None,
-            "separation_options": {"model_name": "htdemucs_6s", "device": "cpu", "parameters": {}},
+            "separation_options": {"model_name": "htdemucs_6s", "device": "cpu"},
         },
         "assets": assets,
     }
@@ -118,7 +118,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 item = next((p for p in projects if p["project_id"] == project_id), projects[0])
                 self._json(_project_detail(item["project_id"], item["job_id"], item["title"]))
             elif path == "/api/v1/models":
-                self._json([{"name": "htdemucs_6s", "stems": list(STEMS), "parameters": {}, "default": True}])
+                self._json([{"name": "htdemucs_6s", "stems": list(STEMS), "default": True}])
             elif path.startswith("/api/v1/assets/") and path.endswith("/waveform"):
                 asset_id = path.split("/")[-2]
                 self._json({"asset_id": asset_id, "levels": [0.0, 0.2, 0.5, 0.1] * 64})

@@ -28,7 +28,7 @@ def test_worker_claims_persisted_batch_and_passes_saved_inputs_and_options(tmp_p
         SourceRequest(SourceKind.SEARCH_QUERY, "Track one"),
         SourceRequest(SourceKind.VIDEO_URL, "https://youtube.com/watch?v=video-2"),
     ]
-    selected = SeparationOptions("htdemucs", "cpu", {"shifts": 2})
+    selected = SeparationOptions("htdemucs", "cpu")
     store.create_batch("client-1", requests, separation_options=selected)
     orchestrator = FakeOrchestrator(store)
 
@@ -103,7 +103,7 @@ def test_worker_keeps_batch_download_phase_before_any_separation(tmp_path):
         SourceRequest(SourceKind.SEARCH_QUERY, "first"),
         SourceRequest(SourceKind.SEARCH_QUERY, "second"),
     ]
-    orchestrator.submit_batch("client-1", requests)
+    store.create_batch("client-1", requests)
 
     assert DatabaseWorker(store, orchestrator).run_once() is True
 

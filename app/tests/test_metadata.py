@@ -23,7 +23,6 @@ def test_metadata_relations_events_and_projects_survive_reopening(tmp_path):
             SourceRequest(SourceKind.SEARCH_QUERY, "Track one"),
             SourceRequest(SourceKind.VIDEO_URL, "https://youtube.com/watch?v=video-2"),
         ],
-        idempotency_key="request-1",
     )
     job_id = receipt.job_ids[0]
     batch = store.get_batch(receipt.batch_id, "client-1")
@@ -123,7 +122,7 @@ def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
 def test_job_separation_options_survive_database_reopen(tmp_path):
     database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
-    options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2, "overlap": 0.5})
+    options = SeparationOptions("htdemucs_6s", "cpu")
 
     receipt = store.create_batch(
         "client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")],
@@ -136,14 +135,19 @@ def test_job_separation_options_survive_database_reopen(tmp_path):
     assert receipt.separation_options == options
 
 
-def test_idempotent_resubmission_returns_original_separation_options(tmp_path):
-    store = SqliteMetadataStore(tmp_path / "audio_stems.db.db")
-    request = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
-    original = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2})
-    changed = SeparationOptions("htdemucs", "cpu", {})
-    first = store.create_batch("client-1", request, "same-key", original)
+def test_options_stored_before_version_9_with_parameters_still_load(tmp_path):
+    database = tmp_path / "audio_stems.db.db"
+    store = SqliteMetadataStore(database)
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Old track")],
+                                 separation_options=SeparationOptions("htdemucs_6s", "cpu"))
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "UPDATE jobs SET separation_options_json = ?",
+            ('{"model_name": "htdemucs_6s", "device": "cpu", "parameters": {"shifts": 2}}',),
+        )
 
-    repeated = store.create_batch("client-1", request, "same-key", changed)
+    job = store.get_job(receipt.job_ids[0], "client-1")
+    claimed = store.claim_next_batch()
 
-    assert repeated.batch_id == first.batch_id
-    assert repeated.separation_options == original
+    assert job.separation_options == SeparationOptions("htdemucs_6s", "cpu")
+    assert claimed.receipt.separation_options == SeparationOptions("htdemucs_6s", "cpu")

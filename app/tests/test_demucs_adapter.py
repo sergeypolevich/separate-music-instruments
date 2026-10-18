@@ -14,7 +14,6 @@ def test_separator_reports_model_names_and_supported_options():
     assert "htdemucs_6s" in {model.name for model in models}
     six_stem = next(model for model in models if model.name == "htdemucs_6s")
     assert six_stem.stems == ("vocals", "drums", "bass", "guitar", "piano", "other")
-    assert set(six_stem.parameters) == {"shifts", "overlap", "segment"}
 
 
 def test_device_detection_lists_only_available_torch_backends_in_priority_order():
@@ -71,7 +70,7 @@ def test_device_detection_falls_back_to_cpu_when_torch_is_missing(monkeypatch):
     assert detect_compute_devices() == ("cpu",)
 
 
-def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_path):
+def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     calls = []
 
     def fake_run(command, *, check):
@@ -84,7 +83,7 @@ def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_
     monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
     source = tmp_path / "source.wav"
     source.write_bytes(b"RIFF0000WAVE")
-    options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2, "overlap": 0.5})
+    options = SeparationOptions("htdemucs_6s", "cpu")
 
     result = DemucsSeparator().separate(source, tmp_path / "output", options)
 
@@ -92,21 +91,12 @@ def test_separator_passes_selected_model_device_and_parameters(monkeypatch, tmp_
     assert checked is True
     assert command[command.index("-n") + 1] == "htdemucs_6s"
     assert command[command.index("-d") + 1] == "cpu"
-    assert command[command.index("--shifts") + 1] == "2"
-    assert command[command.index("--overlap") + 1] == "0.5"
+    assert "--shifts" not in command and "--overlap" not in command
     assert len(result.stems) == 6
 
 
-@pytest.mark.parametrize(
-    "options",
-    [
-        SeparationOptions("made-up-model", "cpu"),
-        SeparationOptions("htdemucs_6s", "cpu", {"unknown": 1}),
-        SeparationOptions("htdemucs_6s", "cpu", {"shifts": -1}),
-        SeparationOptions("htdemucs_6s", "cpu", {"overlap": 2}),
-    ],
-)
-def test_separator_rejects_unsupported_model_or_parameters(options, tmp_path):
+@pytest.mark.parametrize("options", [SeparationOptions("made-up-model", "cpu")])
+def test_separator_rejects_unsupported_model(options, tmp_path):
     with pytest.raises(AdapterError) as error:
         DemucsSeparator().separate(tmp_path / "source.wav", tmp_path / "out", options)
 

@@ -58,7 +58,6 @@ class DownloadedAudio:
 class SeparationOptions:
     model_name: str
     device: str
-    parameters: Mapping[str, str | int | float | bool] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -76,7 +75,6 @@ class SeparationResult:
 class SeparatorModel:
     name: str
     stems: tuple[str, ...]
-    parameters: Mapping[str, str]
 
 
 class MediaAssetType(Enum):

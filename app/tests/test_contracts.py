@@ -18,12 +18,11 @@ from audio_stems.models import (
 def test_contract_data_models_carry_typed_processing_and_asset_metadata(tmp_path):
     source = VideoCandidate("video-1", "Track", "https://youtube.com/watch?v=video-1")
     audio = DownloadedAudio(tmp_path / "source.webm", source, "webm", 1024)
-    options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 1})
+    options = SeparationOptions("htdemucs_6s", "cpu")
     stem = StemArtifact("vocals", tmp_path / "vocals.wav")
     asset = MediaAsset(uuid4(), uuid4(), MediaAssetType.STEM, "stems/track/vocals.wav", 128, "vocals")
 
     assert audio.source == source
-    assert options.parameters["shifts"] == 1
     assert stem.name == asset.stem_name == "vocals"
     assert asset.asset_type is MediaAssetType.STEM
 

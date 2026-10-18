@@ -55,7 +55,7 @@ def test_api_creates_queued_batch_and_returns_without_processing(tmp_path):
 
     response = client.post(
         "/api/v1/batches",
-        json={"inputs": ["Portishead - Glory Box", "https://youtu.be/video-2"], "idempotency_key": "request-1"},
+        json={"inputs": ["Portishead - Glory Box", "https://youtu.be/video-2"]},
     )
 
     assert response.status_code == 202
@@ -86,9 +86,10 @@ def test_api_enforces_batch_limit_and_validates_model_settings(tmp_path):
         "/api/v1/batches",
         json={"inputs": ["query"], "model_name": "made-up-model"},
     )
+    # Demucs parameters are no longer part of the API; extra fields are rejected.
     bad_parameter = client.post(
         "/api/v1/batches",
-        json={"inputs": ["query"], "parameters": {"unknown": 1}},
+        json={"inputs": ["query"], "parameters": {"shifts": 1}},
     )
 
     assert too_many.status_code == 422
@@ -96,7 +97,7 @@ def test_api_enforces_batch_limit_and_validates_model_settings(tmp_path):
     assert bad_model.status_code == 422
     assert bad_model.json()["error"]["code"] == "invalid_model_options"
     assert bad_parameter.status_code == 422
-    assert bad_parameter.json()["error"]["code"] == "invalid_model_options"
+    assert bad_parameter.json()["error"]["code"] == "invalid_request"
 
 
 def test_api_reads_batches_projects_and_models_with_stable_not_found(tmp_path):
@@ -129,18 +130,6 @@ def test_batch_reads_are_owner_scoped_to_server_side_local_identity(tmp_path):
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "not_found"
 
-
-def test_idempotency_key_returns_the_existing_batch_without_duplicate_jobs(tmp_path):
-    client, repository = build_client(tmp_path)
-    body = {"inputs": ["Track"], "idempotency_key": "same-request"}
-
-    first = client.post("/api/v1/batches", json=body)
-    repeated = client.post("/api/v1/batches", json=body)
-
-    assert repeated.status_code == 202
-    assert repeated.json()["batch_id"] == first.json()["batch_id"]
-    assert repeated.json()["job_ids"] == first.json()["job_ids"]
-    assert len(repository.list_projects("local")) == 1
 
 
 def test_batch_records_the_best_detected_device_and_has_no_device_selection(tmp_path, monkeypatch):

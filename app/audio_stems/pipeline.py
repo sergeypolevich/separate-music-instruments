@@ -91,16 +91,6 @@ class BatchOrchestrator:
         self.settings = settings
         self.sleep = sleep
 
-    def submit_batch(
-        self,
-        owner_id: str,
-        sources: Sequence[SourceRequest],
-        idempotency_key: str | None = None,
-        separation_options: SeparationOptions | None = None,
-    ) -> BatchReceipt:
-        options = separation_options or self.options
-        return self.repository.create_batch(owner_id, sources, idempotency_key, options)
-
     def process_batch(
         self,
         receipt: BatchReceipt,

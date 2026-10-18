@@ -17,7 +17,6 @@ from audio_stems.models import (
 
 _STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 _MODELS = ("htdemucs_6s",)
-_PARAMETERS = {"shifts": "int", "overlap": "float", "segment": "int"}
 
 
 def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
@@ -45,7 +44,7 @@ class DemucsSeparator:
     def available_models(self) -> tuple[SeparatorModel, ...]:
         # These are stable Demucs model identifiers supported by its CLI.
         # The capability endpoint is intentionally independent of loading weights.
-        return tuple(SeparatorModel(name, _STEMS, _PARAMETERS.copy()) for name in _MODELS)
+        return tuple(SeparatorModel(name, _STEMS) for name in _MODELS)
 
     def resolve_device(self, configured: str) -> str:
         return detect_compute_devices()[0] if configured == "auto" else configured
@@ -62,9 +61,6 @@ class DemucsSeparator:
             sys.executable, "-m", "demucs", "-n", options.model_name,
             "-d", options.device, "-o", str(output_dir),
         ]
-        for name in ("shifts", "overlap", "segment"):
-            if name in options.parameters:
-                command.extend((f"--{name}", str(options.parameters[name])))
         command.append(str(audio_path))
         try:
             subprocess.run(command, check=True)
@@ -94,11 +90,3 @@ class DemucsSeparator:
             raise AdapterError("Unsupported Demucs model", FailureCategory.INVALID_INPUT)
         if options.device not in detect_compute_devices():
             raise AdapterError("Unsupported Demucs device", FailureCategory.INVALID_INPUT)
-        for name, value in options.parameters.items():
-            if name not in _PARAMETERS:
-                raise AdapterError(f"Unsupported Demucs parameter: {name}", FailureCategory.INVALID_INPUT)
-            if name in {"shifts", "segment"}:
-                if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
-                    raise AdapterError(f"Demucs {name} must be a positive integer", FailureCategory.INVALID_INPUT)
-            elif isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
-                raise AdapterError("Demucs overlap must be between 0 and 1", FailureCategory.INVALID_INPUT)

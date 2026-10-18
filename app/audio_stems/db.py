@@ -84,6 +84,14 @@ def _parse_datetime(value: str) -> datetime:
     return datetime.fromisoformat(value)
 
 
+def _options_from_json(raw: str | None) -> SeparationOptions | None:
+    # Rows written before version 9 also carry a "parameters" key; only model and device are used.
+    if not raw:
+        return None
+    data = json.loads(raw)
+    return SeparationOptions(data["model_name"], data["device"])
+
+
 class SqliteMetadataStore:
     """Persist clients, projects, batches, jobs, assets, and job events."""
 
@@ -135,10 +143,7 @@ class SqliteMetadataStore:
             current_stage=row["current_stage"],
             error_summary=row["error_summary"],
             retry_count=row["retry_count"],
-            separation_options=(
-                SeparationOptions(**json.loads(row["separation_options_json"]))
-                if row["separation_options_json"] else None
-            ),
+            separation_options=_options_from_json(row["separation_options_json"]),
             input_value=row["normalized_source"],
         )
 
@@ -159,7 +164,6 @@ class SqliteMetadataStore:
         self,
         owner_id: str,
         sources: list[SourceRequest] | tuple[SourceRequest, ...],
-        idempotency_key: str | None = None,
         separation_options: SeparationOptions | None = None,
     ) -> BatchReceipt:
         if not owner_id or not sources:
@@ -171,32 +175,14 @@ class SqliteMetadataStore:
                 "INSERT OR IGNORE INTO clients(id, display_name, created_at) VALUES (?, ?, ?)",
                 (owner_id, owner_id, now),
             )
-            if idempotency_key:
-                existing = connection.execute(
-                    "SELECT id FROM batches WHERE owner_id = ? AND idempotency_key = ?",
-                    (owner_id, idempotency_key),
-                ).fetchone()
-                if existing:
-                    jobs = connection.execute(
-                        "SELECT id, separation_options_json FROM jobs WHERE batch_id = ? ORDER BY rowid",
-                        (existing["id"],),
-                    ).fetchall()
-                    stored_options = None
-                    if jobs and jobs[0]["separation_options_json"]:
-                        stored_options = SeparationOptions(**json.loads(jobs[0]["separation_options_json"]))
-                    return BatchReceipt(
-                        UUID(existing["id"]), tuple(UUID(row["id"]) for row in jobs), owner_id,
-                        stored_options,
-                    )
-
             batch_id = uuid4()
             methods = {source.kind for source in sources}
             submission_method = "mixed" if len(methods) > 1 else next(iter(methods)).value
             connection.execute(
                 """INSERT INTO batches
-                   (id, owner_id, submission_method, status, idempotency_key, created_at, updated_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                (str(batch_id), owner_id, submission_method, "queued", idempotency_key, now, now),
+                   (id, owner_id, submission_method, status, created_at, updated_at)
+                   VALUES (?, ?, ?, ?, ?, ?)""",
+                (str(batch_id), owner_id, submission_method, "queued", now, now),
             )
 
             job_ids: list[UUID] = []
@@ -220,7 +206,6 @@ class SqliteMetadataStore:
                         json.dumps({
                             "model_name": separation_options.model_name,
                             "device": separation_options.device,
-                            "parameters": dict(separation_options.parameters),
                         }) if separation_options else None,
                         now, now,
                     ),
@@ -261,10 +246,7 @@ class SqliteMetadataStore:
             if not rows:
                 raise AdapterError("Queued batch has no jobs", FailureCategory.PERMANENT)
             sources = tuple(SourceRequest(SourceKind(row["input_type"]), row["normalized_source"]) for row in rows)
-            options = (
-                SeparationOptions(**json.loads(rows[0]["separation_options_json"]))
-                if rows[0]["separation_options_json"] else None
-            )
+            options = _options_from_json(rows[0]["separation_options_json"])
             job_ids = tuple(UUID(row["id"]) for row in rows)
             for job_id in job_ids:
                 connection.execute(
