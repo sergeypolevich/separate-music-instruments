@@ -1,0 +1,60 @@
+# Checks the app on a Mac: a first start from scratch through Start.command, the offline tests and
+# the browser test in Chrome and WebKit (Safari's engine). The live YouTube test stays local:
+# YouTube often blocks downloads from CI servers.
+name: macOS
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  mac:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: First start from scratch with Start.command
+        run: |
+          export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop"
+          export AUDIO_STEMS_STORAGE_ROOT="$RUNNER_TEMP/data/YouTube Audio"
+          export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
+          export AUDIO_STEMS_LOG_FILE="$RUNNER_TEMP/data/logs/app.jsonl"
+          sh ./Start.command > "$RUNNER_TEMP/start.log" 2>&1 &
+          for attempt in $(seq 1 1200); do
+            curl -sf http://127.0.0.1:8000/api/v1/health && break
+            sleep 2
+          done
+          curl -sf http://127.0.0.1:8000/api/v1/health
+          touch "$RUNNER_TEMP/stop"
+          wait
+          test -f app/.venv/requirements.installed
+          tail -n 20 "$RUNNER_TEMP/start.log"
+
+      - name: Second start takes the fast path
+        run: |
+          export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop2"
+          export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
+          sh ./Start.command > "$RUNNER_TEMP/start2.log" 2>&1 &
+          for attempt in $(seq 1 120); do curl -sf http://127.0.0.1:8000/api/v1/health && break; sleep 1; done
+          touch "$RUNNER_TEMP/stop2"
+          wait
+          ! grep -q "Installing" "$RUNNER_TEMP/start2.log"
+
+      - name: Offline tests
+        working-directory: app
+        run: |
+          .venv/bin/python -m pip install -r requirements-test.txt
+          .venv/bin/python -m playwright install chromium webkit
+          .venv/bin/python -m pytest -q
+          node --test tests/test_playback.mjs
+
+      - name: Browser test in WebKit (Safari's engine)
+        working-directory: app
+        env:
+          AUDIO_STEMS_TEST_BROWSER: webkit
+        run: .venv/bin/python -m pytest -q tests/test_ui_browser.py
+
+      - name: Logs on failure
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP"/start*.log || true

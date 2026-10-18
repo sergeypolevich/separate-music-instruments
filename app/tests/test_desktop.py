@@ -1,4 +1,8 @@
 from pathlib import Path
+import shutil
+import subprocess
+
+import pytest
 
 import audio_stems.desktop as desktop
 class FakeProcess:
@@ -141,3 +145,48 @@ def test_services_start_from_the_project_root_with_package_modules():
     assert desktop.ROOT == root
     assert (root / "audio_stems" / "api.py").is_file() and (root / "web" / "index.html").is_file()
     assert desktop.API == ("-m", "audio_stems.api") and desktop.WORKER == ("-m", "audio_stems.pipeline")
+
+
+def _mac_tree(tmp_path, desktop_exit, *, marker=True):
+    """A fake checkout for Start.command: a Python stand-in that exits with `desktop_exit`, and a setup
+    script that only records that it ran."""
+    repo = Path(__file__).parents[2]
+    root = tmp_path / "Audio Stems"
+    app = root / "app"
+    (app / ".venv" / "bin").mkdir(parents=True)
+    # Git may check scripts out with CRLF on Windows; macOS gets LF from the repository.
+    (root / "Start.command").write_bytes((repo / "Start.command").read_bytes().replace(b"\r\n", b"\n"))
+    (app / "requirements.txt").write_text("demucs==4.1.0\n", encoding="utf-8")
+    if marker:
+        (app / ".venv" / "requirements.installed").write_text("demucs==4.1.0\n", encoding="utf-8")
+    python = app / ".venv" / "bin" / "python"
+    python.write_text(f'#!/bin/sh\necho "desktop $*" >> "{(tmp_path / "log").as_posix()}"\nexit {desktop_exit}\n', encoding="utf-8", newline="\n")
+    python.chmod(0o755)
+    (app / "Start-Audio-Stems.sh").write_text(f'echo setup >> "{(tmp_path / "log").as_posix()}"\n', encoding="utf-8", newline="\n")
+    return root
+
+
+@pytest.mark.parametrize(("desktop_exit", "marker", "expected"), [
+    (0, True, ["desktop -m audio_stems.desktop"]),               # fast path
+    (3, True, ["desktop -m audio_stems.desktop", "setup"]),      # a module went missing
+    (0, False, ["setup"]),                                       # requirements changed or first start
+])
+def test_mac_launcher_takes_the_fast_path_only_while_requirements_match(tmp_path, desktop_exit, marker, expected):
+    sh = shutil.which("sh")
+    if sh is None:
+        pytest.skip("no POSIX shell here")
+    root = _mac_tree(tmp_path, desktop_exit, marker=marker)
+
+    subprocess.run([sh, (root / "Start.command").as_posix()], check=False, timeout=30)
+
+    assert (tmp_path / "log").read_text(encoding="utf-8").split("\n")[:-1] == expected
+    assert (root / "app" / ".venv" / "requirements.installed").exists() is (marker and desktop_exit != 3)
+
+
+def test_mac_setup_pins_uv_and_checks_its_checksum_for_both_mac_architectures():
+    setup = (Path(__file__).parents[1] / "Start-Audio-Stems.sh").read_text(encoding="utf-8")
+
+    assert "UV_VERSION=0.12.22" in setup and "shasum -a 256 -c" in setup
+    assert "arm64) ARCH=aarch64; SUM=5d714de09501a59393ceca78f4bc232a50478729640d251907160299b2a93ddd" in setup
+    assert "x86_64) ARCH=x86_64; SUM=1b8a5b316883df2daf20fb9a446e5b230e01d947d57aba2694977c5ac5a7e98c" in setup
+    assert 'exec "$PYTHON" run.py --app' in setup and "sudo" not in setup

@@ -19,9 +19,21 @@ The page must be opened from that local address. Opening `app/web/index.html`
 directly as a file cannot reach the API. For troubleshooting or development,
 the equivalent manual command is `py run.py --app`.
 
+## Run on macOS
+
+Double-click `Start.command` (Apple Silicon or Intel). macOS blocks scripts
+downloaded from the internet the first time: right-click `Start.command`, choose
+**Open** and confirm once (or run `xattr -dr com.apple.quarantine .` in the
+folder). If Python 3.12 is missing, the launcher installs it for your user only,
+without an administrator password, using a pinned and checksum-verified `uv`
+release; then it prepares `app/.venv` and starts the app exactly like `Start.bat`,
+including the fast start on later launches. Chrome and Safari 16.4 or newer are
+supported.
+
 ## Project layout
 
-The folder you download contains only `Start.bat`, this `README.md`, the agent
+The folder you download contains only `Start.bat` (Windows), `Start.command`
+(macOS), this `README.md`, the agent
 instructions (`AGENTS.md`, `CLAUDE.md`, `.claude/`) and the `app` folder with
 everything else: code, web UI, tests, docs, requirements and the `.venv`. Your
 songs, stems, database and logs are kept separately in `~/Audio Stems`.

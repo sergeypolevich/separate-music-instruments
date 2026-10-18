@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import os
 import json
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -72,6 +73,21 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missi
         "disk_bytes": 12 * 2**20,
         "shared_bytes": 3 * 2**20 if project_id == "project-1" else 0,
     }
+
+
+def _launch_browser(playwright):
+    """Installed Edge or Chrome by default; AUDIO_STEMS_TEST_BROWSER=webkit runs Safari's engine instead
+    (also on Windows), =chromium the bundled Chromium (CI without Chrome)."""
+    engine = os.environ.get("AUDIO_STEMS_TEST_BROWSER", "")
+    if engine in ("webkit", "chromium"):
+        return getattr(playwright, engine).launch(headless=True), None
+    launch_error = None
+    for channel in ("msedge", "chrome"):
+        try:
+            return playwright.chromium.launch(channel=channel, headless=True), None
+        except Exception as error:
+            launch_error = error
+    return None, launch_error
 
 
 class _Server(ThreadingHTTPServer):
@@ -216,15 +232,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     browser = None
     try:
         with sync_playwright() as playwright:
-            launch_error = None
-            for channel in ("msedge", "chrome"):
-                try:
-                    browser = playwright.chromium.launch(channel=channel, headless=True)
-                    break
-                except Exception as error:
-                    launch_error = error
+            browser, launch_error = _launch_browser(playwright)
             if browser is None:
-                pytest.skip(f"No installed Edge or Chrome for Playwright: {launch_error}")
+                pytest.skip(f"No browser for Playwright: {launch_error}")
             page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
