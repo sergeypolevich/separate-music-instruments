@@ -45,7 +45,11 @@ def make_delete_client(tmp_path):
         ) as client:
             return await client.request(method, path)
 
-    return lambda method, path: asyncio.run(send(method, path)), repository, storage
+    def request(method, path):
+        return asyncio.run(send(method, path))
+
+    request.app = app
+    return request, repository, storage
 
 
 def add_project(repository, storage, title, *, completed=True):
@@ -260,3 +264,25 @@ def test_a_stem_removed_by_hand_is_reported_unavailable_and_the_project_still_de
     assert request("GET", f"/api/v1/assets/{vocals['asset_id']}/waveform").status_code == 404
     assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 204
     assert not files[0].exists()
+
+
+def test_storage_cleanup_needs_confirmation_and_waits_for_running_jobs(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    _, _, files = add_project(repository, storage, "In use")
+    (storage.root / "orphan.webm").write_bytes(b"orphan!")
+    running, _, _ = add_project(repository, storage, "Running", completed=False)
+
+    report = request("GET", "/api/v1/storage").json()
+    assert report["unused_bytes"] == 7 and report["projects_bytes"] == 18 and report["busy"] is True
+
+    async def post(body):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=request.app), base_url="http://testserver") as client:
+            return await client.post("/api/v1/storage/cleanup", json=body)
+
+    assert asyncio.run(post({"confirmed": True})).status_code == 409  # a job is running
+    repository.transition_job(running.job_id, JobStatus.CANCELLED, stage="test")
+    assert asyncio.run(post({"confirmed": False})).status_code == 409
+    response = asyncio.run(post({"confirmed": True}))
+
+    assert response.status_code == 200 and response.json()["freed_bytes"] == 7
+    assert not (storage.root / "orphan.webm").exists() and all(path.exists() for path in files)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 import mimetypes
+import os
 import re
 from pathlib import Path
 import subprocess
@@ -55,6 +56,18 @@ class _UiFiles(StaticFiles):
         response = super().file_response(*args, **kwargs)
         response.headers["Cache-Control"] = "no-cache"
         return response
+
+
+class StorageCleanupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    confirmed: StrictBool
+
+
+def _folder_bytes(path: Path) -> int:
+    try:
+        return sum(item.stat().st_size for item in path.rglob("*") if item.is_file() and not item.is_symlink())
+    except OSError:
+        return 0
 
 
 class UpdateApplyRequest(BaseModel):
@@ -232,6 +245,29 @@ def create_app(
                 for index, release in enumerate(releases)
             ]
         }
+
+    @app.get("/api/v1/storage")
+    def storage_report() -> dict[str, object]:
+        report = storage.disk_report(repository.storage_keys_in_use())
+        # audio-separator weights, and the torch hub cache where Demucs keeps its own.
+        torch_hub = Path(os.environ.get("TORCH_HOME", Path.home() / ".cache" / "torch")) / "hub" / "checkpoints"
+        return {
+            **report,
+            "models_bytes": _folder_bytes(separator.model_dir) + _folder_bytes(torch_hub),
+            "busy": repository.has_active_jobs(),
+        }
+
+    @app.post("/api/v1/storage/cleanup")
+    def storage_cleanup(body: StorageCleanupRequest) -> dict[str, object]:
+        if not body.confirmed:
+            raise HTTPException(status_code=409, detail={"code": "confirmation_required", "message": "Confirm the cleanup first"})
+        # shortcut: checked once, not locked; a job starting during the cleanup could lose its first temp file.
+        if repository.has_active_jobs():
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "processing_active", "message": "Дождитесь окончания разделения, затем очистите"},
+            )
+        return {"freed_bytes": storage.clean_unused(repository.storage_keys_in_use())}
 
     @app.post("/api/v1/updates/apply")
     def apply_update(body: UpdateApplyRequest) -> dict[str, object]:

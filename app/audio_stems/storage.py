@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
@@ -33,6 +34,7 @@ _WHITESPACE = re.compile(r"\s+")
 _EXTENSION = re.compile(r"^[A-Za-z0-9]{1,10}$")
 _STEM_NAME = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 _INDEX_LOCK = RLock()
+logger = logging.getLogger("audio_stems.storage")
 # New stems are FLAC; projects made before version 10 keep their WAV stems.
 _STEM_FORMATS = ("flac", "wav")
 _BLOCK_FRAMES = 1 << 20
@@ -387,6 +389,56 @@ class LocalMediaStorage:
                 stem_name=stem.name, media_format="flac",
             ))
         return assets
+
+    def _files(self):
+        """Regular files under the root; symbolic links are neither followed nor touched."""
+        for folder, directories, names in os.walk(self.root):
+            directories[:] = [name for name in directories if not Path(folder, name).is_symlink()]
+            for name in names:
+                path = Path(folder, name)
+                if not path.is_symlink() and path.is_file():
+                    yield path
+
+    def disk_report(self, keys_in_use: set[str]) -> dict[str, int]:
+        """Bytes used by projects, by files no project uses, and by temporary separation output."""
+        protected = {self._index_path, self._index_path.with_suffix(".tmp")}
+        report = {"projects_bytes": 0, "unused_bytes": 0, "temp_bytes": 0}
+        for path in self._files():
+            size = path.stat().st_size
+            if path.is_relative_to(self.temp_root):
+                report["temp_bytes"] += size
+            elif path in protected:
+                continue
+            elif path.relative_to(self.root).as_posix() in keys_in_use:
+                report["projects_bytes"] += size
+            else:
+                report["unused_bytes"] += size
+        return report
+
+    def clean_unused(self, keys_in_use: set[str]) -> int:
+        """Delete files no project uses and all temporary output, then empty folders; return bytes freed.
+        Callers must make sure no job is running (its unfinished files are not assets yet)."""
+        protected = {self._index_path, self._index_path.with_suffix(".tmp")}
+        freed = 0
+        for path in list(self._files()):
+            if path in protected or (
+                not path.is_relative_to(self.temp_root) and path.relative_to(self.root).as_posix() in keys_in_use
+            ):
+                continue
+            try:
+                size = path.stat().st_size
+                path.unlink()
+                freed += size
+            except OSError:
+                logger.warning("Unused file could not be deleted", extra={"event": "storage_cleanup_skipped"})
+        for folder, _directories, _names in sorted(os.walk(self.root), key=lambda item: len(item[0]), reverse=True):
+            path = Path(folder)
+            if path != self.root and path != self._index_path.parent and not path.is_symlink():
+                try:
+                    path.rmdir()  # only empty folders go
+                except OSError:
+                    pass
+        return freed
 
     def delete_asset(self, storage_key: str, *, attempts: int = 3, pause: float = 0.3) -> None:
         """Delete one file and then its stem folder if that became empty. Windows refuses to delete a

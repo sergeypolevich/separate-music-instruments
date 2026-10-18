@@ -208,6 +208,11 @@ h1, h2, h3, p { margin-top: 0; }
 .quiet-button { min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--muted); font-size: 11px; }
 .quiet-button:hover { background: var(--panel-soft); color: var(--accent); }
 .empty-state { margin: 0; padding: 12px; border: 1px dashed var(--line); border-radius: 8px; color: var(--faint); font-size: 11px; }
+.disk-usage { display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; margin: 0; font-size: 12px; }
+.disk-usage dt { color: var(--text-soft); }
+.disk-usage dd { margin: 0; color: var(--text); font-variant-numeric: tabular-nums; text-align: right; }
+.disk-message { margin: 10px 0 0; color: var(--muted); font-size: 11px; }
+.disk-message:empty { display: none; }
 .release-list { display: grid; gap: 9px; margin-top: 10px; }
 .release-card { display: grid; gap: 7px; padding: 12px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: 9px; }
 .release-card h3, .release-card p { margin: 0; }

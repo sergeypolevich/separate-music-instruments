@@ -112,6 +112,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     submitted = []
     deleted = []
     running_detail = {}
+    disk = {"unused": 40 * 2**20, "temp": 10 * 2**20}
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -155,6 +156,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self.send_header("Content-Length", str(len(body)))
                 self.end_headers()
                 self.wfile.write(body)
+            elif path == "/api/v1/storage":
+                self._json({"projects_bytes": 3 * 2**30, "unused_bytes": disk["unused"], "temp_bytes": disk["temp"],
+                            "models_bytes": 800 * 2**20, "busy": False})
             elif path.startswith("/api/v1/batches/"):
                 self._json({"batch_id": batch_id, "status": "completed", "jobs": []})
             else:
@@ -163,6 +167,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path == "/api/v1/storage/cleanup":
+                freed = disk["unused"] + disk["temp"] if body == {"confirmed": True} else 0
+                disk.update(unused=0, temp=0)
+                self._json({"freed_bytes": freed})
+                return
             if self.path == "/api/v1/batches":
                 submitted.append(body)
                 title = body["inputs"][0]
@@ -559,6 +568,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 return [r.left + 6 + (r.width - 12) * 84 / 360, f.left + parseFloat(mark.left) + 0.5, mark.height];
             }""")
             assert abs(accent_mark[0] - accent_mark[1]) <= 1 and accent_mark[2] == "12px"
+            # Disk space: sizes per kind and one button for unused and temporary files.
+            page.wait_for_function("document.querySelectorAll('#disk-usage dd').length === 4")
+            assert page.locator("#disk-usage dd").all_text_contents() == ["3,0 ГБ", "40 МБ", "10 МБ", "800 МБ"]
+            assert page.locator("#clean-storage").text_content() == "Очистить 50 МБ"
+            page.once("dialog", lambda dialog: dialog.accept())
+            page.locator("#clean-storage").click()
+            page.wait_for_function("document.querySelector('#disk-message').textContent === 'Освобождено 50 МБ.'")
+            assert page.locator("#clean-storage").is_disabled()
             # Separation: models are a radio list; the choice is remembered across reloads.
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()
