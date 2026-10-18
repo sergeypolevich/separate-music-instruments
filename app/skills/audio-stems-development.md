@@ -23,6 +23,7 @@ Read this file and the linked project specification in `AGENTS.md` (repository r
 - **Commit automatically after every completed step.** When a step's checks (offline suite, stage checks, and the live Short Spoken Clip E2E gate above) pass and the diff is reviewed, create a local commit without asking. One step = one focused commit with a descriptive message. Do not batch several steps into one commit, and do not commit a step whose gate failed or could not run — report the blocker instead.
 - Before committing, verify that no local media, stems, databases, logs, temporary outputs, or secrets are staged (`git status`, `git diff --cached --stat`). Stage files explicitly rather than with blanket `git add -A` when untracked files are present.
 - **Do not push during a version.** Pushing to `origin` happens only at the end of a version, after the user has manually verified it and explicitly asked to push. Until then, commits stay local.
+- **Ask about the push when the plan is done.** After the last step of the version's plan is committed, ask the user whether to push; push only after an explicit yes.
 
 ## Logging contract
 
