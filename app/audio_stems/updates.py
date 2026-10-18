@@ -20,6 +20,7 @@ _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_REQUIREMENTS_BYTES = 64 * 1024
 _MAX_NOTES_LENGTH = 20_000
 _REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn", "numpy"}
+_ALLOWED_RUNTIME_PACKAGES = _REQUIRED_RUNTIME_PACKAGES | {"imageio-ffmpeg"}
 _PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)$")
 
 
@@ -136,7 +137,7 @@ def validate_pinned_requirements(manifest: str) -> tuple[str, ...]:
             raise ValueError("Release requirements must use exact pinned package versions")
         packages.append(match.group(1).lower().replace("_", "-"))
     missing = _REQUIRED_RUNTIME_PACKAGES - set(packages)
-    extra = set(packages) - _REQUIRED_RUNTIME_PACKAGES
+    extra = set(packages) - _ALLOWED_RUNTIME_PACKAGES
     if missing or extra or len(packages) != len(set(packages)):
         raise ValueError("Release requirements must contain only the approved runtime packages, each pinned once")
     return tuple(packages)

@@ -5,6 +5,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import imageio_ffmpeg
+
 from audio_stems.models import (
     AdapterError,
     FailureCategory,
@@ -38,6 +40,16 @@ def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
         return ("cpu",)
 
 
+def decode_to_wav(source: Path, target: Path) -> None:
+    """Decode the source to float WAV with the ffmpeg bundled by imageio-ffmpeg, so separation needs
+    no system ffmpeg; float keeps decoded peaks above 0 dBFS intact."""
+    command = [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-y", "-i", str(source), "-vn", "-c:a", "pcm_f32le", str(target)]
+    try:
+        subprocess.run(command, check=True, capture_output=True)
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise AdapterError("Audio could not be decoded for separation", FailureCategory.PERMANENT) from exc
+
+
 class DemucsSeparator:
     """Run Demucs and return the six supported WAV stems."""
 
@@ -57,11 +69,13 @@ class DemucsSeparator:
     ) -> SeparationResult:
         self.validate_options(options)
         output_dir.mkdir(parents=True, exist_ok=True)
+        decoded = output_dir / f"{audio_path.stem}.wav"
+        decode_to_wav(audio_path, decoded)
         command = [
             sys.executable, "-m", "demucs", "-n", options.model_name,
             "-d", options.device, "-o", str(output_dir),
         ]
-        command.append(str(audio_path))
+        command.append(str(decoded))
         try:
             subprocess.run(command, check=True)
         except FileNotFoundError as exc:

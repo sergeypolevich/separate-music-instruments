@@ -1,8 +1,14 @@
+import math
+from pathlib import Path
+import struct
+import wave
 
+import imageio_ffmpeg
+import numpy as np
 import pytest
 
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
-from audio_stems.separator import DemucsSeparator, detect_compute_devices
+from audio_stems.separator import DemucsSeparator, decode_to_wav, detect_compute_devices
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -73,8 +79,11 @@ def test_device_detection_falls_back_to_cpu_when_torch_is_missing(monkeypatch):
 def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     calls = []
 
-    def fake_run(command, *, check):
+    def fake_run(command, *, check, **_kwargs):
         calls.append((command, check))
+        if "-m" not in command:  # the bundled ffmpeg decoding the source first
+            Path(command[-1]).write_bytes(b"RIFF0000WAVE")
+            return
         result = tmp_path / "output" / "htdemucs_6s" / "source"
         result.mkdir(parents=True)
         for name in ("vocals", "drums", "bass", "guitar", "piano", "other"):
@@ -87,8 +96,11 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
 
     result = DemucsSeparator().separate(source, tmp_path / "output", options)
 
-    command, checked = calls[0]
+    decode, _ = calls[0]
+    assert decode[0] == imageio_ffmpeg.get_ffmpeg_exe() and decode[decode.index("-i") + 1] == str(source)
+    command, checked = calls[1]
     assert checked is True
+    assert command[-1] == decode[-1]  # Demucs separates the decoded float WAV, not the original file
     assert command[command.index("-n") + 1] == "htdemucs_6s"
     assert command[command.index("-d") + 1] == "cpu"
     assert "--shifts" not in command and "--overlap" not in command
@@ -129,3 +141,28 @@ def test_auto_device_resolves_to_the_best_available_backend(monkeypatch):
 
     assert DemucsSeparator().resolve_device("auto") == "mps"
     assert DemucsSeparator().resolve_device("cpu") == "cpu"
+
+
+def test_bundled_ffmpeg_decodes_audio_to_float_wav(tmp_path):
+    source = tmp_path / "tone.wav"
+    with wave.open(str(source), "wb") as out:
+        out.setnchannels(2)
+        out.setsampwidth(2)
+        out.setframerate(48000)
+        out.writeframes(b"".join(struct.pack("<hh", v, v) for v in (int(30000 * math.sin(i / 10)) for i in range(4800))))
+
+    target = tmp_path / "decoded.wav"
+    decode_to_wav(source, target)
+
+    data = target.read_bytes()
+    assert data[:4] == b"RIFF" and struct.unpack("<H", data[20:22])[0] == 3  # WAVE_FORMAT_IEEE_FLOAT
+    samples = np.frombuffer(data[data.index(b"data") + 8:], np.float32)
+    assert samples.size == 9600 and 0.9 < np.abs(samples).max() < 0.92
+
+
+def test_undecodable_source_is_a_permanent_separation_failure(tmp_path):
+    broken = tmp_path / "broken.webm"
+    broken.write_bytes(b"not audio")
+    with pytest.raises(AdapterError) as error:
+        decode_to_wav(broken, tmp_path / "out.wav")
+    assert error.value.category is FailureCategory.PERMANENT

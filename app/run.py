@@ -1,20 +1,23 @@
 """Set up the local runtime environment and launch the app, API, or worker."""
 from __future__ import annotations
 
-import importlib.util
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
+
+from audio_stems.desktop import missing_runtime_modules
 
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 REQUIREMENTS = ROOT / "requirements.txt"
+# A copy of the requirements.txt last installed; Start.bat skips all setup while it matches.
+INSTALLED_MARKER = VENV_DIR / "requirements.installed"
 WORKER = ("-m", "audio_stems.pipeline")
 API = ("-m", "audio_stems.api")
 DESKTOP = ("-m", "audio_stems.desktop")
-RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn")
 USAGE = "Usage: py run.py [--worker | --api | --app]"
 
 
@@ -39,22 +42,26 @@ def ensure_project_venv() -> Path:
     return python
 
 
-def missing_runtime_modules() -> list[str]:
-    return [name for name in RUNTIME_MODULES if importlib.util.find_spec(name) is None]
+def requirements_installed() -> bool:
+    try:
+        return INSTALLED_MARKER.read_bytes() == REQUIREMENTS.read_bytes()
+    except OSError:
+        return False
 
 
 def install_runtime_dependencies() -> None:
     missing = missing_runtime_modules()
-    if not missing:
+    if not missing and requirements_installed():
         print("Runtime dependencies are already installed.")
         return
 
-    print("Installing missing runtime dependencies: " + ", ".join(missing))
+    print("Installing runtime dependencies" + (": " + ", ".join(missing) if missing else " from requirements.txt"))
     subprocess.run(
         [sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS)],
         check=True,
         cwd=ROOT,
     )
+    shutil.copyfile(REQUIREMENTS, INSTALLED_MARKER)
 
 
 def main(argv: list[str] | None = None) -> int:
