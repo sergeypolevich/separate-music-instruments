@@ -187,7 +187,7 @@ to 30 minutes); after success, restart both the API and worker. If installation
 fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
 
-The Demucs adapter exposes its supported model and inference parameters. The UI
+The Demucs adapter exposes its supported models. The UI
 lets each job select a model; the device comes from `AUDIO_STEMS_MODEL_DEVICE`
 (default `auto`: CUDA, then Apple MPS, then CPU, whichever the installed PyTorch
 can use). SQLite stores the resolved configuration and the worker passes it to
