@@ -385,6 +385,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             for _ in range(8):
                 page.keyboard.press("ArrowDown")
             assert page.evaluate(selected)[-1] == "true"
+            # Tab walks the tracks in a circle instead of moving the focus (so no focus rings).
+            focused = page.evaluate("document.activeElement.outerHTML")
+            page.keyboard.press("Tab")
+            assert page.evaluate(selected)[0] == "true"
+            page.keyboard.press("Shift+Tab")
+            assert page.evaluate(selected)[-1] == "true"
+            assert page.evaluate("document.activeElement.outerHTML") == focused
+            for key, index in (("KeyD", 1), ("KeyB", 2), ("KeyG", 3), ("KeyP", 4), ("KeyO", 5), ("KeyV", 0)):
+                page.keyboard.press(key)
+                assert page.evaluate(selected)[index] == "true", key
             # On a volume slider the arrows still move the position, never the volume.
             gain0 = page.locator('[data-control="gain"]').first
             before_gain = gain0.input_value()
@@ -400,6 +410,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.type("s m ")
             page.keyboard.press("ArrowRight")
             assert page.locator("#inputs").input_value() == "s m "
+            page.keyboard.press("Tab")  # inside the search dialog Tab still moves the focus
+            assert page.evaluate("document.activeElement.id") == "model"
             assert page.evaluate(audio_state)["paused"] and page.evaluate(audio_state)["t"] == 0
             assert page.locator('[data-control="solo"][aria-pressed="true"]').count() == 0
             page.locator("#inputs").fill("")

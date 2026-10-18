@@ -520,6 +520,11 @@ async function setupProjectPlayback(assets, setupId) {
       seekTo: (seconds) => transport.seek(seconds),
       duration: () => duration,
       moveSelection: (step) => selectStem(selectedStem + step),
+      cycleSelection: (step) => selectStem((selectedStem + step + stems.length) % stems.length),
+      selectStemByName: (name) => {
+        const index = stems.findIndex((asset) => asset.stem_name === name);
+        if (index >= 0) selectStem(index);
+      },
       press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
     };
     tracks.forEach((audio) => audio.load());
@@ -765,6 +770,14 @@ document.addEventListener("keydown", (event) => {
     closeSearch();
     return;
   }
+  // Tab never walks the focus (and its focus rings) outside dialogs; in a project it picks the next track.
+  if (event.key === "Tab" && searchOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
+    event.preventDefault();
+    if (activeControls && !screens.get("project").hidden && !event.ctrlKey && !event.metaKey && !event.altKey) {
+      activeControls.cycleSelection(event.shiftKey ? -1 : 1);
+    }
+    return;
+  }
   if (!activeControls || !searchOverlay.hidden || deleteDialog.open || screens.get("project").hidden) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
   const controls = activeControls;
@@ -780,6 +793,12 @@ document.addEventListener("keydown", (event) => {
     NumpadEnter: () => controls.togglePlayback(),
     KeyS: () => controls.press("solo"),
     KeyM: () => controls.press("mute"),
+    KeyV: () => controls.selectStemByName("vocals"),
+    KeyD: () => controls.selectStemByName("drums"),
+    KeyB: () => controls.selectStemByName("bass"),
+    KeyG: () => controls.selectStemByName("guitar"),
+    KeyP: () => controls.selectStemByName("piano"),
+    KeyO: () => controls.selectStemByName("other"),
   };
   const action = actions[event.code];
   if (action) {
