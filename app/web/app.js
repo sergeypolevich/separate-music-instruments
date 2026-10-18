@@ -133,8 +133,45 @@ function updateProjectTab(button, project) {
   button.firstElementChild.textContent = nameText;
 }
 
+// The open project's job, as last seen by the poll: drives its progress bar and the switch to the mixer.
+let selectedJobState = null;
+
+function renderJobProgress(state) {
+  let bar = playbackPanel.querySelector(".job-progress");
+  if (!bar) {
+    const label = document.createElement("p");
+    label.className = "job-progress-label";
+    bar = document.createElement("div");
+    bar.className = "job-progress";
+    bar.setAttribute("role", "progressbar");
+    bar.setAttribute("aria-valuemin", "0");
+    bar.setAttribute("aria-valuemax", "100");
+    bar.append(document.createElement("span"));
+    playbackPanel.replaceChildren(label, bar);
+    playbackPanel.hidden = false;
+  }
+  const percent = Math.round((state.progress || 0) * 100);
+  bar.firstElementChild.style.width = `${percent}%`;
+  bar.setAttribute("aria-valuenow", String(percent));
+  playbackPanel.querySelector(".job-progress-label").textContent =
+    `${stateDescriptions[state.job_status] || state.job_status} · ${percent}%`;
+}
+
+function followSelectedJob(projects) {
+  const selected = projects.find((project) => project.project_id === selectedProjectId);
+  if (!selected) return;
+  const wasRunning = selectedJobState && !finishedStates.has(selectedJobState.job_status);
+  selectedJobState = selected;
+  if (!finishedStates.has(selected.job_status)) {
+    if (!activeControls) renderJobProgress(selected);
+  } else if (wasRunning) {
+    openProject(selected.project_id);  // finished while open: show the mixer (or the error)
+  }
+}
+
 function renderProjects(projects) {
   scheduleProjectPoll(projects);
+  followSelectedJob(projects);
   const tabs = [...projectTabs.querySelectorAll(".project-tab")];
   // Same projects in the same order: update in place, so polling never resets hover, drag or scroll.
   if (tabs.length && tabs.length === projects.length && tabs.every((tab, index) => tab.dataset.projectId === projects[index].project_id)) {
@@ -323,7 +360,10 @@ function renderProject(project) {
   if (rebuild) {
     playbackKey = key;
     const missing = project.assets.filter((asset) => !asset.available);
-    if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
+    if (!finishedStates.has(project.job.status)) {
+      const known = selectedJobState && selectedJobState.project_id === project.project_id ? selectedJobState : null;
+      renderJobProgress(known || { job_status: project.job.status, progress: 0 });
+    } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
     } else {
       setupProjectPlayback(project.assets, ++playbackSetupId);
