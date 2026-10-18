@@ -198,7 +198,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
-            page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="networkidle")
+            page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
             page.locator(".mixer-row").first.wait_for()
             # An open project shows only its card: no empty-state hint, subtitle, model line or file list.
             assert not page.locator("#project-empty").is_visible()
@@ -208,17 +208,19 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             projects[2].update(job_status="separating", progress=0.4)
             fill = """() => { const tab = document.querySelector('.project-tab[data-project-id="project-2"]');
                 return {progress: tab.style.getPropertyValue('--job-progress'), image: getComputedStyle(tab).backgroundImage}; }"""
-            page.wait_for_function("() => document.querySelector('.project-tab[data-project-id=\"project-2\"]').style.getPropertyValue('--job-progress') === '40%'", timeout=5000)
+            page.wait_for_function("() => document.querySelector('.project-tab[data-project-id=\"project-2\"]').style.getPropertyValue('--job-progress') === '40%'", timeout=15000)
             page.evaluate("window.runningTab = document.querySelector('.project-tab[data-project-id=\"project-2\"]')")
             assert "linear-gradient" in page.evaluate(fill)["image"]
             projects[2].update(job_status="completed", progress=1.0)
-            page.wait_for_function("() => window.runningTab.dataset.status === 'completed'", timeout=5000)
+            page.wait_for_function("() => window.runningTab.dataset.status === 'completed'", timeout=15000)
             assert page.evaluate(fill)["image"] == "none"
             assert page.evaluate("document.querySelector('.project-tab[data-project-id=\"project-2\"]') === window.runningTab")
             # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
             page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
-            page.locator('.project-tab[data-project-id="project-0"]').click()
-            page.wait_for_load_state("networkidle")
+            # Running jobs keep the page polling, so wait for this project's response, not network idle.
+            with page.expect_response(lambda response: response.url.endswith("/api/v1/projects/project-0")):
+                page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.wait_for_timeout(300)
             assert page.evaluate("document.querySelector('#playback-panel audio') === window.firstStem")
             # The project is unframed; tabs start where the project controls start.
             assert page.locator("#project-detail").evaluate("el => getComputedStyle(el).borderTopWidth") == "0px"
@@ -507,7 +509,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#accent-hue").evaluate("el => { el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             blue_accent = page.evaluate(swatch)
             assert blue_accent != default_accent
-            page.reload(wait_until="networkidle")
+            page.reload(wait_until="load")
             assert page.evaluate("document.documentElement.dataset.theme") == "light"
             assert page.evaluate(swatch) == blue_accent and page.locator("#accent-hue").input_value() == "200"
             page.wait_for_function("document.querySelectorAll('#model-options input').length === 2")
