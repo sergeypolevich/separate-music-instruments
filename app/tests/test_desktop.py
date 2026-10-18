@@ -74,7 +74,7 @@ def test_supervisor_closes_api_if_worker_cannot_start(monkeypatch):
 def test_windows_one_click_launcher_uses_pinned_official_python_installer():
     root = Path(__file__).parents[1]
     bootstrap = (root / "Start-Audio-Stems.ps1").read_text(encoding="utf-8")
-    button = (root / "Start Audio Stems.bat").read_text(encoding="utf-8")
+    button = (root.parent / "Start.bat").read_text(encoding="utf-8")  # the launcher sits in the repository root
 
     assert "python-3.12.10-amd64.exe" in bootstrap
     assert "python.org/ftp/python/3.12.10/" in bootstrap
@@ -82,7 +82,7 @@ def test_windows_one_click_launcher_uses_pinned_official_python_installer():
     assert "Python Software Foundation" in bootstrap
     assert "InstallAllUsers=0" in bootstrap
     assert "run.py" in bootstrap and "--app" in bootstrap
-    assert "Start-Audio-Stems.ps1" in button
+    assert r"%~dp0app\Start-Audio-Stems.ps1" in button
 
 
 def test_supervisor_returns_the_exit_code_of_a_crashed_service_and_stops_the_other(monkeypatch):

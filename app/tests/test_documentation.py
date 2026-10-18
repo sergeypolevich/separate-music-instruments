@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 def test_readme_documents_windows_setup_runtime_processes_and_maintenance():
-    readme = Path(__file__).parents[1] / "README.md"
+    readme = Path(__file__).parents[2] / "README.md"  # README is in the repository root
     text = readme.read_text(encoding="utf-8")
 
     for required in (
@@ -15,14 +15,15 @@ def test_readme_documents_windows_setup_runtime_processes_and_maintenance():
         "audio_stems.db",
         "Music",
         "RUN_LIVE_E2E",
-        "Start Audio Stems.bat",
+        "Start.bat",
+        "cd app",
         "py run.py --app",
     ):
         assert required in text
 
 
 def test_readme_describes_shared_api_worker_and_restart_limits():
-    readme = Path(__file__).parents[1] / "README.md"
+    readme = Path(__file__).parents[2] / "README.md"  # README is in the repository root
     text = readme.read_text(encoding="utf-8")
 
     assert "Keep `py run.py --worker` running separately" in text

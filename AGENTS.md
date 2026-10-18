@@ -1,6 +1,8 @@
 # Audio Stems — Project Specification and Coding-Agent Instructions
 
-Before starting each implementation stage, read [`skills/audio-stems-development.md`](skills/audio-stems-development.md), [`DEVELOPMENT_PLAN.md`](DEVELOPMENT_PLAN.md), and the current checkpoint in [`DEVELOPMENT_STATUS.md`](DEVELOPMENT_STATUS.md).
+Before starting each implementation stage, read [`app/skills/audio-stems-development.md`](app/skills/audio-stems-development.md), [`app/DEVELOPMENT_PLAN.md`](app/DEVELOPMENT_PLAN.md), and the current checkpoint in [`app/DEVELOPMENT_STATUS.md`](app/DEVELOPMENT_STATUS.md).
+
+Repository layout: the root holds only what a user or an agent needs first — `Start.bat` (the launcher), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/`. Everything else (code, tests, web UI, docs, requirements, the `.venv`) lives in `app/`; run Python and test commands from `app/`. User data stays outside the code at `~/Audio Stems` (`Music/`, `audio_stems.db`, `logs/`).
 
 ## 1. Purpose
 
@@ -10,7 +12,7 @@ This file is the shared project specification. Read it before making changes. Im
 
 ## 2. Non-negotiable engineering rules
 
-1. **Preserve the working behavior before refactoring.** The current application — described from the user's perspective in [`docs/FUNCTIONALITY.md`](docs/FUNCTIONALITY.md) and covered by the test suite — is the behavioral baseline. Add tests around behavior before moving logic. Do not rewrite large parts of working code in one step.
+1. **Preserve the working behavior before refactoring.** The current application — described from the user's perspective in [`app/docs/FUNCTIONALITY.md`](app/docs/FUNCTIONALITY.md) and covered by the test suite — is the behavioral baseline. Add tests around behavior before moving logic. Do not rewrite large parts of working code in one step.
 2. Make small, reviewable changes. For every change, explain the intent, run the relevant tests, and report what passed and what could not be verified.
 3. Do not silently change output paths, output naming, processing order, model settings, format-selection policy, retry behavior, or skip behavior. Change these only when explicitly requested and update tests.
 4. Keep downloader, separator, source/input adapters, job orchestration, authentication, metadata, logging, and storage behind explicit interfaces. A module must not depend on another module's concrete implementation unless it is the adapter/composition layer.
@@ -69,7 +71,7 @@ Shared infrastructure: database, local/object storage, structured logs
 
 ### Module responsibilities
 
-Code lives in the `audio_stems/` package; the responsibilities below map to these modules: `models` (contracts, data models, and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
+Code lives in the `app/audio_stems/` package; the responsibilities below map to these modules: `models` (contracts, data models, and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
 
 - `sources`: normalizes search-query and direct-URL submissions. It must not download audio itself.
 - `downloader`: searches source candidates and downloads audio. It must not know about web pages, browser extensions, user sessions, or stem models.
