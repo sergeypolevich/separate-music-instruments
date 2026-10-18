@@ -407,7 +407,7 @@ function renderProject(project) {
     } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
     } else {
-      setupProjectPlayback(project.assets, ++playbackSetupId);
+      setupProjectPlayback(project.assets, ++playbackSetupId, project.start_seconds || 0);
     }
   }
   document.querySelectorAll(".project-tab").forEach((tab) => {
@@ -415,7 +415,7 @@ function renderProject(project) {
   });
 }
 
-async function setupProjectPlayback(assets, setupId) {
+async function setupProjectPlayback(assets, setupId, startOffset = 0) {
   const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
   const stemLabels = STEM_LABELS;
   const stemsByName = new Map(assets.filter((asset) => asset.asset_type === "stem").map((asset) => [asset.stem_name, asset]));
@@ -533,6 +533,7 @@ async function setupProjectPlayback(assets, setupId) {
       onTimeUpdate: updateTime,
       onEnded: () => updateTransportButton(false),
       beforePlay: () => audioContext.resume(),
+      startOffset,
     });
     activeTransport = transport;
     const seekFromPointer = (event, element) => {
@@ -652,11 +653,18 @@ async function setupProjectPlayback(assets, setupId) {
       transport.stop();
       updateTransportButton(false);
     });
+    let positioned = false;
     tracks.forEach((audio) => audio.addEventListener("loadedmetadata", () => {
       if (transport.duration > 0) {
         duration = transport.duration;
         playheadLayer.setAttribute("aria-valuemax", duration.toFixed(1));
-        updateTime(transport.tracks[0].currentTime);
+        // Once all stems know their length, move them past the leading silence.
+        if (!positioned) {
+          positioned = true;
+          transport.seek(0);
+        } else {
+          updateTime(transport.currentTime);
+        }
       }
     }));
     detailControls.replaceChildren(buttons);
@@ -668,7 +676,7 @@ async function setupProjectPlayback(assets, setupId) {
     selectStem(0);
     activeControls = {
       togglePlayback,
-      seekBy: (seconds) => transport.seek(transport.tracks[0].currentTime + seconds),
+      seekBy: (seconds) => transport.seek(transport.currentTime + seconds),
       seekTo: (seconds) => transport.seek(seconds),
       duration: () => duration,
       moveSelection: (step) => selectStem(selectedStem + step),

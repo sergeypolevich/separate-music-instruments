@@ -177,6 +177,7 @@ class JobView:
     retry_count: int = 0
     separation_options: SeparationOptions | None = None
     input_value: str | None = None
+    start_seconds: float | None = None
 
 
 @dataclass(frozen=True)

@@ -153,6 +153,7 @@ class SqliteMetadataStore:
             retry_count=row["retry_count"],
             separation_options=_options_from_json(row["separation_options_json"]),
             input_value=row["normalized_source"],
+            start_seconds=row["start_seconds"],
         )
 
     @staticmethod
@@ -377,6 +378,10 @@ class SqliteMetadataStore:
                 (status.value, result_summary, _utc_now(), str(batch_id)),
             )
             assert cursor.rowcount == 1
+
+    def set_start_seconds(self, job_id: UUID, seconds: float) -> None:
+        with self._connection() as connection:
+            connection.execute("UPDATE jobs SET start_seconds = ? WHERE id = ?", (seconds, str(job_id)))
 
     def set_job_progress(self, job_id: UUID, progress: float) -> None:
         """Raise the job's progress (0..1); it never moves backwards. Not a job event."""
