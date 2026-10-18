@@ -483,6 +483,21 @@ class SqliteMetadataStore:
                 ),
             )
 
+    def storage_keys_in_use(self) -> set[str]:
+        """Every file a project still owns, plus files whose deletion is still pending."""
+        with self._connection() as connection:
+            keys = {row[0] for row in connection.execute("SELECT storage_key FROM media_assets")}
+            for (pending,) in connection.execute("SELECT storage_keys_json FROM pending_project_deletions"):
+                keys.update(json.loads(pending))
+        return keys
+
+    def has_active_jobs(self) -> bool:
+        with self._connection() as connection:
+            return connection.execute(
+                "SELECT 1 FROM jobs WHERE status NOT IN (?, ?, ?)",
+                (JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value),
+            ).fetchone() is not None
+
     def list_assets(self, job_id: UUID, owner_id: str) -> list[MediaAsset]:
         with self._connection() as connection:
             rows = connection.execute(

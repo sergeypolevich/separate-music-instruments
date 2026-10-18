@@ -93,6 +93,46 @@ function closeSearch({ restoreFocus = true } = {}) {
   if (restoreFocus) searchTrigger.focus();
 }
 
+const diskUsage = document.querySelector("#disk-usage");
+const diskMessage = document.querySelector("#disk-message");
+const cleanStorageButton = document.querySelector("#clean-storage");
+let cleanableBytes = 0;
+
+async function loadStorage() {
+  try {
+    const report = await requestJson("/api/v1/storage");
+    cleanableBytes = report.unused_bytes + report.temp_bytes;
+    const rows = [["Проекты", report.projects_bytes], ["Файлы без проекта", report.unused_bytes],
+      ["Временные файлы", report.temp_bytes], ["Модели разделения", report.models_bytes]];
+    diskUsage.replaceChildren(...rows.flatMap(([label, bytes]) => {
+      const term = document.createElement("dt");
+      term.textContent = label;
+      const value = document.createElement("dd");
+      value.textContent = formatBytes(bytes);
+      return [term, value];
+    }));
+    cleanStorageButton.disabled = report.busy || cleanableBytes === 0;
+    cleanStorageButton.textContent = cleanableBytes ? `Очистить ${formatBytes(cleanableBytes)}` : "Очистить";
+    diskMessage.textContent = report.busy ? "Дождитесь окончания разделения: пока оно идёт, очистка недоступна." : "";
+  } catch (error) {
+    diskMessage.textContent = error.message;
+  }
+}
+
+async function cleanStorage() {
+  const confirmed = window.confirm(`Удалить файлы без проекта и временные файлы (${formatBytes(cleanableBytes)})? Проекты не пострадают.`);
+  if (!confirmed) return;
+  cleanStorageButton.disabled = true;
+  try {
+    const result = await requestJson("/api/v1/storage/cleanup", { method: "POST", body: JSON.stringify({ confirmed: true }) });
+    await loadStorage();
+    diskMessage.textContent = `Освобождено ${formatBytes(result.freed_bytes)}.`;
+  } catch (error) {
+    diskMessage.textContent = error.message;
+    cleanStorageButton.disabled = false;
+  }
+}
+
 function activateScreen(name) {
   for (const [screenName, screen] of screens) screen.hidden = screenName !== name;
   document.querySelectorAll("[data-screen]").forEach((link) => {
@@ -102,6 +142,7 @@ function activateScreen(name) {
     }
   });
   if (name === "project") loadProjects();
+  if (name === "settings") loadStorage();
 }
 
 function statusBucket(status) {
@@ -967,6 +1008,7 @@ deleteProjectButton.addEventListener("click", () => {
 confirmDeleteButton.addEventListener("click", confirmProjectDeletion);
 document.querySelector("#cancel-delete").addEventListener("click", () => deleteDialog.close("cancel"));
 checkUpdatesButton.addEventListener("click", checkUpdates);
+cleanStorageButton.addEventListener("click", cleanStorage);
 
 const initialScreen = location.hash.slice(1);
 activateScreen(screens.has(initialScreen) ? initialScreen : "project");

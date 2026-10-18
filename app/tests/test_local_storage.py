@@ -181,3 +181,42 @@ def test_stems_of_other_models_get_their_own_flat_folder_and_the_original_keeps_
     assert original.storage_key == "Stems/Song/vocals.flac"
     assert other.storage_key == "Stems/Song (htdemucs_ft)/vocals.flac"
     assert LocalMediaStorage(tmp_path / "library").stem_directory("Song", "video-1", "htdemucs_ft") == other.path.parent
+
+
+def test_cleanup_removes_only_unused_files_and_temp_output_and_keeps_the_index(tmp_path):
+    storage = LocalMediaStorage(tmp_path / "library", temp_root=tmp_path / "library" / "_demucs_temp")
+    used = storage.stem_file_target("Kept", "vocals", "video-1")  # also writes the identity index
+    used.path.write_bytes(b"x" * 10)
+    orphan_dir = storage.stems_root / "Old song"
+    orphan_dir.mkdir()
+    (orphan_dir / "vocals.wav").write_bytes(b"y" * 20)
+    (storage.root / "old").mkdir()
+    (storage.root / "old" / "song.mp4").write_bytes(b"z" * 30)
+    work = storage.temporary_directory("Interrupted", "video-2")
+    work.mkdir(parents=True)
+    (work / "decoded.wav").write_bytes(b"t" * 40)
+    keys = {used.storage_key}
+
+    assert storage.disk_report(keys) == {"projects_bytes": 10, "unused_bytes": 50, "temp_bytes": 40}
+    assert storage.clean_unused(keys) == 90
+
+    assert used.path.read_bytes() == b"x" * 10 and storage._index_path.is_file()
+    assert not orphan_dir.exists() and not (storage.root / "old").exists() and not work.exists()
+    assert storage.disk_report(keys) == {"projects_bytes": 10, "unused_bytes": 0, "temp_bytes": 0}
+    assert storage.stem_directory("Kept", "video-1") == used.path.parent  # the index still knows the name
+
+
+def test_cleanup_never_follows_or_deletes_symbolic_links(tmp_path):
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "precious.wav").write_bytes(b"keep")
+    storage = LocalMediaStorage(tmp_path / "library")
+    storage.root.mkdir(parents=True, exist_ok=True)
+    try:
+        (storage.root / "link").symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("creating symbolic links needs extra rights on this Windows account")
+
+    storage.clean_unused(set())
+
+    assert (outside / "precious.wav").read_bytes() == b"keep"

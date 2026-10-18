@@ -63,7 +63,7 @@
         <header class="screen-heading">
           <a class="back-link" href="#project" data-screen="project"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Проект</span></a>
           <h1 id="settings-title">Настройки</h1>
-          <p>Оформление, модель разделения и обновления.</p>
+          <p>Оформление, модель разделения, место на диске и обновления.</p>
         </header>
         <section class="settings-card" aria-labelledby="appearance-title">
           <div class="section-heading"><h2 id="appearance-title">Оформление</h2></div>
@@ -83,6 +83,14 @@
         <section class="settings-card" aria-labelledby="separation-title">
           <div class="section-heading"><h2 id="separation-title">Разделение</h2></div>
           <div id="model-options" class="model-options" role="radiogroup" aria-labelledby="separation-title"></div>
+        </section>
+        <section class="settings-card" aria-labelledby="disk-title">
+          <div class="section-heading">
+            <h2 id="disk-title">Место на диске</h2>
+            <button id="clean-storage" class="quiet-button" type="button" disabled>Очистить</button>
+          </div>
+          <dl id="disk-usage" class="disk-usage"></dl>
+          <p id="disk-message" class="disk-message" role="status" aria-live="polite"></p>
         </section>
         <section class="settings-card" aria-labelledby="updates-title">
           <div class="section-heading">
