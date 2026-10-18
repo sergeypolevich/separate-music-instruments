@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from dataclasses import replace
 from uuid import uuid4
 
@@ -167,3 +168,80 @@ def test_delete_rejects_foreign_project_and_unsafe_storage_key(tmp_path):
     assert rejected.status_code == 503
     assert rejected.json()["error"]["code"] == "cleanup_pending"
     assert outside.read_text(encoding="utf-8") == "preserve"
+
+
+def test_files_shared_with_another_project_stay_and_the_size_says_so(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    first, _, files = add_project(repository, storage, "Same song")
+    second_receipt = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Same song again")])
+    second_job = second_receipt.job_ids[0]
+    for asset in repository.list_assets(repository.list_projects("local")[0].job_id, "local"):  # reused source and stems
+        repository.add_asset(MediaAsset(uuid4(), second_job, asset.asset_type, asset.storage_key, asset.byte_size,
+                                        asset.stem_name, asset.media_format))
+
+    detail = request("GET", f"/api/v1/projects/{first.project_id}").json()
+    assert (detail["disk_bytes"], detail["shared_bytes"]) == (0, 9)
+
+    assert request("DELETE", f"/api/v1/projects/{first.project_id}").status_code == 204
+    assert all(path.exists() for path in files)  # the other project still plays them
+    second = repository.list_projects("local")[0]
+    assert request("GET", f"/api/v1/projects/{second.project_id}").json()["disk_bytes"] == 9
+
+
+def test_delete_removes_the_empty_stem_folder_and_the_failed_separation_leftovers(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, _, files = add_project(repository, storage, "Leftovers")
+    repository.update_project_source(project.job_id, "Leftovers", "Leftovers")
+    leftovers = storage.temporary_directory("Leftovers", "Leftovers")
+    leftovers.mkdir(parents=True)
+    (leftovers / "Leftovers.wav").write_bytes(b"float audio")
+    assert request("GET", f"/api/v1/projects/{project.project_id}").json()["disk_bytes"] == 9
+
+    assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 204
+
+    assert not files[1].parent.exists() and not leftovers.exists()
+    assert storage.stems_root.exists()  # only the project's own folder goes
+
+
+def test_temp_folder_stays_while_another_job_of_the_same_song_is_running(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    old, _, _ = add_project(repository, storage, "Busy song")
+    repository.update_project_source(old.job_id, "busy-id", "Busy song")
+    running, _, _ = add_project(repository, storage, "Busy song (other model)", completed=False)
+    repository.update_project_source(running.job_id, "busy-id", "Busy song")
+    work = storage.temporary_directory("Busy song", "busy-id")
+    work.mkdir(parents=True)
+
+    assert request("DELETE", f"/api/v1/projects/{old.project_id}").status_code == 204
+    assert work.exists()
+
+
+def test_a_file_locked_for_a_moment_is_retried_before_cleanup_is_left_pending(tmp_path, monkeypatch):
+    _, repository, storage = make_delete_client(tmp_path)
+    _, _, files = add_project(repository, storage, "Locked")
+    real_unlink = Path.unlink
+    failures = {"left": 2}
+
+    def flaky_unlink(self, missing_ok=False):
+        if self == files[0] and failures["left"]:
+            failures["left"] -= 1
+            raise PermissionError(32, "The process cannot access the file because it is being used")
+        return real_unlink(self, missing_ok=missing_ok)
+
+    monkeypatch.setattr(Path, "unlink", flaky_unlink)
+    storage.delete_asset(storage._key_for(files[0]), pause=0)
+    assert not files[0].exists() and failures["left"] == 0
+
+
+def test_an_unfinished_cleanup_is_finished_when_the_api_starts(tmp_path, monkeypatch):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, _, files = add_project(repository, storage, "Pending")
+    monkeypatch.setattr(storage, "delete_asset", lambda *_args, **_kwargs: (_ for _ in ()).throw(AdapterError("locked", FailureCategory.TRANSIENT)))
+    assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 503
+    monkeypatch.undo()
+    assert repository.pending_project_deletions() and files[0].exists()
+
+    make_delete_client(tmp_path)  # a new API process on the same data
+
+    assert not files[0].exists() and repository.pending_project_deletions() == []
+

@@ -190,6 +190,7 @@ h1, h2, h3, p { margin-top: 0; }
 /* Keeps silence visible as a hairline whatever the scaling. */
 .waveform-axis { stroke: color-mix(in srgb, var(--accent) 45%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .delete-button { position: absolute; right: 12px; bottom: 10px; width: 31px; min-width: 31px; height: 31px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger); font-size: 17px; }
+.detail-size { position: absolute; right: 52px; bottom: 16px; color: var(--muted); font-size: 12px; font-weight: 300; font-variant-numeric: tabular-nums; }
 .delete-button:hover { background: color-mix(in srgb, var(--danger) 20%, transparent); }
 
 .secondary-screen { padding-top: 24px; padding-bottom: 36px; }

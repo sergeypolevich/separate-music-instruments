@@ -147,6 +147,22 @@ def create_app(
         GitHubReleaseClient(),
         DependencyUpdater(application_root),
     )
+    def finish_deletion(deletion) -> None:
+        for storage_key in deletion.storage_keys:
+            storage.delete_asset(storage_key)
+        # Leftovers of a failed separation, unless another job of the same song is using them now.
+        if deletion.title and deletion.source_id and not repository.source_is_busy(deletion.source_id):
+            storage.remove_temporary_directory(deletion.title, deletion.source_id)
+        repository.complete_project_deletion(deletion.project_id, deletion.owner_id)
+
+    # Finish cleanups that an earlier run could not complete (a file was locked at the time).
+    for pending in repository.pending_project_deletions():
+        try:
+            finish_deletion(pending)
+        except (AdapterError, OSError):
+            logger.warning("Project file cleanup is still pending",
+                           extra={"event": "project_cleanup_pending", "project_id": str(pending.project_id)})
+
     app = FastAPI(title="Audio Stems API", version="1.0.0")
     # The UI loads stems from the other loopback name (see web/app.js); allow only those two origins.
     app.add_middleware(
@@ -330,11 +346,19 @@ def create_app(
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
         options = job.separation_options
         assets: list[dict[str, object]] = []
+        shared = repository.shared_storage_keys(job.job_id)
+        disk_bytes = shared_bytes = 0
         for asset in repository.list_assets(job.job_id, _OWNER_ID):
             try:
-                available = storage.resolve_path(asset.storage_key).is_file()
+                path = storage.resolve_path(asset.storage_key)
+                size = path.stat().st_size if path.is_file() else None
             except (AdapterError, OSError):
-                available = False
+                size = None
+            available = size is not None
+            if available and asset.storage_key in shared:
+                shared_bytes += size
+            elif available:
+                disk_bytes += size
             assets.append({
                 "asset_id": str(asset.asset_id),
                 "asset_type": asset.asset_type.value,
@@ -358,6 +382,9 @@ def create_app(
                 ),
             },
             "assets": assets,
+            # What deleting frees, and what stays because another project uses the same files.
+            "disk_bytes": disk_bytes,
+            "shared_bytes": shared_bytes,
         }
 
     @app.delete("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -376,8 +403,7 @@ def create_app(
                 ) from exc
             raise
         try:
-            for storage_key in deletion.storage_keys:
-                storage.delete_asset(storage_key)
+            finish_deletion(deletion)
         except (AdapterError, OSError) as exc:
             logger.exception(
                 "Project file cleanup remains pending",
@@ -388,7 +414,6 @@ def create_app(
                 status_code=503,
                 detail={"code": "cleanup_pending", "message": "Project files could not all be removed; retry delete to continue cleanup"},
             ) from exc
-        repository.complete_project_deletion(project_id, _OWNER_ID)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/api/v1/assets/{asset_id}/waveform")

@@ -72,6 +72,9 @@ class ProjectDeletion:
     project_id: UUID
     owner_id: str
     storage_keys: tuple[str, ...]
+    # Known only on the first call; a resumed cleanup has just the file keys.
+    title: str | None = None
+    source_id: str | None = None
 
 
 BatchRecord = BatchView
@@ -550,7 +553,7 @@ class SqliteMetadataStore:
                 return ProjectDeletion(project_id, owner_id, tuple(json.loads(pending["storage_keys_json"])))
 
             row = connection.execute(
-                """SELECT p.id, j.id AS job_id, j.status AS job_status, j.batch_id,
+                """SELECT p.id, p.title, p.source_id, j.id AS job_id, j.status AS job_status, j.batch_id,
                           b.status AS batch_status,
                           (SELECT COUNT(*) FROM jobs sibling WHERE sibling.batch_id = j.batch_id) AS batch_size
                    FROM projects p JOIN jobs j ON j.project_id = p.id
@@ -579,17 +582,45 @@ class SqliteMetadataStore:
             }:
                 raise AdapterError("Project job is active", FailureCategory.CONFLICT)
 
-            keys = tuple(item["storage_key"] for item in connection.execute(
-                "SELECT storage_key FROM media_assets WHERE job_id = ? ORDER BY created_at, rowid",
+            # Files another project also uses (a reused source or stem set) stay for that project.
+            keys = tuple(dict.fromkeys(item["storage_key"] for item in connection.execute(
+                """SELECT a.storage_key FROM media_assets a WHERE a.job_id = ? AND NOT EXISTS (
+                       SELECT 1 FROM media_assets other WHERE other.storage_key = a.storage_key AND other.job_id != a.job_id)
+                   ORDER BY a.created_at, a.rowid""",
                 (row["job_id"],),
-            ).fetchall())
+            ).fetchall()))
             connection.execute(
                 "INSERT INTO pending_project_deletions(project_id, owner_id, storage_keys_json, created_at) "
                 "VALUES (?, ?, ?, ?)",
                 (str(project_id), owner_id, json.dumps(keys), _utc_now()),
             )
             connection.execute("DELETE FROM projects WHERE id = ? AND owner_id = ?", (str(project_id), owner_id))
-            return ProjectDeletion(project_id, owner_id, keys)
+            return ProjectDeletion(project_id, owner_id, keys, row["title"], row["source_id"])
+
+    def pending_project_deletions(self) -> list[ProjectDeletion]:
+        """Deletions whose files are not all removed yet (for example, a file was locked)."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT project_id, owner_id, storage_keys_json FROM pending_project_deletions WHERE storage_keys_json != '[]'"
+            ).fetchall()
+        return [ProjectDeletion(UUID(r["project_id"]), r["owner_id"], tuple(json.loads(r["storage_keys_json"]))) for r in rows]
+
+    def source_is_busy(self, source_id: str) -> bool:
+        """True while any unfinished job works on this source (it may be using the shared temp folder)."""
+        with self._connection() as connection:
+            return connection.execute(
+                "SELECT 1 FROM jobs j JOIN projects p ON p.id = j.project_id WHERE p.source_id = ? AND j.status NOT IN (?, ?, ?)",
+                (source_id, JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value),
+            ).fetchone() is not None
+
+    def shared_storage_keys(self, job_id: UUID) -> set[str]:
+        """Storage keys of this job that another job also references."""
+        with self._connection() as connection:
+            return {row[0] for row in connection.execute(
+                """SELECT DISTINCT a.storage_key FROM media_assets a JOIN media_assets other
+                   ON other.storage_key = a.storage_key AND other.job_id != a.job_id WHERE a.job_id = ?""",
+                (str(job_id),),
+            )}
 
     def complete_project_deletion(self, project_id: UUID, owner_id: str) -> None:
         with self._connection() as connection:

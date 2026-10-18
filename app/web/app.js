@@ -26,6 +26,8 @@ const detailControls = document.querySelector("#detail-controls");
 const detailTime = document.querySelector("#detail-time");
 const detailError = document.querySelector("#detail-error");
 const playbackPanel = document.querySelector("#playback-panel");
+const detailSize = document.querySelector("#detail-size");
+let selectedProjectBytes = { disk: 0, shared: 0 };
 const deleteProjectButton = document.querySelector("#delete-project");
 const deleteDialog = document.querySelector("#delete-dialog");
 const deleteDescription = document.querySelector("#delete-description");
@@ -282,6 +284,9 @@ function renderProject(project) {
   detailError.textContent = project.job.error_summary || "";
   detailError.hidden = !project.job.error_summary;
   deleteProjectButton.dataset.projectId = project.project_id;
+  selectedProjectBytes = { disk: project.disk_bytes || 0, shared: project.shared_bytes || 0 };
+  detailSize.textContent = formatBytes(selectedProjectBytes.disk + selectedProjectBytes.shared);
+  detailSize.title = "Место на диске: исходное аудио и дорожки";
   if (rebuild) {
     playbackKey = key;
     setupProjectPlayback(project.assets, ++playbackSetupId);
@@ -747,22 +752,28 @@ async function submitSearch(event) {
   }
 }
 
+function formatBytes(bytes) {
+  if (bytes >= 2 ** 30) return `${(bytes / 2 ** 30).toFixed(1).replace(".", ",")} ГБ`;
+  return `${Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20))} МБ`;
+}
+
 async function confirmProjectDeletion() {
   const projectId = deleteProjectButton.dataset.projectId;
   if (!projectId) return;
   confirmDeleteButton.disabled = true;
+  // Stop the stems first: Windows cannot delete a file the browser is still reading.
+  cleanupPlayback();
   deleteError.hidden = true;
   try {
     await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
     deleteDialog.close("deleted");
-    if (activeTransport) activeTransport.stop();
-    cleanupPlayback();
     selectedProjectId = null;
     selectedProjectTitle = "";
     await loadProjects();
   } catch (error) {
     deleteError.textContent = error.message;
     deleteError.hidden = false;
+    openProject(projectId);  // the project stays: bring its player back
   } finally {
     confirmDeleteButton.disabled = false;
   }
@@ -869,7 +880,9 @@ inputField.addEventListener("input", () => {
   inputField.style.height = `${Math.min(inputField.scrollHeight, window.innerHeight * 0.4)}px`;
 });
 deleteProjectButton.addEventListener("click", () => {
-  deleteDescription.textContent = `Проект «${selectedProjectTitle}», исходное аудио и все дорожки будут удалены.`;
+  const shared = selectedProjectBytes.shared
+    ? ` ${formatBytes(selectedProjectBytes.shared)} общих файлов останутся: их использует другой проект.` : "";
+  deleteDescription.textContent = `Проект «${selectedProjectTitle}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(selectedProjectBytes.disk)}.${shared}`;
   deleteError.hidden = true;
   deleteDialog.showModal();
 });

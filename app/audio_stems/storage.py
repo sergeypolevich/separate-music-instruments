@@ -8,6 +8,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
 from threading import RLock
+import time
 from typing import Sequence
 from uuid import UUID, uuid4
 
@@ -387,11 +388,25 @@ class LocalMediaStorage:
             ))
         return assets
 
-    def delete_asset(self, storage_key: str) -> None:
+    def delete_asset(self, storage_key: str, *, attempts: int = 3, pause: float = 0.3) -> None:
+        """Delete one file and then its stem folder if that became empty. Windows refuses to delete a
+        file that is still being read (the browser streaming a stem), so locked files are retried."""
         path = self.resolve_path(storage_key)
-        try:
-            if path.is_dir():
-                raise AdapterError("Storage key points to a directory", FailureCategory.INVALID_INPUT)
-            path.unlink(missing_ok=True)
-        except OSError as exc:
-            raise AdapterError("Media asset could not be deleted", FailureCategory.TRANSIENT) from exc
+        if path.is_dir():
+            raise AdapterError("Storage key points to a directory", FailureCategory.INVALID_INPUT)
+        for attempt in range(attempts):
+            try:
+                path.unlink(missing_ok=True)
+                break
+            except PermissionError as exc:
+                if attempt == attempts - 1:
+                    raise AdapterError("Media asset could not be deleted", FailureCategory.TRANSIENT) from exc
+                time.sleep(pause)
+            except OSError as exc:
+                raise AdapterError("Media asset could not be deleted", FailureCategory.TRANSIENT) from exc
+        folder = path.parent
+        if folder != self.stems_root and folder.is_relative_to(self.stems_root):
+            try:
+                folder.rmdir()  # only succeeds when empty
+            except OSError:
+                pass
