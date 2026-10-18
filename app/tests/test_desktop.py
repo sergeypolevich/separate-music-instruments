@@ -82,7 +82,27 @@ def test_windows_one_click_launcher_uses_pinned_official_python_installer():
     assert "Python Software Foundation" in bootstrap
     assert "InstallAllUsers=0" in bootstrap
     assert "run.py" in bootstrap and "--app" in bootstrap
-    assert r"%~dp0app\Start-Audio-Stems.ps1" in button
+    assert r'set "APP=%~dp0app"' in button and r'"%APP%\Start-Audio-Stems.ps1"' in button
+
+
+def test_launcher_fast_path_skips_setup_only_while_installed_requirements_match():
+    button = (Path(__file__).parents[2] / "Start.bat").read_text(encoding="utf-8")
+
+    fast_check = button.index(r'fc /b "%APP%\requirements.txt" "%APP%\.venv\requirements.installed"')
+    assert fast_check < button.index("-m audio_stems.desktop") < button.index(":setup")
+    assert "|| goto setup" in button
+    # Exit code 3 (a dependency is missing) drops the marker and falls back to the full setup.
+    missing = button.index('if "%CODE%"=="3"')
+    assert button.index(r'del "%APP%\.venv\requirements.installed"', missing) < button.index("goto setup", missing)
+    assert desktop.MISSING_DEPENDENCIES == 3
+
+
+def test_supervisor_exits_with_code_3_without_starting_services_when_a_module_is_missing(monkeypatch):
+    started = []
+    monkeypatch.setattr(desktop.importlib.util, "find_spec", lambda name: None if name == "imageio_ffmpeg" else object())
+
+    assert desktop.run(popen=lambda *args, **kwargs: started.append(args)) == desktop.MISSING_DEPENDENCIES
+    assert started == []
 
 
 def test_supervisor_returns_the_exit_code_of_a_crashed_service_and_stops_the_other(monkeypatch):

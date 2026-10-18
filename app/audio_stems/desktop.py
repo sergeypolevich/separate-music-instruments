@@ -1,6 +1,7 @@
 """Supervise the local API and worker for the one-click Windows launcher."""
 from __future__ import annotations
 
+import importlib.util
 import os
 from pathlib import Path
 import subprocess
@@ -17,6 +18,13 @@ from audio_stems.config import Settings
 ROOT = Path(__file__).resolve().parents[1]
 API = ("-m", "audio_stems.api")
 WORKER = ("-m", "audio_stems.pipeline")
+# Checked by name only (find_spec, no import), so the check on every start costs milliseconds.
+RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn", "imageio_ffmpeg")
+MISSING_DEPENDENCIES = 3  # exit code: Start.bat then runs the full dependency setup
+
+
+def missing_runtime_modules() -> list[str]:
+    return [name for name in RUNTIME_MODULES if importlib.util.find_spec(name) is None]
 
 
 def wait_for_api(
@@ -59,6 +67,10 @@ def run(
     sleep: Callable[[float], None] = time.sleep,
     open_browser: Callable | None = None,
 ) -> int:
+    missing = missing_runtime_modules()
+    if missing:
+        print("Missing dependencies: " + ", ".join(missing), flush=True)
+        return MISSING_DEPENDENCIES
     settings = Settings.load()
     url = f"http://127.0.0.1:{settings.api_port}"
     if stop_file is None:
