@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, SynchronizedTransport, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
+import { Metronome, MixerSession, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -220,5 +220,26 @@ test("metronome volume: 50 % matches the project, 100 % is twice as loud", () =>
   assert.equal(metronomeGain(50), 0.5);
   assert.equal(metronomeGain(100), 1);
   assert.equal(metronomeGain(150), 1);
+});
+
+const round = (values) => values.map((value) => +value.toFixed(3));
+
+test("count-in: a silent beat, four clicks, and the song's first beat lands on the fifth", () => {
+  const plan = countInPlan([0, 0.5, 1, 1.5, 2, 2.5], 0, 100);
+  assert.equal(plan.period, 0.5);
+  assert.deepEqual(round(plan.clicks), [100.5, 101, 101.5, 102]);
+  assert.equal(plan.audioStart, 102.5);
+});
+
+test("count-in follows the grid: a pickup before the first beat plays during the count-in", () => {
+  const plan = countInPlan([0.4, 0.9, 1.4, 1.9, 2.4], 0, 100);  // music starts 0.4 s before the first beat
+  assert.deepEqual(round(plan.clicks), [100.5, 101, 101.5, 102]);
+  assert.equal(+plan.audioStart.toFixed(3), 102.1);
+  const later = countInPlan([0.4, 0.9, 1.4, 1.9, 2.4], 1.0, 100);  // from a paused position: next beat 1.4
+  assert.equal(+later.audioStart.toFixed(3), 102.1);
+  const long = countInPlan([3, 3.5, 4, 4.5], 0, 100);  // a pickup longer than the count-in
+  assert.equal(long.audioStart, 100);
+  assert.deepEqual(round(long.clicks), [100.5, 101, 101.5, 102].map((t) => t + 0.5));
+  assert.equal(countInPlan([1], 0, 100), null);
 });
 

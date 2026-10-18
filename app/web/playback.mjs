@@ -179,6 +179,24 @@ export function firstBeatAtOrAfter(beats, songTime) {
   return low;
 }
 
+// Count-in on the song's grid: the press is beat 0 (silent), then `count` clicks one beat apart, and
+// the next beat after the last click is the song's first beat at or after `position`. Music before
+// that beat (a pickup) starts during the count-in. Times are on the AudioContext clock.
+export function countInPlan(beats, position, now, count = 4) {
+  const index = Math.min(firstBeatAtOrAfter(beats, position), Math.max(0, beats.length - 2));
+  if (beats.length < 2) return null;
+  const gaps = beats.slice(index, index + 5).map((beat, i, near) => (i ? beat - near[i - 1] : null)).filter((gap) => gap > 0);
+  const period = gaps.sort((a, b) => a - b)[gaps.length >> 1];
+  let downbeat = now + (count + 1) * period;
+  let audioStart = downbeat - Math.max(0, beats[index] - position);
+  if (audioStart < now) {  // a pickup longer than the count-in: push everything later
+    downbeat += now - audioStart;
+    audioStart = now;
+  }
+  const clicks = Array.from({ length: count }, (_, i) => downbeat - (count - i) * period);
+  return { clicks, audioStart, period };
+}
+
 // Clicks on the song's own beats, scheduled slightly ahead on the AudioContext clock: a timer alone
 // would jitter. update() runs on every transport frame with the current song time.
 export class Metronome {
