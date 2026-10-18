@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MixerSession, SynchronizedTransport, snapFaderPercent } from "../web/playback.mjs";
+import { Metronome, MixerSession, SynchronizedTransport, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -177,5 +177,48 @@ test("song time starts where the music starts: the leading silence is skipped", 
   transport.stop();
   assert.equal(tracks[0].currentTime, 1.5);
   assert.deepEqual(seen, [0, 2, 0]);
+});
+
+class FakeContext {
+  constructor() { this.currentTime = 10; this.started = []; this.stopped = 0; }
+  createOscillator() {
+    const context = this;
+    return { frequency: {}, connect() {}, start(when) { context.started.push(when); this.when = when; }, stop(when) { if (when === undefined) context.stopped += 1; } };
+  }
+  createGain() { return { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect() {} }; }
+}
+
+test("metronome clicks land on the song's beats, scheduled a little ahead on the audio clock", () => {
+  const context = new FakeContext();
+  const metronome = new Metronome(context, {}, { lookahead: 0.12 });
+  metronome.setBeats([0, 0.5, 1.0, 1.5, 2.0]);
+  metronome.update(0.45);  // beat 0.5 is 50 ms away
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0.05]);
+  metronome.update(0.46);  // nothing new in the window, nothing scheduled twice
+  context.currentTime = 10.5;
+  metronome.update(0.95);
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0.05, 0.55]);
+  assert.equal(metronome.clicks, 2);
+});
+
+test("a seek or pause drops scheduled clicks and restarts from the new position", () => {
+  const context = new FakeContext();
+  const metronome = new Metronome(context, {}, { lookahead: 0.12 });
+  metronome.setBeats([0, 0.5, 1.0, 1.5, 2.0]);
+  metronome.update(0.45);
+  metronome.update(1.45);  // a jump forward (seek)
+  assert.equal(context.stopped, 1);  // the 0.5 click that had not sounded yet is cancelled
+  assert.deepEqual(context.started.slice(1).map((t) => +(t - 10).toFixed(3)), [0.05]);
+  metronome.reset();
+  metronome.update(0.0);  // back to the start (stop button)
+  assert.equal(context.started.length, 3);
+  assert.equal(firstBeatAtOrAfter([0, 0.5, 1.0], 0.6), 2);
+});
+
+test("metronome volume: 50 % matches the project, 100 % is twice as loud", () => {
+  assert.equal(metronomeGain(0), 0);
+  assert.equal(metronomeGain(50), 0.5);
+  assert.equal(metronomeGain(100), 1);
+  assert.equal(metronomeGain(150), 1);
 });
 

@@ -140,6 +140,13 @@ h1, h2, h3, p { margin-top: 0; }
 .playback-panel > * { grid-column: 1 / -1; }
 .playback-message, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
 .playback-panel > .primary-button { justify-self: start; }
+.project-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 10px 0 0; border-top: 1px solid var(--line); }
+.footer-toggle { min-width: 150px; min-height: 34px; display: inline-flex; align-items: center; gap: 8px; padding: 0 12px 0 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--text-soft); font-size: 12px; font-variant-numeric: tabular-nums; transition: --job-progress .8s linear;
+  background: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress)) var(--tab-bg); }
+.footer-toggle .icon { width: 17px; height: 17px; }
+.footer-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: var(--text); background-color: color-mix(in srgb, var(--accent) 14%, var(--tab-bg)); }
+.footer-toggle:not([data-analyzing]) { --job-progress: 0%; }
+.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
 .job-progress-label { margin: 6px 0 0; color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 .job-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .job-progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .8s linear; }

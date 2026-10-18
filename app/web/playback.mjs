@@ -162,4 +162,84 @@ export class SynchronizedTransport {
   }
 }
 
+// Metronome volume: 50 % is about as loud as the project, 100 % twice as loud.
+export function metronomeGain(percent) {
+  return (Math.min(100, Math.max(0, Number(percent) || 0)) / 50) * 0.5;
+}
+
+// Index of the first beat at or after a song time (beats are sorted).
+export function firstBeatAtOrAfter(beats, songTime) {
+  let low = 0;
+  let high = beats.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (beats[middle] < songTime - 1e-6) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+// Clicks on the song's own beats, scheduled slightly ahead on the AudioContext clock: a timer alone
+// would jitter. update() runs on every transport frame with the current song time.
+export class Metronome {
+  constructor(context, output, { lookahead = 0.12 } = {}) {
+    this.context = context;
+    this.output = output;
+    this.lookahead = lookahead;
+    this.beats = [];
+    this.next = 0;
+    this.lastSongTime = null;
+    this.pending = [];
+    this.clicks = 0;
+  }
+
+  setBeats(beats) {
+    this.beats = beats;
+    this.reset();
+  }
+
+  // Forget scheduled clicks (pause, seek, switching off); the next update picks up from there.
+  reset() {
+    const now = this.context.currentTime;
+    for (const { oscillator, when } of this.pending) {
+      if (when > now) {
+        try { oscillator.stop(); } catch (_error) { /* already stopped */ }
+      }
+    }
+    this.pending = [];
+    this.lastSongTime = null;
+  }
+
+  update(songTime) {
+    if (!this.beats.length) return;
+    const jumped = this.lastSongTime === null || songTime < this.lastSongTime - 0.05 || songTime > this.lastSongTime + 0.5;
+    if (jumped) {
+      this.reset();
+      this.next = firstBeatAtOrAfter(this.beats, songTime);
+    }
+    this.lastSongTime = songTime;
+    const now = this.context.currentTime;
+    this.pending = this.pending.filter(({ when }) => when > now);
+    while (this.next < this.beats.length && this.beats[this.next] <= songTime + this.lookahead) {
+      this.click(now + Math.max(0, this.beats[this.next] - songTime));
+      this.next += 1;
+    }
+  }
+
+  click(when) {
+    const oscillator = this.context.createOscillator();
+    const envelope = this.context.createGain();
+    oscillator.frequency.value = 1200;
+    envelope.gain.setValueAtTime(0, when);
+    envelope.gain.linearRampToValueAtTime(1, when + 0.002);
+    envelope.gain.exponentialRampToValueAtTime(0.001, when + 0.05);
+    oscillator.connect(envelope);
+    envelope.connect(this.output);
+    oscillator.start(when);
+    oscillator.stop(when + 0.06);
+    this.pending.push({ oscillator, when });
+    this.clicks += 1;
+  }
+}
+
 export { STEM_ORDER };
