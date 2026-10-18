@@ -7,7 +7,8 @@ import os
 import re
 from pathlib import Path
 import subprocess
-from typing import Annotated
+import sys
+from typing import Annotated, Callable
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request, status
@@ -155,6 +156,7 @@ def create_app(
     separator: StemSeparator | None = None,
     storage: LocalMediaStorage | None = None,
     update_service: UpdateService | None = None,
+    start_analysis: Callable[[], None] | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
@@ -172,6 +174,15 @@ def create_app(
         if deletion.title and deletion.source_id and not repository.source_is_busy(deletion.source_id):
             storage.remove_temporary_directory(deletion.title, deletion.source_id)
         repository.complete_project_deletion(deletion.project_id, deletion.owner_id)
+
+    def spawn_analysis_runner() -> None:
+        # Its own process: beat tracking loads torch and must not block API requests.
+        subprocess.Popen([sys.executable, "-m", "audio_stems.analysis", str(repository.database_path)],
+                         cwd=application_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    start_analysis = start_analysis or spawn_analysis_runner
+    if repository.requeue_interrupted_analyses():
+        start_analysis()
 
     # Finish cleanups that an earlier run could not complete (a file was locked at the time).
     for pending in repository.pending_project_deletions():
@@ -250,6 +261,47 @@ def create_app(
                 for index, release in enumerate(releases)
             ]
         }
+
+    def beats_state(project_id: UUID) -> dict[str, object]:
+        state = repository.get_analysis(project_id, "beats")
+        return state or {"status": "none", "progress": 0, "result": None, "error": None}
+
+    @app.get("/api/v1/projects/{project_id}/beats")
+    def get_beats(project_id: UUID) -> dict[str, object]:
+        if repository.get_project(project_id, _OWNER_ID) is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        return beats_state(project_id)
+
+    @app.post("/api/v1/projects/{project_id}/beats")
+    def request_beats(project_id: UUID) -> JSONResponse:
+        project = repository.get_project(project_id, _OWNER_ID)
+        job = repository.get_job(project.job_id, _OWNER_ID) if project else None
+        if job is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        state = repository.get_analysis(project_id, "beats")
+        if state and state["status"] != "failed":
+            return JSONResponse(beats_state(project_id), status_code=200 if state["status"] == "done" else 202)
+        assets = repository.list_assets(job.job_id, _OWNER_ID)
+        source = next((a for a in assets if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
+        stems = [a for a in assets if a.asset_type is MediaAssetType.STEM]
+        try:
+            audio_path = storage.resolve_path(source.storage_key) if source else None
+        except AdapterError:
+            audio_path = None
+        if job.status is not JobStatus.COMPLETED or audio_path is None or not audio_path.is_file() or not stems:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "source_unavailable", "message": "Для определения долей нужно исходное аудио завершённого проекта"},
+            )
+        try:
+            minutes = soundfile.info(storage.resolve_path(stems[0].storage_key)).duration / 60
+        except (AdapterError, OSError, RuntimeError):
+            minutes = 4.0
+        repository.queue_analysis(project_id, "beats", {
+            "audio_path": str(audio_path), "start_seconds": job.start_seconds or 0.0, "minutes": minutes,
+        })
+        start_analysis()
+        return JSONResponse(beats_state(project_id), status_code=202)
 
     @app.get("/api/v1/storage")
     def storage_report() -> dict[str, object]:

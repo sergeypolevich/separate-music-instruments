@@ -20,7 +20,7 @@ _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_REQUIREMENTS_BYTES = 64 * 1024
 _MAX_NOTES_LENGTH = 20_000
 _REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn", "numpy"}
-_ALLOWED_RUNTIME_PACKAGES = _REQUIRED_RUNTIME_PACKAGES | {"imageio-ffmpeg", "soundfile", "audio-separator", "onnxruntime", "librosa"}
+_ALLOWED_RUNTIME_PACKAGES = _REQUIRED_RUNTIME_PACKAGES | {"imageio-ffmpeg", "soundfile", "audio-separator", "onnxruntime", "librosa", "beat-this"}
 _PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)$")
 
 

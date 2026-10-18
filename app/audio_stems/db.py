@@ -379,6 +379,72 @@ class SqliteMetadataStore:
             )
             assert cursor.rowcount == 1
 
+    # --- on-demand analyses (beats) ------------------------------------------------------------
+    def get_analysis(self, project_id: UUID | str, kind: str) -> dict[str, object] | None:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT status, progress, result_json, error FROM analyses WHERE project_id = ? AND kind = ?",
+                (str(project_id), kind),
+            ).fetchone()
+        if row is None:
+            return None
+        return {"status": row["status"], "progress": row["progress"],
+                "result": json.loads(row["result_json"]) if row["result_json"] else None, "error": row["error"]}
+
+    def queue_analysis(self, project_id: UUID | str, kind: str, request: dict[str, object]) -> None:
+        """Queue (or re-queue after a failure) an analysis; a queued, running or done one is kept."""
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO analyses(project_id, kind, status, progress, request_json, updated_at)
+                   VALUES (?, ?, 'queued', 0, ?, ?)
+                   ON CONFLICT(project_id, kind) DO UPDATE SET status = 'queued', progress = 0, error = NULL,
+                       request_json = excluded.request_json, updated_at = excluded.updated_at
+                   WHERE analyses.status = 'failed'""",
+                (str(project_id), kind, json.dumps(request), _utc_now()),
+            )
+
+    def claim_analysis(self, kind: str) -> tuple[str, dict[str, object]] | None:
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            row = connection.execute(
+                "SELECT project_id, request_json FROM analyses WHERE kind = ? AND status = 'queued' ORDER BY updated_at LIMIT 1",
+                (kind,),
+            ).fetchone()
+            if row is None:
+                return None
+            connection.execute(
+                "UPDATE analyses SET status = 'running', updated_at = ? WHERE project_id = ? AND kind = ?",
+                (_utc_now(), row["project_id"], kind),
+            )
+            return row["project_id"], json.loads(row["request_json"])
+
+    def set_analysis_progress(self, project_id: str, kind: str, progress: float) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE analyses SET progress = ? WHERE project_id = ? AND kind = ? AND status = 'running'",
+                (progress, project_id, kind),
+            )
+
+    def finish_analysis(self, project_id: str, kind: str, result: dict[str, object]) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE analyses SET status = 'done', progress = 1, result_json = ?, updated_at = ? WHERE project_id = ? AND kind = ?",
+                (json.dumps(result), _utc_now(), project_id, kind),
+            )
+
+    def fail_analysis(self, project_id: str, kind: str, error: str) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                "UPDATE analyses SET status = 'failed', error = ?, updated_at = ? WHERE project_id = ? AND kind = ?",
+                (error, _utc_now(), project_id, kind),
+            )
+
+    def requeue_interrupted_analyses(self) -> bool:
+        """Analyses left 'running' by a closed app start over; True when any analysis is queued."""
+        with self._connection() as connection:
+            connection.execute("UPDATE analyses SET status = 'queued', progress = 0 WHERE status = 'running'")
+            return connection.execute("SELECT 1 FROM analyses WHERE status = 'queued'").fetchone() is not None
+
     def set_start_seconds(self, job_id: UUID, seconds: float) -> None:
         with self._connection() as connection:
             connection.execute("UPDATE jobs SET start_seconds = ? WHERE id = ?", (seconds, str(job_id)))
