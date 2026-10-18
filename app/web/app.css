@@ -110,6 +110,12 @@ button { cursor: pointer; }
 .project-tab[data-status="completed"]::before { background: var(--ok); box-shadow: 0 0 9px color-mix(in srgb, var(--ok) 42%, transparent); }
 .project-tab[data-status="failed"]::before { background: var(--danger); box-shadow: 0 0 9px color-mix(in srgb, var(--danger) 35%, transparent); }
 .project-tab[data-status="searching"]::before, .project-tab[data-status="downloading"]::before, .project-tab[data-status="downloaded"]::before, .project-tab[data-status="separating"]::before { background: var(--warn); }
+/* Registered so the fill can animate; a running job fills its tab from the left. */
+@property --job-progress { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+.project-tab { transition: --job-progress .8s linear; }
+.project-tab:not([data-status="completed"]):not([data-status="failed"]) {
+  background-image: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress));
+}
 .project-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .project-workspace { width: 100%; min-height: 280px; padding: 6px 0 0; }

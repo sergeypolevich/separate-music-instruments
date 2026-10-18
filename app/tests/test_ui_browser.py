@@ -36,6 +36,7 @@ def _projects():
             "created_at": "2026-10-14T10:00:00+00:00",
             "job_id": f"job-{index}",
             "job_status": "completed" if index == 0 else "failed" if index == 1 else "queued",
+            "progress": 1.0 if index == 0 else 0.0,
         }
         for index in range(14)
     ]
@@ -154,7 +155,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                     "project_id": "project-created", "input_type": "search_query",
                     "input_value": title, "source_id": "source-created", "title": title,
                     "created_at": "2026-10-14T10:00:00+00:00", "job_id": new_job_id,
-                    "job_status": "queued",
+                    "job_status": "queued", "progress": 0.0,
                 })
                 self._json({"batch_id": batch_id, "status": "queued", "job_ids": [new_job_id], "jobs": []}, 202)
             else:
@@ -197,6 +198,17 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not page.locator("#project-empty").is_visible()
             for removed in ("#refresh-projects", "#asset-list", "#detail-input", "#detail-model", "#screen-help"):
                 assert page.locator(removed).count() == 0
+            # A running job fills its tab with its progress; polling updates the same element in place.
+            projects[2].update(job_status="separating", progress=0.4)
+            fill = """() => { const tab = document.querySelector('.project-tab[data-project-id="project-2"]');
+                return {progress: tab.style.getPropertyValue('--job-progress'), image: getComputedStyle(tab).backgroundImage}; }"""
+            page.wait_for_function("() => document.querySelector('.project-tab[data-project-id=\"project-2\"]').style.getPropertyValue('--job-progress') === '40%'", timeout=5000)
+            page.evaluate("window.runningTab = document.querySelector('.project-tab[data-project-id=\"project-2\"]')")
+            assert "linear-gradient" in page.evaluate(fill)["image"]
+            projects[2].update(job_status="completed", progress=1.0)
+            page.wait_for_function("() => window.runningTab.dataset.status === 'completed'", timeout=5000)
+            assert page.evaluate(fill)["image"] == "none"
+            assert page.evaluate("document.querySelector('.project-tab[data-project-id=\"project-2\"]') === window.runningTab")
             # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
             page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
             page.locator('.project-tab[data-project-id="project-0"]').click()

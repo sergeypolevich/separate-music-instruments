@@ -40,7 +40,7 @@ class FakeDownloader:
         source_id = f"id-{query}"
         return [VideoCandidate(source_id, source_id, f"https://youtube.com/watch?v={source_id}")]
 
-    def download(self, source):
+    def download(self, source, progress=None):
         self.events.append(("download", source.source_id))
         attempts = self.attempts.get(source.source_id, 0) + 1
         self.attempts[source.source_id] = attempts
@@ -62,7 +62,7 @@ class FakeSeparator:
         self.calls = []
         self.options = []
 
-    def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions):
+    def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions, progress=None):
         track = audio_path.stem
         self.events.append(("separate", track))
         self.calls.append(track)
@@ -339,7 +339,7 @@ def test_new_stems_are_stored_as_flac(tmp_path):
 
 def test_a_full_disk_fails_the_job_once_with_the_space_message(tmp_path):
     class FullDiskSeparator(FakeSeparator):
-        def separate(self, audio_path, output_dir, options):
+        def separate(self, audio_path, output_dir, options, progress=None):
             self.calls.append(audio_path.stem)
             raise disk_full_error(700 * 2**20, 100 * 2**20)
 
@@ -353,3 +353,24 @@ def test_a_full_disk_fails_the_job_once_with_the_space_message(tmp_path):
     assert result.jobs[0].status is JobStatus.FAILED
     assert separator.calls == ["id-track"]  # not retried: waiting does not free disk space
     assert result.jobs[0].error_summary.startswith("Недостаточно места на диске: нужно ~700 МБ, свободно 100 МБ")
+
+
+def test_progress_is_written_rarely_and_reaches_one(tmp_path, monkeypatch):
+    class ChattySeparator(FakeSeparator):
+        def separate(self, audio_path, output_dir, options, progress=None):
+            for step in range(1, 1001):
+                progress(step / 1000)
+            return super().separate(audio_path, output_dir, options)
+
+    orchestrator, store, _, _, _, _ = build_orchestrator(tmp_path, separator=ChattySeparator([]))
+    writes = []
+    original = store.set_job_progress
+    monkeypatch.setattr(store, "set_job_progress", lambda job_id, value: writes.append(value) or original(job_id, value))
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    orchestrator.process_batch(receipt, requests)
+
+    assert len(writes) <= 3  # 1000 callbacks in well under 0.5 s: only the first and forced writes
+    assert writes == sorted(writes) and 0.10 in writes
+    assert store.list_projects("client-1")[0].job_progress == 1.0

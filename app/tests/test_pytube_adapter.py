@@ -71,7 +71,7 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     observed = {}
     monkeypatch.setattr(
         "audio_stems.youtube.YouTube",
-        lambda url, client=None: observed.update(url=url, client=client) or FakeYoutube(
+        lambda url, client=None, **_kwargs: observed.update(url=url, client=client) or FakeYoutube(
             url, client, streams=FakeStreams(selected)
         ),
     )
@@ -94,7 +94,7 @@ def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp
     fallback = FakeStream("m4a", data=b"0000ftypM4A ")
     monkeypatch.setattr(
         "audio_stems.youtube.YouTube",
-        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fallback)),
+        lambda url, client=None, **_kwargs: FakeYoutube(url, client, streams=FakeStreams(fallback)),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
@@ -109,7 +109,7 @@ def test_invalid_existing_audio_is_quarantined_and_downloaded_again(monkeypatch,
     fresh = FakeStream("webm")
     monkeypatch.setattr(
         "audio_stems.youtube.YouTube",
-        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(fresh)),
+        lambda url, client=None, **_kwargs: FakeYoutube(url, client, streams=FakeStreams(fresh)),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     storage = LocalMediaStorage(tmp_path / "media", temp_root=tmp_path / "temp")
@@ -132,7 +132,7 @@ def test_a_full_disk_during_download_is_reported_instead_of_retried(monkeypatch,
 
     monkeypatch.setattr(
         "audio_stems.youtube.YouTube",
-        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(FullDiskStream("webm"))),
+        lambda url, client=None, **_kwargs: FakeYoutube(url, client, streams=FakeStreams(FullDiskStream("webm"))),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
@@ -141,3 +141,21 @@ def test_a_full_disk_during_download_is_reported_instead_of_retried(monkeypatch,
         downloader.download(VideoCandidate("id", "Track", "https://youtube.com/watch?v=id"))
 
     assert error.value.category is FailureCategory.DISK_FULL and not error.value.retryable
+
+
+def test_download_reports_byte_progress(monkeypatch, tmp_path):
+    observed = {}
+
+    def youtube(url, client=None, on_progress_callback=None):
+        observed["callback"] = on_progress_callback
+        return FakeYoutube(url, client, streams=FakeStreams(FakeStream("webm")))
+
+    monkeypatch.setattr("audio_stems.youtube.YouTube", youtube)
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    seen = []
+    PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings).download(
+        VideoCandidate("id", "Track", "https://youtube.com/watch?v=id"), progress=seen.append
+    )
+
+    observed["callback"](type("Stream", (), {"filesize": 400})(), b"", 100)
+    assert seen == [0.75]

@@ -1,10 +1,13 @@
 """Demucs command-line adapter; no Demucs imports escape this boundary."""
 from __future__ import annotations
 
+import logging
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+from typing import Callable
 
 import imageio_ffmpeg
 import soundfile
@@ -43,8 +46,36 @@ def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
         return ("cpu",)
 
 
+logger = logging.getLogger("audio_stems.separator")
+# tqdm prints "45%|####  | 52.6/117.0 [00:30<00:37, ...]" to stderr, redrawn with \r.
+_TQDM = re.compile(rb"(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?) \[")
+# tqdm bars per run: a bag of models (htdemucs_ft) draws one bar per model.
+_PASSES = {"htdemucs_6s": 1}
 _INPUT_PEAK = 0.5
 _BLOCK_FRAMES = 1 << 20
+
+
+def run_with_progress(command: list[str], passes: int, progress: Callable[[float], None] | None) -> None:
+    """Run a separator CLI and turn its tqdm bars, one per model pass, into 0..1 progress."""
+    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    done, last, pending, tail = 0, 0.0, b"", b""
+    assert process.stderr is not None
+    while chunk := process.stderr.read1(4096):
+        tail = (tail + chunk)[-4096:]
+        *lines, pending = re.split(rb"[\r\n]", pending + chunk)
+        for line in lines:
+            match = _TQDM.search(line)
+            if not match or float(match[2]) <= 0:
+                continue
+            fraction = min(1.0, float(match[1]) / float(match[2]))
+            if fraction < last - 0.5:  # a new bar: the next model pass started
+                done += 1
+            last = fraction
+            if progress is not None:
+                progress(min(1.0, (done + fraction) / passes))
+    if process.wait():
+        logger.error("Separator failed: %s", tail.decode("utf-8", "replace")[-1500:], extra={"event": "separation_failed"})
+        raise subprocess.CalledProcessError(process.returncode, command, stderr=tail)
 
 
 def decode_to_wav(source: Path, target: Path) -> float:
@@ -85,6 +116,7 @@ class DemucsSeparator:
         audio_path: Path,
         output_dir: Path,
         options: SeparationOptions,
+        progress: Callable[[float], None] | None = None,
     ) -> SeparationResult:
         self.validate_options(options)
         output_dir.mkdir(parents=True, exist_ok=True)
@@ -105,7 +137,7 @@ class DemucsSeparator:
         ]
         command.append(str(decoded))
         try:
-            subprocess.run(command, check=True)
+            run_with_progress(command, _PASSES.get(options.model_name, 1), progress)
         except subprocess.CalledProcessError as exc:
             if shutil.disk_usage(output_dir).free < needed // 2:
                 raise disk_full_error(needed, shutil.disk_usage(output_dir).free) from exc

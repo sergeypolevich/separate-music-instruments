@@ -164,11 +164,21 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     page.locator("#inputs").fill(QUERY)
                     page.locator("#submit-button").click()
                     page.wait_for_function("document.querySelector('#search-overlay').hidden")
+                    # The running job fills its tab: some value strictly between 0 and 100 % shows up.
+                    page.wait_for_function(
+                        "() => { const tab = document.querySelector('.project-tab'); "
+                        "const value = tab ? parseFloat(tab.style.getPropertyValue('--job-progress')) : 0; "
+                        "return (value > 0 && value < 100) || (tab && ['completed', 'failed'].includes(tab.dataset.status)); }",
+                        timeout=30 * 60 * 1000,
+                    )
+                    partial = page.locator(".project-tab").first.evaluate("tab => tab.style.getPropertyValue('--job-progress')")
                     page.wait_for_function(
                         "() => { const tab = document.querySelector('.project-tab'); "
                         "return tab && ['completed', 'failed'].includes(tab.dataset.status); }",
                         timeout=90 * 60 * 1000,
                     )
+                    assert 0 < float(partial.rstrip("%")) < 100, f"no intermediate progress was shown: {partial!r}"
+                    assert page.locator(".project-tab").first.evaluate("tab => tab.style.getPropertyValue('--job-progress')") == "100%"
                 status = page.locator(".project-tab").first.get_attribute("data-status")
                 if status != "completed":
                     failure = page.locator("#detail-error").inner_text() if not page.locator("#detail-error").is_hidden() else "no error summary"

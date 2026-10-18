@@ -107,7 +107,37 @@ function statusBucket(status) {
   return status;
 }
 
+let projectPollTimer = null;
+const finishedStates = new Set(["completed", "failed", "cancelled"]);
+
+// While a job runs, the tab fills with its progress; poll until every project has finished.
+function scheduleProjectPoll(projects) {
+  if (projectPollTimer !== null || !projects.some((project) => !finishedStates.has(project.job_status))) return;
+  projectPollTimer = window.setTimeout(() => {
+    projectPollTimer = null;
+    loadProjects();
+  }, 1000);
+}
+
+function updateProjectTab(button, project) {
+  const nameText = project.title || project.input_value;
+  const state = stateDescriptions[project.job_status] || project.job_status;
+  button.dataset.status = statusBucket(project.job_status);
+  button.style.setProperty("--job-progress", `${Math.round((project.progress || 0) * 100)}%`);
+  button.setAttribute("aria-selected", String(project.project_id === selectedProjectId));
+  button.setAttribute("aria-label", `${nameText}. ${state}`);
+  button.title = `${nameText} — ${state}`;
+  button.firstElementChild.textContent = nameText;
+}
+
 function renderProjects(projects) {
+  scheduleProjectPoll(projects);
+  const tabs = [...projectTabs.querySelectorAll(".project-tab")];
+  // Same projects in the same order: update in place, so polling never resets hover, drag or scroll.
+  if (tabs.length && tabs.length === projects.length && tabs.every((tab, index) => tab.dataset.projectId === projects[index].project_id)) {
+    tabs.forEach((tab, index) => updateProjectTab(tab, projects[index]));
+    return;
+  }
   if (projects.length === 0) {
     const empty = document.createElement("p");
     empty.className = "tabs-empty";
@@ -120,21 +150,16 @@ function renderProjects(projects) {
     return;
   }
   projectTabs.replaceChildren(...projects.map((project) => {
-    const nameText = project.title || project.input_value;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "project-tab";
     button.dataset.projectId = project.project_id;
     button.dataset.jobId = project.job_id;
-    button.dataset.status = statusBucket(project.job_status);
     button.setAttribute("role", "tab");
-    button.setAttribute("aria-selected", String(project.project_id === selectedProjectId));
-    button.setAttribute("aria-label", `${nameText}. ${stateDescriptions[project.job_status] || project.job_status}`);
-    button.title = `${nameText} — ${stateDescriptions[project.job_status] || project.job_status}`;
     const name = document.createElement("span");
     name.className = "project-tab-name";
-    name.textContent = nameText;
     button.append(name);
+    updateProjectTab(button, project);
     button.addEventListener("click", () => openProject(project.project_id));
     return button;
   }));

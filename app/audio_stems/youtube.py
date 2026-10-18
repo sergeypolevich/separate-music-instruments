@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from typing import Callable
 from urllib.parse import parse_qs, urlparse
 
 from pytubefix import Search, YouTube
@@ -52,11 +53,14 @@ class PytubeDownloader:
         except Exception as exc:
             raise AdapterError("Video search failed", FailureCategory.TRANSIENT) from exc
 
-    def download(self, source: VideoCandidate) -> DownloadedAudio:
+    def download(self, source: VideoCandidate, progress: Callable[[float], None] | None = None) -> DownloadedAudio:
         try:
             # Use pytubefix's default client and fallback chain. Pinning WEB can
             # require a generated PoToken and brittle player-JS decryption.
-            video = YouTube(source.url)
+            on_progress = None
+            if progress is not None:
+                on_progress = lambda stream, _chunk, remaining: progress(1 - remaining / max(1, stream.filesize))
+            video = YouTube(source.url, on_progress_callback=on_progress)
             stream = (
                 video.streams.filter(only_audio=True, mime_type="audio/webm", is_drc=False)
                 .order_by("abr").desc().first()
