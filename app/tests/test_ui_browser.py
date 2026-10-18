@@ -68,6 +68,8 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS):
             "separation_options": {"model_name": "htdemucs_6s", "device": "cpu"},
         },
         "assets": assets,
+        "disk_bytes": 12 * 2**20,
+        "shared_bytes": 3 * 2**20 if project_id == "project-1" else 0,
     }
 
 
@@ -480,8 +482,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 timeout=15_000,
             )
 
+            # The project's disk size sits next to the bin; the dialog says what deleting frees.
+            assert page.locator("#detail-size").text_content() == "12 МБ"
             page.locator("#delete-project").click()
             assert page.locator("#delete-dialog").is_visible()
+            assert "Освободится 12 МБ." in page.locator("#delete-description").text_content()
             page.locator("#cancel-delete").click()
             assert not page.locator("#delete-dialog").is_visible()
 
