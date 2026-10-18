@@ -30,7 +30,7 @@ def build_reopened_client(tmp_path):
     )
     first_store = SqliteMetadataStore(database)
     storage = LocalMediaStorage(media_root)
-    options = SeparationOptions("htdemucs_6s", "cpu", {"shifts": 2})
+    options = SeparationOptions("htdemucs_6s", "cpu")
     receipt = first_store.create_batch(
         "local", [SourceRequest(SourceKind.SEARCH_QUERY, "Search query")],
         separation_options=options,
@@ -95,7 +95,7 @@ def test_library_reopens_project_with_title_status_options_and_asset_availabilit
     assert project["job_status"] == "separating"
     assert body["job"]["status"] == "separating"
     assert body["job"]["separation_options"] == {
-        "model_name": options.model_name, "device": options.device, "parameters": {"shifts": 2}
+        "model_name": options.model_name, "device": options.device
     }
     assets = {asset["stem_name"] or "source_audio": asset for asset in body["assets"]}
     assert assets["source_audio"]["available"] is True

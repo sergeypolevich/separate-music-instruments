@@ -225,9 +225,9 @@ def test_existing_audio_for_same_source_skips_downloader(tmp_path):
 
 def test_batch_specific_model_options_are_persisted_and_passed_to_separator(tmp_path):
     orchestrator, store, _, _, _, separator = build_orchestrator(tmp_path)
-    selected = SeparationOptions("htdemucs", "cpu", {"shifts": 2})
+    selected = SeparationOptions("htdemucs", "cpu")
     requests = [SourceRequest(SourceKind.SEARCH_QUERY, "Track")]
-    receipt = orchestrator.submit_batch("owner-1", requests, separation_options=selected)
+    receipt = store.create_batch("owner-1", requests, separation_options=selected)  # as the API does
 
     orchestrator.process_batch(receipt, requests)
 

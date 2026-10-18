@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from fastapi.staticfiles import StaticFiles
 
 from audio_stems.models import (
@@ -35,7 +35,6 @@ _OWNER_ID = "local"
 WAVEFORM_POINTS = 1024
 _MEDIA_CHUNK_BYTES = 1024 * 1024
 logger = logging.getLogger("audio_stems.api")
-_ParameterValue = StrictBool | StrictInt | StrictFloat | StrictStr
 
 
 
@@ -45,9 +44,7 @@ class BatchSubmission(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     inputs: list[Annotated[str, Field(min_length=1, max_length=2048)]] = Field(min_length=1, max_length=100)
-    idempotency_key: Annotated[str | None, Field(max_length=200)] = None
     model_name: Annotated[str | None, Field(max_length=100)] = None
-    parameters: dict[str, _ParameterValue] = Field(default_factory=dict, max_length=10)
 
 
 class _UiFiles(StaticFiles):
@@ -203,7 +200,6 @@ def create_app(
             {
                 "name": model.name,
                 "stems": list(model.stems),
-                "parameters": dict(model.parameters),
                 "default": model.name == settings.model_name,
             }
             for model in separator.available_models()
@@ -272,7 +268,6 @@ def create_app(
         options = SeparationOptions(
             body.model_name or settings.model_name,
             separator.resolve_device(settings.model_device),
-            body.parameters,
         )
         try:
             separator.validate_options(options)
@@ -282,7 +277,7 @@ def create_app(
                 detail={"code": "invalid_model_options", "message": str(exc)},
             ) from exc
         receipt = repository.create_batch(
-            _OWNER_ID, sources, body.idempotency_key, options,
+            _OWNER_ID, sources, separation_options=options,
         )
         stored_batch = repository.get_batch(receipt.batch_id, _OWNER_ID)
         stored_jobs = repository.list_jobs_for_batch(receipt.batch_id, _OWNER_ID)
@@ -366,8 +361,7 @@ def create_app(
             "job": {
                 **_job_payload(job),
                 "separation_options": (
-                    {"model_name": options.model_name, "device": options.device,
-                     "parameters": dict(options.parameters)}
+                    {"model_name": options.model_name, "device": options.device}
                     if options else None
                 ),
             },
