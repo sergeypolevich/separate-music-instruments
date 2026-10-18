@@ -6,6 +6,7 @@ import wave
 import imageio_ffmpeg
 import numpy as np
 import pytest
+import soundfile
 
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
 from audio_stems.separator import DemucsSeparator, decode_to_wav, detect_compute_devices
@@ -82,7 +83,7 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     def fake_run(command, *, check, **_kwargs):
         calls.append((command, check))
         if "-m" not in command:  # the bundled ffmpeg decoding the source first
-            Path(command[-1]).write_bytes(b"RIFF0000WAVE")
+            _decode_only(command)
             return
         result = tmp_path / "output" / "htdemucs_6s" / "source"
         result.mkdir(parents=True)
@@ -100,10 +101,14 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     assert decode[0] == imageio_ffmpeg.get_ffmpeg_exe() and decode[decode.index("-i") + 1] == str(source)
     command, checked = calls[1]
     assert checked is True
-    assert command[-1] == decode[-1]  # Demucs separates the decoded float WAV, not the original file
+    assert command[-1] == str(tmp_path / "output" / "source.wav")  # Demucs gets the decoded, scaled copy
+    assert result.level == 2.0  # the fake decode peaks at 0.25, scaled to 0.5
     assert command[command.index("-n") + 1] == "htdemucs_6s"
     assert command[command.index("-d") + 1] == "cpu"
     assert "--shifts" not in command and "--overlap" not in command
+    # Float output with no per-stem clipping control; storage applies one shared gain later.
+    assert "--float32" in command and command[command.index("--clip-mode") + 1] == "none"
+    assert not Path(command[-1]).exists() and not Path(decode[-1]).exists()  # decoded copies are removed
     assert len(result.stems) == 6
 
 
@@ -125,8 +130,13 @@ def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, t
     assert error.value.category is FailureCategory.INVALID_INPUT
 
 
+def _decode_only(command, **_kwargs):
+    if "-m" not in command:  # ffmpeg: leave a decoded float file; Demucs: produce nothing
+        soundfile.write(command[-1], np.full((32, 2), 0.25, np.float32), 48000, subtype="FLOAT")
+
+
 def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_path):
-    monkeypatch.setattr("audio_stems.separator.subprocess.run", lambda *args, **kwargs: None)
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
     source = tmp_path / "source.wav"
     source.touch()
 
@@ -152,12 +162,13 @@ def test_bundled_ffmpeg_decodes_audio_to_float_wav(tmp_path):
         out.writeframes(b"".join(struct.pack("<hh", v, v) for v in (int(30000 * math.sin(i / 10)) for i in range(4800))))
 
     target = tmp_path / "decoded.wav"
-    decode_to_wav(source, target)
+    level = decode_to_wav(source, target)
 
-    data = target.read_bytes()
-    assert data[:4] == b"RIFF" and struct.unpack("<H", data[20:22])[0] == 3  # WAVE_FORMAT_IEEE_FLOAT
-    samples = np.frombuffer(data[data.index(b"data") + 8:], np.float32)
-    assert samples.size == 9600 and 0.9 < np.abs(samples).max() < 0.92
+    samples, rate = soundfile.read(target, dtype="float32")
+    assert soundfile.info(target).subtype == "FLOAT" and rate == 48000 and samples.shape == (4800, 2)
+    assert abs(np.abs(samples).max() - 0.5) < 1e-6  # scaled to a 0.5 peak for headroom
+    assert abs(level * np.abs(samples).max() / 0.5 - level) < 1e-6 and 0.54 < level < 0.56
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["decoded.wav", "tone.wav"]
 
 
 def test_undecodable_source_is_a_permanent_separation_failure(tmp_path):
@@ -166,3 +177,24 @@ def test_undecodable_source_is_a_permanent_separation_failure(tmp_path):
     with pytest.raises(AdapterError) as error:
         decode_to_wav(broken, tmp_path / "out.wav")
     assert error.value.category is FailureCategory.PERMANENT
+
+
+def test_separation_stops_before_demucs_when_the_disk_is_too_full(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        _decode_only(command, **kwargs)
+
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
+    monkeypatch.setattr("audio_stems.separator.shutil.disk_usage", lambda _path: type("Usage", (), {"free": 10})())
+    source = tmp_path / "source.webm"
+    source.write_bytes(b"audio")
+
+    with pytest.raises(AdapterError) as error:
+        DemucsSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
+
+    assert error.value.category is FailureCategory.DISK_FULL
+    assert "Недостаточно места на диске" in str(error.value) and "свободно 0 МБ" in str(error.value)
+    assert len(calls) == 1  # only the decode ran
+    assert not (tmp_path / "out" / "source.wav").exists()

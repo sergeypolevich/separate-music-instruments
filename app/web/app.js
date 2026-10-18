@@ -272,7 +272,7 @@ async function setupProjectPlayback(assets, setupId) {
   const stems = stemOrder.map((name) => stemsByName.get(name));
   const heading = document.createElement("p");
   heading.className = "playback-message";
-  if (stems.some((asset) => !asset || !asset.available || asset.media_format !== "wav")) {
+  if (stems.some((asset) => !asset || !asset.available || !["wav", "flac"].includes(asset.media_format))) {
     heading.textContent = "Для синхронного воспроизведения нужны все шесть доступных WAV-дорожек.";
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;

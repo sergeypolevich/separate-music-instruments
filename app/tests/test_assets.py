@@ -147,7 +147,7 @@ def test_waveform_rejects_non_wav_assets(tmp_path):
 
 def test_waveform_rejects_corrupt_wav_with_safe_error(tmp_path):
     request, repository, storage, _ = build_asset_api(tmp_path)
-    target = storage.stem_file_target("Corrupt", "vocals", "video-3")
+    target = storage.stem_file_target("Corrupt", "vocals", "video-3", "wav")
     target.path.write_bytes(b"not a wave file")
     receipt = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Corrupt")])
     asset = MediaAsset(
@@ -163,9 +163,9 @@ def test_waveform_rejects_corrupt_wav_with_safe_error(tmp_path):
     assert "C:\\Users" not in response.text
 
 
-def test_waveform_rejects_truncated_pcm_data_instead_of_fabricating_silence(tmp_path):
+def test_waveform_of_truncated_pcm_data_covers_only_the_samples_present(tmp_path):
     request, repository, storage, _ = build_asset_api(tmp_path)
-    target = storage.stem_file_target("Truncated", "vocals", "video-4")
+    target = storage.stem_file_target("Truncated", "vocals", "video-4", "wav")
     _write_mono_wav(target.path)
     target.path.write_bytes(target.path.read_bytes()[:-8])
     receipt = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Truncated")])
@@ -177,8 +177,10 @@ def test_waveform_rejects_truncated_pcm_data_instead_of_fabricating_silence(tmp_
 
     response = request("GET", f"/api/v1/assets/{asset.asset_id}/waveform")
 
-    assert response.status_code == 422
-    assert response.json()["error"]["code"] == "invalid_waveform_source"
+    # libsndfile trims the declared length to the data on disk; no silence is made up for the gap.
+    assert response.status_code == 200
+    assert response.json()["frame_count"] == 4
+    assert response.json()["levels"] == [1000 / 32768, 2000 / 32768, 4000 / 32768, 6000 / 32768]
 
 
 def test_waveform_reads_24_bit_pcm_peaks(tmp_path):

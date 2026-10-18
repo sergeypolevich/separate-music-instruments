@@ -12,6 +12,8 @@ from audio_stems.models import (
     DownloadedAudio,
     FailureCategory,
     VideoCandidate,
+    disk_full_error,
+    is_disk_full,
 )
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.config import Settings
@@ -56,11 +58,11 @@ class PytubeDownloader:
             # require a generated PoToken and brittle player-JS decryption.
             video = YouTube(source.url)
             stream = (
-                video.streams.filter(only_audio=True, mime_type="audio/webm")
+                video.streams.filter(only_audio=True, mime_type="audio/webm", is_drc=False)
                 .order_by("abr").desc().first()
             )
             if stream is None:
-                stream = video.streams.get_audio_only()
+                stream = video.streams.filter(only_audio=True, is_drc=False).order_by("abr").desc().first()
             if stream is None:
                 raise AdapterError("Video has no audio-only stream", FailureCategory.PERMANENT)
 
@@ -80,6 +82,11 @@ class PytubeDownloader:
             return DownloadedAudio(destination, selected, stream.subtype, destination.stat().st_size)
         except AdapterError:
             raise
+        except OSError as exc:
+            if is_disk_full(exc):
+                raise disk_full_error() from exc
+            logger.exception("pytubefix download failed", extra={"event": "audio_download_failed"})
+            raise AdapterError("Video audio download failed", FailureCategory.TRANSIENT) from exc
         except Exception as exc:
             logger.exception("pytubefix download failed", extra={"event": "audio_download_failed"})
             raise AdapterError("Video audio download failed", FailureCategory.TRANSIENT) from exc

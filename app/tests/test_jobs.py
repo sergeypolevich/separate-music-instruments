@@ -1,6 +1,9 @@
 from dataclasses import replace
 from pathlib import Path
 
+import numpy as np
+import soundfile
+
 from audio_stems.models import (
     AdapterError,
     BatchStatus,
@@ -13,6 +16,7 @@ from audio_stems.models import (
     SourceRequest,
     StemArtifact,
     VideoCandidate,
+    disk_full_error,
 )
 from audio_stems.pipeline import BatchOrchestrator
 from audio_stems.storage import LocalMediaStorage
@@ -68,9 +72,9 @@ class FakeSeparator:
         output_dir.mkdir(parents=True, exist_ok=True)
         names = STEMS[:-1] if track in self.incomplete else STEMS
         artifacts = []
-        for name in names:
+        for index, name in enumerate(names):
             path = output_dir / f"{name}.wav"
-            path.write_bytes(b"stem-data")
+            soundfile.write(path, np.full((64, 2), 0.1 * (index + 1), np.float32), 44100, subtype="FLOAT")
             artifacts.append(StemArtifact(name, path))
         return SeparationResult(tuple(artifacts))
 
@@ -306,3 +310,46 @@ def test_incomplete_stems_are_repaired_by_a_later_run(tmp_path):
     assert separator.calls == ["id-track"]
     assert storage.stems_complete("id-track", STEMS)
     assert not storage.temporary_directory("id-track").exists()
+
+
+def test_legacy_wav_stems_are_reused_with_their_format(tmp_path):
+    orchestrator, store, storage, _, _, separator = build_orchestrator(tmp_path)
+    for name in STEMS:
+        storage.stem_file_target("id-track", name, extension="wav").path.write_bytes(b"RIFF")
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    orchestrator.process_batch(receipt, requests)
+
+    stems = [asset for asset in store.list_assets(receipt.job_ids[0], "client-1") if asset.stem_name]
+    assert separator.calls == [] and {asset.media_format for asset in stems} == {"wav"}
+
+
+def test_new_stems_are_stored_as_flac(tmp_path):
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    orchestrator.process_batch(receipt, requests)
+
+    stems = [asset for asset in store.list_assets(receipt.job_ids[0], "client-1") if asset.stem_name]
+    assert len(stems) == 6 and {asset.media_format for asset in stems} == {"flac"}
+    assert all(storage.resolve_path(asset.storage_key).read_bytes()[:4] == b"fLaC" for asset in stems)
+
+
+def test_a_full_disk_fails_the_job_once_with_the_space_message(tmp_path):
+    class FullDiskSeparator(FakeSeparator):
+        def separate(self, audio_path, output_dir, options):
+            self.calls.append(audio_path.stem)
+            raise disk_full_error(700 * 2**20, 100 * 2**20)
+
+    separator = FullDiskSeparator([])
+    orchestrator, store, _, _, _, _ = build_orchestrator(tmp_path, separator=separator)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert result.jobs[0].status is JobStatus.FAILED
+    assert separator.calls == ["id-track"]  # not retried: waiting does not free disk space
+    assert result.jobs[0].error_summary.startswith("Недостаточно места на диске: нужно ~700 МБ, свободно 100 МБ")

@@ -60,6 +60,8 @@ def _video_id(url: str) -> str:
 
 
 def _safe_error_summary(error: AdapterError) -> str:
+    if error.category is FailureCategory.DISK_FULL:
+        return str(error)  # our own message with the space numbers; it carries no paths
     return {
         FailureCategory.TRANSIENT: "Temporary service error",
         FailureCategory.INVALID_INPUT: "Input is invalid",
@@ -238,15 +240,15 @@ class BatchOrchestrator:
     ) -> None:
         title = audio.source.title
         source_id = audio.source.source_id
-        if self._retry(
-            job_id, lambda: self.storage.stems_complete(title, self.expected_stems, source_id), owner_id, batch_id
-        ):
-            for stem_name in self.expected_stems:
-                target = self.storage.stem_file_target(title, stem_name, source_id)
+        existing = self._retry(
+            job_id, lambda: self.storage.existing_stems(title, self.expected_stems, source_id), owner_id, batch_id
+        )
+        if existing:
+            for stem_name, path in existing.items():
                 asset = self._retry(
                     job_id,
-                    lambda stem_name=stem_name, target=target: self.storage.save_stem(
-                        job_id, title, source_id, StemArtifact(stem_name, target.path)
+                    lambda stem_name=stem_name, path=path: self.storage.save_stem(
+                        job_id, title, source_id, StemArtifact(stem_name, path)
                     ),
                     owner_id,
                     batch_id,
@@ -266,16 +268,11 @@ class BatchOrchestrator:
         stem_map = {stem.name: stem for stem in result.stems}
         if any(name not in stem_map for name in self.expected_stems):
             raise AdapterError("Separator returned incomplete output", FailureCategory.PERMANENT)
-        for stem_name in self.expected_stems:
-            artifact = stem_map[stem_name]
-            if not artifact.path.is_file() or artifact.path.stat().st_size == 0:
-                raise AdapterError("Separator returned an invalid stem", FailureCategory.PERMANENT)
-            asset = self._retry(
-                job_id,
-                lambda artifact=artifact: self.storage.save_stem(job_id, title, source_id, artifact),
-                owner_id,
-                batch_id,
-            )
+        artifacts = [stem_map[stem_name] for stem_name in self.expected_stems]
+        if any(not artifact.path.is_file() or artifact.path.stat().st_size == 0 for artifact in artifacts):
+            raise AdapterError("Separator returned an invalid stem", FailureCategory.PERMANENT)
+        # Not retried: it deletes each float stem once its FLAC is written, to need less temporary space.
+        for asset in self.storage.save_stems(job_id, title, source_id, artifacts, result.level):
             self.repository.add_asset(asset)
         if not self._retry(
             job_id, lambda: self.storage.stems_complete(title, self.expected_stems, source_id), owner_id, batch_id

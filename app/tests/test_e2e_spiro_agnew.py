@@ -333,4 +333,7 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
     assert database.is_file()
     assert any(media_root.glob("*.webm")) or any(media_root.glob("*.m4a")) or any(media_root.glob("*.mp3"))
     for stem in EXPECTED_STEMS:
-        assert list((media_root / "Stems").glob(f"*/{stem}.wav")), f"{stem}.wav was not stored"
+        stored = list((media_root / "Stems").glob(f"*/{stem}.flac"))
+        assert stored, f"{stem}.flac was not stored"
+        assert stored[0].read_bytes()[:4] == b"fLaC"
+    assert not any((media_root / "_demucs_temp").rglob("*.wav")), "float temporaries were left behind"

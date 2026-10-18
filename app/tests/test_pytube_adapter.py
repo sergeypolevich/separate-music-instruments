@@ -1,6 +1,9 @@
+import errno
 from pathlib import Path
 
-from audio_stems.models import VideoCandidate
+import pytest
+
+from audio_stems.models import AdapterError, FailureCategory, VideoCandidate
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.youtube import PytubeDownloader
 from audio_stems.config import Settings
@@ -21,9 +24,12 @@ class FakeStream:
 class FakeStreams:
     def __init__(self, stream):
         self.stream = stream
+        self.webm_only = False
 
     def filter(self, **kwargs):
-        assert kwargs == {"only_audio": True, "mime_type": "audio/webm"}
+        # Dynamic-range-compressed variants are never chosen.
+        assert kwargs in ({"only_audio": True, "mime_type": "audio/webm", "is_drc": False}, {"only_audio": True, "is_drc": False})
+        self.webm_only = "mime_type" in kwargs
         return self
 
     def order_by(self, key):
@@ -34,10 +40,7 @@ class FakeStreams:
         return self
 
     def first(self):
-        return self.stream if self.stream.subtype == "webm" else None
-
-    def get_audio_only(self):
-        return self.stream
+        return self.stream if self.stream.subtype == "webm" or not self.webm_only else None
 
 
 class FakeYoutube:
@@ -120,3 +123,21 @@ def test_invalid_existing_audio_is_quarantined_and_downloaded_again(monkeypatch,
     assert fresh.download_args is not None
     assert downloaded.path.read_bytes() == fresh.data
     assert [p.read_bytes() for p in (tmp_path / "temp" / "_recovery").iterdir()] == [b"not webm"]
+
+
+def test_a_full_disk_during_download_is_reported_instead_of_retried(monkeypatch, tmp_path):
+    class FullDiskStream(FakeStream):
+        def download(self, *, output_path, filename):
+            raise OSError(errno.ENOSPC, "No space left on device")
+
+    monkeypatch.setattr(
+        "audio_stems.youtube.YouTube",
+        lambda url, client=None: FakeYoutube(url, client, streams=FakeStreams(FullDiskStream("webm"))),
+    )
+    settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
+    downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
+
+    with pytest.raises(AdapterError) as error:
+        downloader.download(VideoCandidate("id", "Track", "https://youtube.com/watch?v=id"))
+
+    assert error.value.category is FailureCategory.DISK_FULL and not error.value.retryable

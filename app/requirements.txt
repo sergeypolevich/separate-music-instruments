@@ -4,3 +4,4 @@ fastapi==0.139.2
 uvicorn==0.51.0
 numpy==1.26.4
 imageio-ffmpeg==0.6.0
+soundfile==0.14.0

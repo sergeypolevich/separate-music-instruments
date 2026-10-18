@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
+import errno
 from pathlib import Path
 from typing import Mapping
 from uuid import UUID
@@ -16,6 +17,7 @@ class FailureCategory(Enum):
     INVALID_INPUT = "invalid_input"
     NOT_FOUND = "not_found"
     CONFLICT = "conflict"
+    DISK_FULL = "disk_full"
 
 
 class AdapterError(Exception):
@@ -25,6 +27,22 @@ class AdapterError(Exception):
         super().__init__(message)
         self.category = category
         self.retryable = category is FailureCategory.TRANSIENT
+
+
+def is_disk_full(exc: OSError) -> bool:
+    # ENOSPC, or Windows ERROR_HANDLE_DISK_FULL (39) / ERROR_DISK_FULL (112).
+    return exc.errno == errno.ENOSPC or getattr(exc, "winerror", None) in {39, 112}
+
+
+def disk_full_error(needed_bytes: int | None = None, free_bytes: int | None = None) -> AdapterError:
+    """The user-facing message is the job's error summary, so it is written for the user."""
+    detail = ""
+    if needed_bytes is not None and free_bytes is not None:
+        detail = f": нужно ~{needed_bytes // 2**20} МБ, свободно {free_bytes // 2**20} МБ"
+    return AdapterError(
+        f"Недостаточно места на диске{detail}. Освободите место и запустите разделение снова.",
+        FailureCategory.DISK_FULL,
+    )
 
 
 class SourceKind(Enum):
@@ -69,6 +87,8 @@ class StemArtifact:
 @dataclass(frozen=True)
 class SeparationResult:
     stems: tuple[StemArtifact, ...]
+    # Stems are at this level relative to the source; storage divides it back out.
+    level: float = 1.0
 
 
 @dataclass(frozen=True)
