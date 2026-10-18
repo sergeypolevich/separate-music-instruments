@@ -30,6 +30,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 24. **Version 5 project interface rework:** remove the empty-state hint over an open project, the refresh button, the repeated title/model lines, Help and the project files list; stretch tabs to the project card; put a custom timeline in the waveform column with a playhead line across all waveforms and click/drag-to-seek; replace text glyph icons with SVG icons verified by geometry tests and screenshots.
 25. **Version 6 waveform rendering and storage:** one 1 px playhead from the timeline thumb across all stems; a fixed 1024-peak waveform stored in SQLite per stem file version; a solid SVG envelope that scales to any width instead of canvas bars.
 26. **Version 8 states, hotkeys, tabs, themes, fader, timer:** solid yellow/red pressed S/M and 20 % waveforms for S/M-silenced stems; global hotkeys with keyboard stem selection; wheel/drag tab scrolling with edge fades; colour tokens with a light theme and accent hue in Settings; borderless fader with a 100 % mark; timer at the right of the title.
+27. **Version 9 project cleanup:** close test gaps and record coverage/performance baselines first; move everything except `Start.bat` (renamed), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/` into `app/`; remove single-implementation protocols, the unused idempotency key and Demucs parameters, placeholder settings and dead code — with identical UI and no performance regression.
 
 ## Stage gate
 
