@@ -1,4 +1,7 @@
 import sqlite3
+import subprocess
+import sys
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
@@ -167,3 +170,23 @@ def test_job_progress_only_rises_and_completion_fills_it(tmp_path):
         store.transition_job(job_id, status)
     assert progress() == 1.0
     assert store.get_project(store.list_projects("client-1")[0].project_id, "client-1").job_progress == 1.0
+
+
+def test_two_processes_migrating_a_new_database_at_once_both_succeed(tmp_path):
+    database = tmp_path / "audio_stems.db"
+    started = [subprocess.Popen([sys.executable, "-c", "import sys; from audio_stems.db import SqliteMetadataStore; SqliteMetadataStore(sys.argv[1])", str(database)],
+                                cwd=Path(__file__).parents[1], stderr=subprocess.PIPE) for _ in range(4)]
+    results = [(process.wait(60), process.stderr.read().decode()) for process in started]
+
+    assert all(code == 0 for code, _ in results), results
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 5
+
+
+def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):
+    broken = tmp_path / "migrations"
+    broken.mkdir()
+    (broken / "001_broken.sql").write_text("BEGIN IMMEDIATE; ALTER TABLE missing ADD COLUMN x TEXT; COMMIT;", encoding="utf-8")
+    monkeypatch.setattr("audio_stems.db.Path.with_name", lambda self, name: broken)
+    with pytest.raises(sqlite3.OperationalError):
+        SqliteMetadataStore(tmp_path / "audio_stems.db")

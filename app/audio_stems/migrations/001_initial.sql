@@ -5,6 +5,10 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TEXT NOT NULL
 );
 
+-- Claims this version first, under the write lock: a second process applying it fails here, before any change.
+INSERT INTO schema_migrations(version, applied_at)
+VALUES (1, strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now'));
+
 CREATE TABLE IF NOT EXISTS clients (
     id TEXT PRIMARY KEY,
     display_name TEXT NOT NULL,
@@ -82,9 +86,6 @@ CREATE TABLE IF NOT EXISTS job_events (
 );
 
 CREATE INDEX IF NOT EXISTS ix_job_events_job_time ON job_events(job_id, occurred_at);
-
-INSERT OR IGNORE INTO schema_migrations(version, applied_at)
-VALUES (1, strftime('%Y-%m-%dT%H:%M:%f+00:00', 'now'));
 
 PRAGMA user_version = 1;
 COMMIT;
