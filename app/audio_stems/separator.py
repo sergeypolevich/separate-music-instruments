@@ -4,6 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import json
 import logging
+import os
 from pathlib import Path
 import re
 import shutil
@@ -94,13 +95,17 @@ _BLOCK_FRAMES = 1 << 20
 
 def run_with_progress(command: list[str], passes: int, progress: Callable[[float], None] | None) -> None:
     """Run a separator CLI and turn its tqdm bars, one per model pass, into 0..1 progress."""
-    process = subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    done, last, pending, tail = 0, 0.0, b"", b""
+    # Unbuffered: tqdm redraws with a carriage return and no newline, which a buffered child would hold back until exit.
+    process = subprocess.Popen(
+        command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env={**os.environ, "PYTHONUNBUFFERED": "1"}
+    )
+    done, last, reported, pending, tail = 0, 0.0, None, b"", b""
     assert process.stderr is not None
     while chunk := process.stderr.read1(4096):
         tail = (tail + chunk)[-4096:]
         *lines, pending = re.split(rb"[\r\n]", pending + chunk)
-        for line in lines:
+        # tqdm writes "\r<bar>", so the newest bar is the unterminated tail; it is read again once complete.
+        for line in (*lines, pending):
             match = _TQDM.search(line)
             if not match or float(match[2]) <= 0:
                 continue
@@ -108,8 +113,10 @@ def run_with_progress(command: list[str], passes: int, progress: Callable[[float
             if fraction < last - 0.5:  # a new bar: the next model pass started
                 done += 1
             last = fraction
-            if progress is not None:
-                progress(min(1.0, (done + fraction) / passes))
+            value = min(1.0, (done + fraction) / passes)
+            if progress is not None and value != reported:
+                reported = value
+                progress(value)
     if process.wait():
         logger.error("Separator failed: %s", tail.decode("utf-8", "replace")[-1500:], extra={"event": "separation_failed"})
         raise subprocess.CalledProcessError(process.returncode, command, stderr=tail)
