@@ -128,7 +128,11 @@ class SqliteMetadataStore:
                 if version <= current:
                     continue
                 script = migration.read_text(encoding="utf-8")
-                connection.executescript(script)
+                try:
+                    connection.executescript(script)
+                except sqlite3.IntegrityError:
+                    # The API and worker start together: another process claimed this version first.
+                    connection.rollback()
                 current = version
             latest = max((int(path.name.split("_", 1)[0]) for path in migrations), default=0)
             if current > latest:
