@@ -279,16 +279,12 @@ Work through these milestones in order. Do not skip ahead without reporting the 
 
 ### Milestone 4 — API and functional web UI
 
-- Add FastAPI routes, authentication/authorization boundaries, and a practical UI that calls the API.
+- Add FastAPI routes and a practical UI that calls the API.
 - Support search queries and direct URLs; display state and results.
 
-### Milestone 5 — Chrome extension
+Authentication and the Chrome extension are not planned for now (decided in version 11).
 
-- Submit the active video's URL after an explicit button click.
-- Authenticate with the API without exposing secrets/cookies.
-- Reuse the same source, job, worker, storage, and status APIs.
-
-### Milestone 6 — Replaceable providers and scale
+### Milestone 5 — Replaceable providers and scale
 
 - Add a second downloader, separator, or storage implementation only when needed; prove replacement using contract tests.
 - Extract a module into a separate service only when deployment, scaling, or reliability requirements justify it.
