@@ -270,6 +270,39 @@ function cleanupPlayback() {
   playbackKey = "";
 }
 
+const STEM_LABELS = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Guitar", piano: "Piano", other: "Other" };
+
+// Files of a finished project were removed from disk by hand: say which, and offer to make them again.
+function renderMissingFiles(project, missing) {
+  const message = document.createElement("p");
+  message.className = "playback-message";
+  const names = missing.map((asset) => (asset.asset_type === "stem" ? STEM_LABELS[asset.stem_name] || asset.stem_name : "исходное аудио"));
+  message.textContent = `С диска удалены файлы проекта: ${names.join(", ")}.`;
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className = "primary-button";
+  retry.textContent = "Разделить заново";
+  retry.addEventListener("click", async () => {
+    retry.disabled = true;
+    try {
+      // The broken project goes (what is left of it too) and the same song is queued again.
+      await requestJson(`/api/v1/projects/${encodeURIComponent(project.project_id)}`, { method: "DELETE" });
+      const model = project.job.separation_options && project.job.separation_options.model_name;
+      const created = await requestJson("/api/v1/batches", {
+        method: "POST",
+        body: JSON.stringify(model ? { inputs: [project.input_value], model_name: model } : { inputs: [project.input_value] }),
+      });
+      selectedProjectId = null;
+      await loadProjects(created.job_ids[0]);
+    } catch (error) {
+      message.textContent = error.message;
+      retry.disabled = false;
+    }
+  });
+  playbackPanel.replaceChildren(message, retry);
+  playbackPanel.hidden = false;
+}
+
 function renderProject(project) {
   // Re-rendering the same project (tab click, job-finished refresh) must not restart playback;
   // rebuild only when the project or its stem files change.
@@ -289,7 +322,12 @@ function renderProject(project) {
   detailSize.title = "Место на диске: исходное аудио и дорожки";
   if (rebuild) {
     playbackKey = key;
-    setupProjectPlayback(project.assets, ++playbackSetupId);
+    const missing = project.assets.filter((asset) => !asset.available);
+    if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
+      renderMissingFiles(project, missing);
+    } else {
+      setupProjectPlayback(project.assets, ++playbackSetupId);
+    }
   }
   document.querySelectorAll(".project-tab").forEach((tab) => {
     tab.setAttribute("aria-selected", String(tab.dataset.projectId === project.project_id));
@@ -298,7 +336,7 @@ function renderProject(project) {
 
 async function setupProjectPlayback(assets, setupId) {
   const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
-  const stemLabels = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Guitar", piano: "Piano", other: "Other" };
+  const stemLabels = STEM_LABELS;
   const stemsByName = new Map(assets.filter((asset) => asset.asset_type === "stem").map((asset) => [asset.stem_name, asset]));
   // Four-stem models have no guitar and piano rows.
   const stems = stemOrder.map((name) => stemsByName.get(name)).filter(Boolean);
