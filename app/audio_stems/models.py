@@ -95,6 +95,8 @@ class SeparationResult:
 class SeparatorModel:
     name: str
     stems: tuple[str, ...]
+    label: str = ""
+    description: str = ""
 
 
 class MediaAssetType(Enum):

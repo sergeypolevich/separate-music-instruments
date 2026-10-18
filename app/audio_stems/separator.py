@@ -1,6 +1,8 @@
-"""Demucs command-line adapter; no Demucs imports escape this boundary."""
+"""Stem separation through the Demucs and audio-separator command lines; no ML imports escape this boundary."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+import json
 import logging
 from pathlib import Path
 import re
@@ -23,8 +25,45 @@ from audio_stems.models import (
 )
 
 
-_STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
-_MODELS = ("htdemucs_6s",)
+_SIX = ("vocals", "drums", "bass", "guitar", "piano", "other")
+_FOUR = ("vocals", "drums", "bass", "other")
+
+
+@dataclass(frozen=True)
+class _Model:
+    label: str
+    description: str
+    stems: tuple[str, ...]
+    engine: str  # "demucs" or "audio-separator"
+    passes: int = 1  # tqdm bars per run: a bag of models draws one per model
+    checkpoint: str | None = None
+    overlap: int | None = None
+
+
+# Chosen by SDR/SAR on MUSDB18 previews and CPU time on a 4-core laptop (DEVELOPMENT_STATUS, stage 28).
+_MODELS = {
+    "htdemucs_6s": _Model("Demucs, быстрая", "Самая быстрая: около 4 минут на песню длиной 4 минуты.", _SIX, "demucs"),
+    "htdemucs_ft": _Model(
+        "Demucs fine-tuned",
+        "Самый чистый бас, «прочее» чище быстрой модели, барабаны чуть хуже; около 21 минуты.", _FOUR, "demucs", passes=4,
+    ),
+    "bs_roformer_sw": _Model(
+        "BS-RoFormer SW",
+        "Лучшие вокал, барабаны и «прочее», меньше всего артефактов; около 28 минут.",
+        _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=1,
+    ),
+}
+# Runs audio-separator in its own process so its memory is freed after every song.
+_AUDIO_SEPARATOR = (
+    "import json, sys\n"
+    "from audio_separator.separator import Separator\n"
+    "a = json.loads(sys.argv[1])\n"
+    "s = Separator(output_dir=a['out'], model_file_dir=a['models'], output_format='WAV', normalization_threshold=1.0,\n"
+    "              mdxc_params={'segment_size': 256, 'override_model_segment_size': False, 'batch_size': 1,\n"
+    "                           'overlap': a['overlap'], 'pitch_shift': 0})\n"
+    "s.load_model(model_filename=a['checkpoint'])\n"
+    "s.separate(a['input'])\n"
+)
 
 
 def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
@@ -49,8 +88,6 @@ def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
 logger = logging.getLogger("audio_stems.separator")
 # tqdm prints "45%|####  | 52.6/117.0 [00:30<00:37, ...]" to stderr, redrawn with \r.
 _TQDM = re.compile(rb"(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?) \[")
-# tqdm bars per run: a bag of models (htdemucs_ft) draws one bar per model.
-_PASSES = {"htdemucs_6s": 1}
 _INPUT_PEAK = 0.5
 _BLOCK_FRAMES = 1 << 20
 
@@ -100,13 +137,21 @@ def decode_to_wav(source: Path, target: Path) -> float:
     return level
 
 
-class DemucsSeparator:
-    """Run Demucs and return the six supported WAV stems."""
+class StemSeparator:
+    """Run the chosen model and return its float WAV stems."""
+
+    def __init__(self, model_dir: Path | None = None) -> None:
+        # Weights that audio-separator downloads; Demucs keeps its own in the torch hub cache.
+        self.model_dir = model_dir or Path.home() / "Audio Stems" / "models"
 
     def available_models(self) -> tuple[SeparatorModel, ...]:
-        # These are stable Demucs model identifiers supported by its CLI.
         # The capability endpoint is intentionally independent of loading weights.
-        return tuple(SeparatorModel(name, _STEMS) for name in _MODELS)
+        return tuple(SeparatorModel(name, m.stems, m.label, m.description) for name, m in _MODELS.items())
+
+    def model_stems(self, model_name: str) -> tuple[str, ...]:
+        if model_name not in _MODELS:
+            raise AdapterError("Unsupported separation model", FailureCategory.INVALID_INPUT)
+        return _MODELS[model_name].stems
 
     def resolve_device(self, configured: str) -> str:
         return detect_compute_devices()[0] if configured == "auto" else configured
@@ -124,47 +169,52 @@ class DemucsSeparator:
         level = decode_to_wav(audio_path, decoded)
         # Float stems at 44.1 kHz take about as much space each as the 48 kHz float decode,
         # and the FLAC copies are written while the float files still exist.
-        needed = decoded.stat().st_size * (len(_STEMS) + 1)
+        model = _MODELS[options.model_name]
+        needed = decoded.stat().st_size * (len(model.stems) + 1)
         free = shutil.disk_usage(output_dir).free
         if free < needed:
             decoded.unlink(missing_ok=True)
             raise disk_full_error(needed, free)
         # Float output without per-stem rescaling, which would shift the balance; storage scales
         # all stems by one gain instead.
-        command = [
-            sys.executable, "-m", "demucs", "-n", options.model_name,
-            "-d", options.device, "-o", str(output_dir), "--float32", "--clip-mode", "none",
-        ]
-        command.append(str(decoded))
+        if model.engine == "demucs":
+            command = [
+                sys.executable, "-m", "demucs", "-n", options.model_name,
+                "-d", options.device, "-o", str(output_dir), "--float32", "--clip-mode", "none", str(decoded),
+            ]
+        else:
+            arguments = {"out": str(output_dir / options.model_name), "models": str(self.model_dir),
+                         "checkpoint": model.checkpoint, "overlap": model.overlap, "input": str(decoded)}
+            command = [sys.executable, "-c", _AUDIO_SEPARATOR, json.dumps(arguments)]
         try:
-            run_with_progress(command, _PASSES.get(options.model_name, 1), progress)
+            run_with_progress(command, model.passes, progress)
         except subprocess.CalledProcessError as exc:
             if shutil.disk_usage(output_dir).free < needed // 2:
                 raise disk_full_error(needed, shutil.disk_usage(output_dir).free) from exc
-            raise AdapterError(f"Demucs exited with status {exc.returncode}", FailureCategory.PERMANENT) from exc
+            raise AdapterError(f"Separator exited with status {exc.returncode}", FailureCategory.PERMANENT) from exc
         except FileNotFoundError as exc:
-            raise AdapterError("Demucs executable is unavailable", FailureCategory.PERMANENT) from exc
+            raise AdapterError("Separator executable is unavailable", FailureCategory.PERMANENT) from exc
         except OSError as exc:
-            raise AdapterError("Demucs could not be started", FailureCategory.TRANSIENT) from exc
+            raise AdapterError("Separator could not be started", FailureCategory.TRANSIENT) from exc
         finally:
             decoded.unlink(missing_ok=True)
 
         model_output = output_dir / options.model_name
-        candidates = sorted((path for path in model_output.iterdir() if path.is_dir()), key=lambda p: p.name) if model_output.is_dir() else []
-        if not candidates:
-            raise AdapterError("Demucs output directory was not created", FailureCategory.PERMANENT)
-        track_dir = next((path for path in candidates if path.name == audio_path.stem), candidates[0])
-        artifacts = tuple(
-            StemArtifact(name, track_dir / f"{name}.wav")
-            for name in _STEMS
-            if (track_dir / f"{name}.wav").is_file()
-        )
-        if len(artifacts) != len(_STEMS):
-            raise AdapterError("Demucs did not produce all six expected stems", FailureCategory.PERMANENT)
+        if model.engine == "demucs":
+            # Demucs writes <model>/<track>/<stem>.wav
+            candidates = sorted((path for path in model_output.iterdir() if path.is_dir()), key=lambda p: p.name) if model_output.is_dir() else []
+            track_dir = next((path for path in candidates if path.name == audio_path.stem), candidates[0] if candidates else None)
+            files = {path.stem: path for path in track_dir.glob("*.wav")} if track_dir else {}
+        else:
+            # audio-separator writes <track>_(Vocals)_<checkpoint>.wav
+            files = {path.stem.split("_(", 1)[1].split(")", 1)[0].lower(): path for path in model_output.glob("*_(*)*.wav")}
+        artifacts = tuple(StemArtifact(name, files[name]) for name in model.stems if name in files and files[name].is_file())
+        if len(artifacts) != len(model.stems):
+            raise AdapterError("Separator did not produce all expected stems", FailureCategory.PERMANENT)
         return SeparationResult(artifacts, level)
 
     def validate_options(self, options: SeparationOptions) -> None:
         if options.model_name not in _MODELS:
-            raise AdapterError("Unsupported Demucs model", FailureCategory.INVALID_INPUT)
+            raise AdapterError("Unsupported separation model", FailureCategory.INVALID_INPUT)
         if options.device not in detect_compute_devices():
-            raise AdapterError("Unsupported Demucs device", FailureCategory.INVALID_INPUT)
+            raise AdapterError("Unsupported compute device", FailureCategory.INVALID_INPUT)

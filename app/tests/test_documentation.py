@@ -42,4 +42,4 @@ def test_project_skill_requires_visible_playwright_browser_gate():
     assert "Playwright" in skill
     assert "visible window" in skill
     assert "playwright" in requirements.lower()
-    assert "numpy==1.26.4" in runtime_requirements
+    assert "numpy==2.5.4" in runtime_requirements

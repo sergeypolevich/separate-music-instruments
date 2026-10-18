@@ -6,7 +6,7 @@ import httpx
 
 from audio_stems.api import create_app
 from audio_stems.models import JobStatus, SourceKind, SourceRequest
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
@@ -22,7 +22,7 @@ def get_app_client(tmp_path):
         repository=repository,
         settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=DemucsSeparator(),
+        separator=StemSeparator(),
     )
 
     async def request(method, path):
@@ -59,7 +59,7 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert "РАЗДЕЛЕНИЕ АУДИО" not in page.text
     assert "звучать по-новому" not in page.text
     assert 'rows="2"' in page.text
-    assert 'id="model"' in page.text
+    assert 'id="model-options"' in page.text and 'id="model"' not in page.text
     assert 'id="device"' not in page.text
     assert 'id="check-updates"' in page.text
     assert 'id="release-list"' in page.text

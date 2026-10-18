@@ -62,7 +62,7 @@
         <header class="screen-heading">
           <a class="back-link" href="#project" data-screen="project"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Проект</span></a>
           <h1 id="settings-title">Настройки</h1>
-          <p>Версия приложения и доступные обновления.</p>
+          <p>Оформление, модель разделения и обновления.</p>
         </header>
         <section class="settings-card" aria-labelledby="appearance-title">
           <div class="section-heading"><h2 id="appearance-title">Оформление</h2></div>
@@ -78,6 +78,10 @@
             <span class="accent-slider"><input id="accent-hue" type="range" min="0" max="360" step="1" value="84"></span>
             <span class="accent-swatch" aria-hidden="true"></span>
           </div>
+        </section>
+        <section class="settings-card" aria-labelledby="separation-title">
+          <div class="section-heading"><h2 id="separation-title">Разделение</h2></div>
+          <div id="model-options" class="model-options" role="radiogroup" aria-labelledby="separation-title"></div>
         </section>
         <section class="settings-card" aria-labelledby="updates-title">
           <div class="section-heading">
@@ -101,9 +105,6 @@
           <textarea id="inputs" name="inputs" rows="2" maxlength="2048" required
             placeholder="Например: Artist — Song title&#10;Можно добавить несколько строк"></textarea>
           <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
-          <div class="options-grid">
-            <div class="field"><label for="model">Модель разделения</label><select id="model" name="model" required><option value="">Загрузка списка…</option></select></div>
-          </div>
           <div class="form-footer">
             <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
             <button id="submit-button" type="submit"><span>Начать разделение</span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></button>

@@ -207,6 +207,12 @@ h1, h2, h3, p { margin-top: 0; }
 .release-card p, .release-card a { color: var(--muted); font-size: 11px; }
 .release-notes { white-space: pre-wrap; overflow-wrap: anywhere; }
 .release-card button { justify-self: start; }
+.model-options { display: grid; }
+.model-option { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; align-items: baseline; padding: 10px 0; border-top: 1px solid var(--line); cursor: pointer; }
+.model-option:first-child { border-top: 0; padding-top: 0; }
+.model-option input { margin: 0; align-self: center; accent-color: var(--accent); }
+.model-option-name { color: var(--text); font-size: 13px; }
+.model-option-note { grid-column: 2; color: var(--muted); font-size: 11px; }
 .appearance-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
 .appearance-row > span:first-child, .appearance-row label { color: var(--text-soft); font-size: 12px; }
 .theme-switch { display: inline-flex; gap: 6px; }
@@ -226,7 +232,6 @@ h1, h2, h3, p { margin-top: 0; }
 .search-dialog select { height: 40px; padding: 0 11px; }
 .search-dialog textarea:focus, .search-dialog select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent); }
 .field-hint { margin: 6px 0 14px; color: var(--faint); font-size: 10px; }
-.options-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
 .form-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 20px; }
 .form-message { min-height: 16px; color: var(--muted); font-size: 11px; }
 .form-message.error { color: var(--danger); }
@@ -268,7 +273,6 @@ button:disabled { opacity: .55; cursor: wait; }
   .search-overlay { padding: 14px 10px; }
   .search-dialog { min-height: calc(100dvh - 28px); padding: 20px 16px; border-radius: 13px; }
   .search-dialog-heading { margin-bottom: 22px; }
-  .options-grid { grid-template-columns: 1fr; gap: 10px; }
   .form-footer { align-items: stretch; flex-direction: column; margin-top: 14px; }
   .form-footer button { width: 100%; }
   .secondary-screen { padding-top: 18px; }

@@ -31,7 +31,7 @@ from audio_stems.models import SeparationOptions
 
 if TYPE_CHECKING:
     from audio_stems.db import SqliteMetadataStore
-    from audio_stems.separator import DemucsSeparator
+    from audio_stems.separator import StemSeparator
     from audio_stems.storage import LocalMediaStorage
     from audio_stems.youtube import PytubeDownloader
 
@@ -59,6 +59,9 @@ def _video_id(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
 
 
+_ORIGINAL_MODEL = "htdemucs_6s"
+
+
 def _safe_error_summary(error: AdapterError) -> str:
     if error.category is FailureCategory.DISK_FULL:
         return str(error)  # our own message with the space numbers; it carries no paths
@@ -77,10 +80,9 @@ class BatchOrchestrator:
         *,
         repository: SqliteMetadataStore,
         downloader: PytubeDownloader,
-        separator: DemucsSeparator,
+        separator: StemSeparator,
         storage: LocalMediaStorage,
         options: SeparationOptions,
-        expected_stems: Sequence[str],
         settings: Settings,
         sleep: Callable[[float], None],
     ) -> None:
@@ -89,7 +91,6 @@ class BatchOrchestrator:
         self.separator = separator
         self.storage = storage
         self.options = options
-        self.expected_stems = tuple(expected_stems)
         self.settings = settings
         self.sleep = sleep
         self._progress_written: dict[UUID, tuple[float, float]] = {}
@@ -262,15 +263,18 @@ class BatchOrchestrator:
     ) -> None:
         title = audio.source.title
         source_id = audio.source.source_id
+        stems = self.separator.model_stems(options.model_name)
+        # The original model keeps the pre-version-10 folder; other models get "<title> (<model>)".
+        variant = None if options.model_name == _ORIGINAL_MODEL else options.model_name
         existing = self._retry(
-            job_id, lambda: self.storage.existing_stems(title, self.expected_stems, source_id), owner_id, batch_id
+            job_id, lambda: self.storage.existing_stems(title, stems, source_id, variant), owner_id, batch_id
         )
         if existing:
             for stem_name, path in existing.items():
                 asset = self._retry(
                     job_id,
                     lambda stem_name=stem_name, path=path: self.storage.save_stem(
-                        job_id, title, source_id, StemArtifact(stem_name, path)
+                        job_id, title, source_id, StemArtifact(stem_name, path), variant
                     ),
                     owner_id,
                     batch_id,
@@ -290,16 +294,16 @@ class BatchOrchestrator:
             batch_id,
         )
         stem_map = {stem.name: stem for stem in result.stems}
-        if any(name not in stem_map for name in self.expected_stems):
+        if any(name not in stem_map for name in stems):
             raise AdapterError("Separator returned incomplete output", FailureCategory.PERMANENT)
-        artifacts = [stem_map[stem_name] for stem_name in self.expected_stems]
+        artifacts = [stem_map[stem_name] for stem_name in stems]
         if any(not artifact.path.is_file() or artifact.path.stat().st_size == 0 for artifact in artifacts):
             raise AdapterError("Separator returned an invalid stem", FailureCategory.PERMANENT)
         # Not retried: it deletes each float stem once its FLAC is written, to need less temporary space.
-        for asset in self.storage.save_stems(job_id, title, source_id, artifacts, result.level):
+        for asset in self.storage.save_stems(job_id, title, source_id, artifacts, result.level, variant):
             self.repository.add_asset(asset)
         if not self._retry(
-            job_id, lambda: self.storage.stems_complete(title, self.expected_stems, source_id), owner_id, batch_id
+            job_id, lambda: self.storage.stems_complete(title, stems, source_id, variant), owner_id, batch_id
         ):
             raise AdapterError("Stored stem set is incomplete", FailureCategory.PERMANENT)
         self.storage.remove_temporary_directory(title, source_id)
@@ -389,7 +393,7 @@ class DatabaseWorker:
 
 def build_worker(settings: Settings | None = None) -> DatabaseWorker:
     """Compose local adapters only in the worker process entry point."""
-    from audio_stems.separator import DemucsSeparator
+    from audio_stems.separator import StemSeparator
     from audio_stems.storage import LocalMediaStorage
     from audio_stems.db import SqliteMetadataStore
     from audio_stems.youtube import PytubeDownloader
@@ -403,7 +407,7 @@ def build_worker(settings: Settings | None = None) -> DatabaseWorker:
         settings.storage_root,
         temp_root=settings.temp_root,
     )
-    separator = DemucsSeparator()
+    separator = StemSeparator(settings.storage_root.parent / "models")
     downloader = PytubeDownloader(storage, settings)
     options = SeparationOptions(settings.model_name, separator.resolve_device(settings.model_device))
     orchestrator = BatchOrchestrator(
@@ -412,7 +416,6 @@ def build_worker(settings: Settings | None = None) -> DatabaseWorker:
         separator=separator,
         storage=storage,
         options=options,
-        expected_stems=("vocals", "drums", "bass", "guitar", "piano", "other"),
         settings=settings,
         sleep=time.sleep,
     )

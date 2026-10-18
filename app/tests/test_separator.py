@@ -1,3 +1,4 @@
+import json
 import math
 from pathlib import Path
 import struct
@@ -11,18 +12,22 @@ import pytest
 import soundfile
 
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
-from audio_stems.separator import DemucsSeparator, decode_to_wav, detect_compute_devices, run_with_progress
+from audio_stems.separator import StemSeparator, decode_to_wav, detect_compute_devices, run_with_progress
 
 
 def test_separator_reports_model_names_and_supported_options():
-    separator = DemucsSeparator()
+    separator = StemSeparator()
 
     models = separator.available_models()
 
-    assert {model.name for model in models} == {"htdemucs_6s"}
-    assert "htdemucs_6s" in {model.name for model in models}
-    six_stem = next(model for model in models if model.name == "htdemucs_6s")
-    assert six_stem.stems == ("vocals", "drums", "bass", "guitar", "piano", "other")
+    stems = {model.name: model.stems for model in models}
+    assert set(stems) == {"htdemucs_6s", "htdemucs_ft", "bs_roformer_sw"}
+    assert stems["htdemucs_6s"] == stems["bs_roformer_sw"] == ("vocals", "drums", "bass", "guitar", "piano", "other")
+    assert stems["htdemucs_ft"] == ("vocals", "drums", "bass", "other")
+    assert all(model.label and model.description for model in models)
+    assert separator.model_stems("htdemucs_ft") == stems["htdemucs_ft"]
+    with pytest.raises(AdapterError):
+        separator.model_stems("made-up-model")
 
 
 def test_device_detection_lists_only_available_torch_backends_in_priority_order():
@@ -98,7 +103,7 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     source.write_bytes(b"RIFF0000WAVE")
     options = SeparationOptions("htdemucs_6s", "cpu")
 
-    result = DemucsSeparator().separate(source, tmp_path / "output", options)
+    result = StemSeparator().separate(source, tmp_path / "output", options)
 
     decode, _ = calls[0]
     assert decode[0] == imageio_ffmpeg.get_ffmpeg_exe() and decode[decode.index("-i") + 1] == str(source)
@@ -118,7 +123,7 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
 @pytest.mark.parametrize("options", [SeparationOptions("made-up-model", "cpu")])
 def test_separator_rejects_unsupported_model(options, tmp_path):
     with pytest.raises(AdapterError) as error:
-        DemucsSeparator().separate(tmp_path / "source.wav", tmp_path / "out", options)
+        StemSeparator().separate(tmp_path / "source.wav", tmp_path / "out", options)
 
     assert error.value.category is FailureCategory.INVALID_INPUT
 
@@ -129,7 +134,7 @@ def test_separator_rejects_hardware_backend_that_is_not_available(monkeypatch, t
         lambda: ("cpu",),
     )
     with pytest.raises(AdapterError) as error:
-        DemucsSeparator().validate_options(SeparationOptions("htdemucs_6s", "mps"))
+        StemSeparator().validate_options(SeparationOptions("htdemucs_6s", "mps"))
     assert error.value.category is FailureCategory.INVALID_INPUT
 
 
@@ -145,7 +150,7 @@ def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_
     source.touch()
 
     with pytest.raises(AdapterError) as error:
-        DemucsSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
+        StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
 
     assert error.value.category is FailureCategory.PERMANENT
 
@@ -153,8 +158,8 @@ def test_separator_reports_missing_demucs_outputs_as_permanent(monkeypatch, tmp_
 def test_auto_device_resolves_to_the_best_available_backend(monkeypatch):
     monkeypatch.setattr("audio_stems.separator.detect_compute_devices", lambda: ("mps", "cpu"))
 
-    assert DemucsSeparator().resolve_device("auto") == "mps"
-    assert DemucsSeparator().resolve_device("cpu") == "cpu"
+    assert StemSeparator().resolve_device("auto") == "mps"
+    assert StemSeparator().resolve_device("cpu") == "cpu"
 
 
 def test_bundled_ffmpeg_decodes_audio_to_float_wav(tmp_path):
@@ -197,7 +202,7 @@ def test_separation_stops_before_demucs_when_the_disk_is_too_full(monkeypatch, t
     source.write_bytes(b"audio")
 
     with pytest.raises(AdapterError) as error:
-        DemucsSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
+        StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
 
     assert error.value.category is FailureCategory.DISK_FULL
     assert "Недостаточно места на диске" in str(error.value) and "свободно 0 МБ" in str(error.value)
@@ -227,3 +232,50 @@ def test_a_failing_separator_run_raises_with_the_end_of_its_output():
     with pytest.raises(subprocess.CalledProcessError) as error:
         run_with_progress([sys.executable, "-c", _TQDM_SCRIPT, "3"], 1, None)
     assert error.value.returncode == 3 and b"10.0/10.0" in error.value.stderr
+
+
+def test_roformer_runs_audio_separator_in_its_own_process_and_maps_its_file_names(monkeypatch, tmp_path):
+    runs = []
+
+    def fake_run(command, passes, progress):
+        runs.append((command, passes))
+        arguments = json.loads(command[-1])
+        out = Path(arguments["out"])
+        out.mkdir(parents=True)
+        for stem in ("Vocals", "Drums", "Bass", "Guitar", "Piano", "Other"):
+            (out / f"source_({stem})_BS-Roformer-SW.wav").write_bytes(b"RIFF")
+
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", fake_run)
+    source = tmp_path / "source.webm"
+    source.write_bytes(b"audio")
+
+    result = StemSeparator(tmp_path / "models").separate(source, tmp_path / "out", SeparationOptions("bs_roformer_sw", "cpu"))
+
+    command, passes = runs[0]
+    arguments = json.loads(command[-1])
+    assert command[:2] == [sys.executable, "-c"] and "audio_separator.separator" in command[2]
+    assert arguments["checkpoint"] == "BS-Roformer-SW.ckpt" and arguments["models"] == str(tmp_path / "models")
+    assert arguments["input"] == str(tmp_path / "out" / "source.wav") and passes == 1
+    assert [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "guitar", "piano", "other"]
+    assert result.stems[0].path.name == "source_(Vocals)_BS-Roformer-SW.wav"
+
+
+def test_a_bag_of_four_demucs_models_reports_four_progress_passes(monkeypatch, tmp_path):
+    runs = []
+
+    def fake_run(command, passes, progress):
+        runs.append(passes)
+        track = tmp_path / "out" / "htdemucs_ft" / "source"
+        track.mkdir(parents=True)
+        for stem in ("vocals", "drums", "bass", "other"):
+            (track / f"{stem}.wav").write_bytes(b"RIFF")
+
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", fake_run)
+    source = tmp_path / "source.webm"
+    source.write_bytes(b"audio")
+
+    result = StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_ft", "cpu"))
+
+    assert runs == [4] and [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "other"]

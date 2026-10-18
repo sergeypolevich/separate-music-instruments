@@ -170,3 +170,14 @@ def test_complete_legacy_wav_stem_set_still_counts_as_existing(tmp_path):
 
     assert {name: path.suffix for name, path in found.items()} == {"vocals": ".wav", "drums": ".wav"}
     assert storage.existing_stems("Old", ("vocals", "drums", "bass"), "video-1") is None
+
+
+def test_stems_of_other_models_get_their_own_flat_folder_and_the_original_keeps_its_own(tmp_path):
+    storage = LocalMediaStorage(tmp_path / "library")
+
+    original = storage.stem_file_target("Song", "vocals", "video-1")
+    other = storage.stem_file_target("Song", "vocals", "video-1", variant="htdemucs_ft")
+
+    assert original.storage_key == "Stems/Song/vocals.flac"
+    assert other.storage_key == "Stems/Song (htdemucs_ft)/vocals.flac"
+    assert LocalMediaStorage(tmp_path / "library").stem_directory("Song", "video-1", "htdemucs_ft") == other.path.parent

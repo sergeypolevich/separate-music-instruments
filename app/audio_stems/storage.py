@@ -248,8 +248,12 @@ class LocalMediaStorage:
         except OSError as exc:
             raise AdapterError("Invalid audio could not be preserved for recovery", FailureCategory.TRANSIENT) from exc
 
-    def stem_directory(self, title: str, source_id: str | None = None) -> Path:
-        name = self._claim_title("stems", title, source_id)
+    def stem_directory(self, title: str, source_id: str | None = None, variant: str | None = None) -> Path:
+        """``Stems/<title>/``, or ``Stems/<title> (<variant>)/`` for stems of another model."""
+        if variant:
+            name = self._claim_title(f"stems:{variant}", f"{title} ({variant})", source_id)
+        else:
+            name = self._claim_title("stems", title, source_id)
         path = (self.stems_root / name).resolve()
         if not path.is_relative_to(self.stems_root):
             raise AdapterError("Stem directory escapes the configured root", FailureCategory.INVALID_INPUT)
@@ -260,11 +264,12 @@ class LocalMediaStorage:
         return path
 
     def stem_file_target(
-        self, title: str, stem_name: str, source_id: str | None = None, extension: str = "flac"
+        self, title: str, stem_name: str, source_id: str | None = None, extension: str = "flac",
+        variant: str | None = None,
     ) -> StorageTarget:
         if not _STEM_NAME.fullmatch(stem_name) or extension not in _STEM_FORMATS:
             raise AdapterError("Invalid stem name", FailureCategory.INVALID_INPUT)
-        path = self.stem_directory(title, source_id) / f"{stem_name}.{extension}"
+        path = self.stem_directory(title, source_id, variant) / f"{stem_name}.{extension}"
         return StorageTarget(self._key_for(path), path)
 
     def temporary_directory(self, title: str, source_id: str | None = None) -> Path:
@@ -279,17 +284,19 @@ class LocalMediaStorage:
         title: str,
         expected_stems: Sequence[str],
         source_id: str | None = None,
+        variant: str | None = None,
     ) -> bool:
-        return self.existing_stems(title, expected_stems, source_id) is not None
+        return self.existing_stems(title, expected_stems, source_id, variant) is not None
 
     def existing_stems(
         self,
         title: str,
         expected_stems: Sequence[str],
         source_id: str | None = None,
+        variant: str | None = None,
     ) -> dict[str, Path] | None:
         """Return a complete stored set in one format (FLAC, or WAV from older versions), else None."""
-        directory = self.stem_directory(title, source_id)
+        directory = self.stem_directory(title, source_id, variant)
         for extension in _STEM_FORMATS:
             paths = {stem: directory / f"{stem}.{extension}" for stem in expected_stems}
             if all(path.is_file() for path in paths.values()):
@@ -321,9 +328,10 @@ class LocalMediaStorage:
         track_title: str,
         source_id: str | None,
         stem: StemArtifact,
+        variant: str | None = None,
     ) -> MediaAsset:
         extension = stem.path.suffix.lower().lstrip(".")
-        target = self.stem_file_target(track_title, stem.name, source_id, extension)
+        target = self.stem_file_target(track_title, stem.name, source_id, extension, variant)
         try:
             target.path.parent.mkdir(parents=True, exist_ok=True)
             if stem.path.resolve() != target.path.resolve():
@@ -344,6 +352,7 @@ class LocalMediaStorage:
         source_id: str | None,
         stems: Sequence[StemArtifact],
         level: float = 1.0,
+        variant: str | None = None,
     ) -> list[MediaAsset]:
         """Store float stems as 16-bit FLAC, all scaled by one gain that undoes the separator's
         ``level`` as far as nothing clips: the balance between stems stays exactly as separated.
@@ -355,7 +364,7 @@ class LocalMediaStorage:
         gain = min(1.0 / level, 0.999 / peak) if peak > 0 else 1.0 / level
         assets = []
         for stem in stems:
-            target = self.stem_file_target(track_title, stem.name, source_id)
+            target = self.stem_file_target(track_title, stem.name, source_id, variant=variant)
             partial = target.path.with_name(target.path.name + ".part")
             try:
                 with soundfile.SoundFile(stem.path) as source, soundfile.SoundFile(
