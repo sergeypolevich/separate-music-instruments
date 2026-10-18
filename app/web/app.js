@@ -829,7 +829,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
     };
     tracks.forEach((audio) => audio.load());
-  } catch (_error) {
+  } catch (reason) {
+    console.error("Playback setup failed", reason);
     heading.textContent = "Не удалось подготовить синхронное воспроизведение в этом браузере.";
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;
