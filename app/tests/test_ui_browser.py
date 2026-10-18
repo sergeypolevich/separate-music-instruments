@@ -114,6 +114,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     deleted = []
     running_detail = {}
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20}
+    beats_polls = []
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -121,6 +122,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             path = self.path.split("?", 1)[0]
             if path == "/api/v1/projects":
                 self._json(projects)
+            elif path.endswith("/beats"):
+                beats_polls.append(path)
+                done = len(beats_polls) >= 3
+                self._json({"status": "done" if done else "running", "progress": 1.0 if done else 0.3 * len(beats_polls),
+                            "error": None, "result": {"beats": [i * 0.25 for i in range(20)], "downbeats": [], "bpm": 240} if done else None})
             elif path.startswith("/api/v1/projects/"):
                 project_id = path.rsplit("/", 1)[-1]
                 item = next((p for p in projects if p["project_id"] == project_id), projects[0])
@@ -168,6 +174,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path.endswith("/beats"):
+                beats_polls.append(self.path)
+                self._json({"status": "running", "progress": 0.3, "error": None, "result": None}, 202)
+                return
             if self.path == "/api/v1/storage/cleanup":
                 freed = disk["unused"] + disk["temp"] if body == {"confirmed": True} else 0
                 disk.update(unused=0, temp=0)
@@ -483,6 +493,26 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_function(paused)
             page.keyboard.press("Home")
+            # Metronome: the first press detects beats (progress on the button), then it clicks on them.
+            metronome = page.locator(".footer-toggle")
+            assert metronome.text_content() == "Метроном" and metronome.get_attribute("aria-pressed") == "false"
+            assert page.locator('[data-control="metronome-volume"]').input_value() == "50"
+            metronome.click()
+            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Метроном · 30%'")
+            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Метроном' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
+            assert metronome.get_attribute("aria-pressed") == "true" and beats_polls[0].endswith("/project-0/beats")
+            assert metronome.evaluate("el => el.style.getPropertyValue('--job-progress')") == ""  # no leftover fill
+            page.keyboard.press("Space")
+            page.wait_for_function("Number(document.querySelector('.footer-toggle').dataset.clicks) >= 2", timeout=10000)
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
+            page.keyboard.press("Home")
+            volume_box = page.locator('[data-control="metronome-volume"]').bounding_box()
+            page.mouse.click(volume_box["x"] + volume_box["width"] - 1, volume_box["y"] + volume_box["height"] / 2)
+            assert page.locator('[data-control="metronome-volume"]').input_value() == "100"
+            assert page.evaluate("localStorage.getItem('audio-stems-metronome-volume')") == "100"
+            metronome.click()
+            assert metronome.get_attribute("aria-pressed") == "false"
             # On a volume slider the arrows still move the position, never the volume.
             gain0 = page.locator('[data-control="gain"]').first
             before_gain = gain0.input_value()

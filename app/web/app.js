@@ -59,6 +59,7 @@ const transportIcons = {
   play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
   start: '<path d="M6 5v14"/><path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/>',
+  metronome: '<path d="M9 3h6l4 18H5z"/><path d="M12 16l5-9"/><path d="M7 15h10"/>',
 };
 
 function setIcon(button, name) {
@@ -431,7 +432,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, snapFaderPercent } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
+    const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
       const audio = document.createElement("audio");
@@ -529,9 +531,28 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       selectedStem = Math.min(stems.length - 1, Math.max(0, index));
       mixerRowElements.forEach((row, i) => { row.dataset.selected = String(i === selectedStem); });
     };
+    // Metronome: its own bus with a limiter, so a loud click never distorts; the project gain is untouched.
+    const metronomeBus = audioContext.createGain();
+    const limiter = audioContext.createDynamicsCompressor();
+    limiter.threshold.value = -2;
+    limiter.ratio.value = 20;
+    limiter.attack.value = 0.001;
+    limiter.release.value = 0.05;
+    metronomeBus.connect(limiter);
+    limiter.connect(audioContext.destination);
+    const metronome = new Metronome(audioContext, metronomeBus);
+    let metronomeOn = false;
     const transport = new SynchronizedTransport(tracks, {
-      onTimeUpdate: updateTime,
-      onEnded: () => updateTransportButton(false),
+      onTimeUpdate: (seconds) => {
+        updateTime(seconds);
+        if (metronomeOn && transport.playing) metronome.update(seconds);
+        else metronome.reset();
+        metronomeButton.dataset.clicks = String(metronome.clicks);
+      },
+      onEnded: () => {
+        metronome.reset();
+        updateTransportButton(false);
+      },
       beforePlay: () => audioContext.resume(),
       startOffset,
     });
@@ -637,6 +658,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       error.textContent = "";
       if (transport.playing) {
         transport.pause();
+        metronome.reset();
         updateTransportButton(false);
         return;
       }
@@ -651,7 +673,86 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     play.addEventListener("click", togglePlayback);
     reset.addEventListener("click", () => {
       transport.stop();
+      metronome.reset();
       updateTransportButton(false);
+    });
+
+    // Footer under the tracks: the metronome and its volume.
+    const footer = document.createElement("div");
+    footer.className = "project-footer";
+    const metronomeButton = document.createElement("button");
+    metronomeButton.type = "button";
+    metronomeButton.className = "footer-toggle";
+    metronomeButton.setAttribute("aria-pressed", "false");
+    metronomeButton.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${transportIcons.metronome}</svg><span>Метроном</span>`;
+    const metronomeLabel = metronomeButton.querySelector("span");
+    const volumeWrap = document.createElement("div");
+    volumeWrap.className = "mixer-fader footer-fader";
+    const volume = document.createElement("input");
+    volume.type = "range";
+    volume.min = "0";
+    volume.max = "100";
+    volume.step = "1";
+    volume.dataset.control = "metronome-volume";
+    volume.tabIndex = -1;
+    volume.setAttribute("aria-label", "Громкость метронома");
+    let savedVolume = "50";
+    try { savedVolume = localStorage.getItem("audio-stems-metronome-volume") || "50"; } catch (_error) { /* storage blocked */ }
+    volume.value = savedVolume;
+    const showVolume = () => {
+      volume.style.setProperty("--fill", `${volume.value}%`);
+      metronomeBus.gain.value = metronomeGain(volume.value);
+    };
+    showVolume();
+    volume.addEventListener("input", () => {
+      showVolume();
+      storeSetting("audio-stems-metronome-volume", volume.value);
+    });
+    volumeWrap.append(volume);
+    footer.append(metronomeButton, volumeWrap);
+
+    const setMetronome = (on) => {
+      metronomeOn = on;
+      metronomeButton.setAttribute("aria-pressed", String(on));
+      if (!on) metronome.reset();
+    };
+    // Beats are detected on the first use only (it takes about half a minute), with progress on the button.
+    let beatsRequest = null;
+    const loadBeats = () => {
+      beatsRequest = beatsRequest || (async () => {
+        let state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/beats`, { method: "POST" });
+        while (state.status === "queued" || state.status === "running") {
+          if (setupId !== playbackSetupId) return null;
+          metronomeButton.dataset.analyzing = "true";
+          metronomeButton.style.setProperty("--job-progress", `${Math.round(state.progress * 100)}%`);
+          metronomeLabel.textContent = `Метроном · ${Math.round(state.progress * 100)}%`;
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/beats`);
+        }
+        delete metronomeButton.dataset.analyzing;
+        metronomeButton.style.removeProperty("--job-progress");
+        metronomeLabel.textContent = "Метроном";
+        if (state.status !== "done") throw new Error(state.error || "Не удалось определить доли");
+        metronome.setBeats(state.result.beats);
+        return state.result.beats;
+      })().catch((reason) => {
+        beatsRequest = null;
+        delete metronomeButton.dataset.analyzing;
+        metronomeButton.style.removeProperty("--job-progress");
+        metronomeLabel.textContent = "Метроном";
+        error.textContent = reason.message;
+        setMetronome(false);
+        return null;
+      });
+      return beatsRequest;
+    };
+    metronomeButton.addEventListener("click", async () => {
+      if (metronomeOn) {
+        setMetronome(false);
+        return;
+      }
+      setMetronome(true);
+      await loadBeats();
     });
     let positioned = false;
     tracks.forEach((audio) => audio.addEventListener("loadedmetadata", () => {
@@ -671,7 +772,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
-    playbackPanel.replaceChildren(error, mixerRows, ...tracks);
+    playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
     playbackPanel.hidden = false;
     selectStem(0);
     activeControls = {
