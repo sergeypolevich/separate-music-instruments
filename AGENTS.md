@@ -29,12 +29,12 @@ The application's current behavior is considered working and is captured in test
 - Primary operating system: Windows. Use `pathlib.Path`; avoid hard-coded Windows path separators.
 - Current output root: `Path.home() / "Audio Stems" / "Music"`.
 - Audio files are saved directly under the output root, using a sanitized YouTube video title plus the selected stream extension.
-- Stem files are saved in a flat per-track directory: `Stems/<safe YouTube title>/vocals.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `piano.wav`, and `other.wav`. Do **not** create one subdirectory per stem.
+- Stem files are saved as 16-bit FLAC in a flat per-track directory: `Stems/<safe YouTube title>/vocals.flac`, `drums.flac`, `bass.flac`, `guitar.flac`, `piano.flac`, and `other.flac` for the original model `htdemucs_6s`, and `Stems/<safe YouTube title> (<model>)/` for any other model (four-stem models write `vocals`, `drums`, `bass`, `other`). All stems of one set share one gain so nothing clips and the balance is unchanged. Sets stored as WAV before version 10 stay valid. Do **not** create one subdirectory per stem.
 - A batch is processed in two phases: (1) attempt to download all requested tracks; (2) after the download phase ends, run separation for each successfully available audio file. A failed item must not stop processing the remaining items.
 - The current downloader uses `pytubefix`: for a search query it selects the first search result; it prefers an audio-only `audio/webm` stream ordered by descending bitrate, then falls back to another available audio-only stream.
 - Download attempts are retried up to three times with delays between attempts. If a target audio file already exists and passes container validation, it is reused instead of downloading again; an invalid one is quarantined and downloaded again.
-- The current separator uses Demucs model `htdemucs_6s`. The device comes from `AUDIO_STEMS_MODEL_DEVICE`; the default `auto` picks CUDA, then Apple MPS, then CPU. Users do not choose the device in the UI.
-- Temporary Demucs outputs are cleaned up only after all six expected stems exist. Existing complete stem sets are skipped.
+- Separation models: Demucs `htdemucs_6s` (default) and `htdemucs_ft`, and BS-RoFormer SW through audio-separator (overlap 1), each run in its own process; users pick one in Settings. The device comes from `AUDIO_STEMS_MODEL_DEVICE`; the default `auto` picks CUDA, then Apple MPS, then CPU. Users do not choose the device in the UI.
+- Temporary separator outputs are cleaned up only after all expected stems of the model exist. Existing complete stem sets of the same model are skipped.
 - Filenames are sanitized for Windows-invalid characters and reserved device names.
 - Current hard-coded example queries are test fixtures/examples only. In the product, users must be able to supply inputs through a client; the production workflow must not require editing the Python source to change the track list.
 
@@ -130,7 +130,7 @@ Keep typed input/output data models (`app/audio_stems/models.py`) and pass colla
 The component methods to keep stable:
 
 - `PytubeDownloader.search(query) -> list[VideoCandidate]` and `.download(source) -> DownloadedAudio`
-- `DemucsSeparator.separate(audio_path, output_dir, options) -> SeparationResult`
+- `StemSeparator.separate(audio_path, output_dir, options, progress=None) -> SeparationResult` (stems plus the input level that storage undoes)
 - `LocalMediaStorage.save_audio(...)`, `save_stem(...)`, `resolve_path(...)` and related typed operations
 - `SqliteMetadataStore` methods for creation, state transitions, querying, and event persistence
 
@@ -142,7 +142,7 @@ The Demucs implementation and the `pytubefix` implementation are adapters, not a
 
 - The local storage adapter must retain the current root by default: `~/Audio Stems/Music`.
 - Keep source audio at the root and stems under `Stems/<safe track title>/`.
-- Expected current stem names: `vocals.wav`, `drums.wav`, `bass.wav`, `guitar.wav`, `piano.wav`, and `other.wav`.
+- Expected current stem names: `vocals.flac`, `drums.flac`, `bass.flac`, `guitar.flac`, `piano.flac`, and `other.flac` (four-stem models: no guitar or piano).
 - Do not create subfolders for individual stems.
 - Save file locations and metadata in the database as relative storage keys or managed asset IDs, not as arbitrary client-supplied paths.
 - Prevent path traversal, unsafe filenames, accidental overwrite, and collisions. Preserve the readable title; if titles collide, add a stable source identifier to disambiguate.
