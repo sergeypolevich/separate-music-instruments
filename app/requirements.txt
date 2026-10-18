@@ -2,6 +2,9 @@ pytubefix==11.2.0
 demucs==4.1.0
 fastapi==0.139.2
 uvicorn==0.51.0
-numpy==1.26.4
+numpy==2.5.4
 imageio-ffmpeg==0.6.0
 soundfile==0.14.0
+audio-separator==0.47.0
+onnxruntime==1.31.0
+librosa==0.11.0

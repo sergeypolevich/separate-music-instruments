@@ -42,7 +42,7 @@ def _projects():
     ]
 
 
-def _project_detail(project_id: str, job_id: str, title: str):
+def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS):
     assets = [
         {
             "asset_id": f"asset-{index}",
@@ -52,7 +52,7 @@ def _project_detail(project_id: str, job_id: str, title: str):
             "byte_size": 64_000,
             "available": True,
         }
-        for index, stem in enumerate(STEMS)
+        for index, stem in enumerate(stems)
     ]
     return {
         "project_id": project_id,
@@ -107,6 +107,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     projects = _projects()
     batch_id = "batch-created"
     new_job_id = "job-created"
+    submitted = []
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -117,9 +118,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             elif path.startswith("/api/v1/projects/"):
                 project_id = path.rsplit("/", 1)[-1]
                 item = next((p for p in projects if p["project_id"] == project_id), projects[0])
-                self._json(_project_detail(item["project_id"], item["job_id"], item["title"]))
+                stems = ("vocals", "drums", "bass", "other") if project_id == "project-3" else STEMS  # a 4-stem model
+                self._json(_project_detail(item["project_id"], item["job_id"], item["title"], stems))
             elif path == "/api/v1/models":
-                self._json([{"name": "htdemucs_6s", "stems": list(STEMS), "default": True}])
+                self._json([
+                    {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True},
+                    {"name": "htdemucs_ft", "label": "Demucs ft", "description": "Cleaner", "stems": ["vocals", "drums", "bass", "other"], "default": False},
+                ])
             elif path.startswith("/api/v1/assets/") and path.endswith("/waveform"):
                 asset_id = path.split("/")[-2]
                 self._json({"asset_id": asset_id, "levels": [0.0, 0.2, 0.5, 0.1] * 64})
@@ -150,6 +155,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/v1/batches":
+                submitted.append(body)
                 title = body["inputs"][0]
                 projects.append({
                     "project_id": "project-created", "input_type": "search_query",
@@ -423,7 +429,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("ArrowRight")
             assert page.locator("#inputs").input_value() == "s m "
             page.keyboard.press("Tab")  # inside the search dialog Tab still moves the focus
-            assert page.evaluate("document.activeElement.id") == "model"
+            assert page.evaluate("document.activeElement.id") == "submit-button"
             assert page.evaluate(audio_state)["paused"] and page.evaluate(audio_state)["t"] == 0
             assert page.locator('[data-control="solo"][aria-pressed="true"]').count() == 0
             page.locator("#inputs").fill("")
@@ -490,6 +496,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 return [r.left + 6 + (r.width - 12) * 84 / 360, f.left + parseFloat(mark.left) + 0.5, mark.height];
             }""")
             assert abs(accent_mark[0] - accent_mark[1]) <= 1 and accent_mark[2] == "12px"
+            # Separation: models are a radio list; the choice is remembered across reloads.
+            radios = page.locator('#model-options input[type="radio"]')
+            assert radios.count() == 2 and radios.nth(0).is_checked()
+            assert page.locator(".model-option-name").nth(1).text_content() == "Demucs ft · 4 дорожки"
+            page.locator(".model-option").nth(1).click()
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
             assert page.locator('[data-theme-choice="light"]').get_attribute("aria-pressed") == "true"
@@ -499,12 +510,22 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.reload(wait_until="networkidle")
             assert page.evaluate("document.documentElement.dataset.theme") == "light"
             assert page.evaluate(swatch) == blue_accent and page.locator("#accent-hue").input_value() == "200"
+            page.wait_for_function("document.querySelectorAll('#model-options input').length === 2")
+            assert page.locator('#model-options input[value="htdemucs_ft"]').is_checked()
             page.locator('[data-theme-choice="dark"]').click()
             page.locator("#accent-hue").evaluate("el => { el.value = '84'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             assert page.evaluate(body_bg) == dark_bg and page.evaluate(swatch) == default_accent
             page.locator('[data-screen="project"]').first.click()
             # After the reload above the project list loads asynchronously.
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
+            # A four-stem project shows four rows, and the playhead spans exactly them.
+            page.locator('.project-tab[data-project-id="project-3"]').click()
+            page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")
+            assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
+            page.keyboard.press("KeyG")  # no guitar row: the selection stays put
+            assert page.evaluate("[...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)") == ["true", "false", "false", "false"]
+            page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6")
 
             page.locator("#search-trigger").click()
             overlay = page.locator("#search-overlay")
@@ -531,6 +552,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#submit-button").click()
             page.wait_for_function("document.querySelector('#search-overlay').hidden")
             page.locator('.project-tab[data-project-id="project-created"]').wait_for(state="visible")
+            assert submitted[-1] == {"inputs": ["New track"], "model_name": "htdemucs_ft"}
             assert not errors, f"Browser errors: {errors}"
     finally:
         server.shutdown()

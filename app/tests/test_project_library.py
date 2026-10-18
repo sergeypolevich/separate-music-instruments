@@ -13,7 +13,7 @@ from audio_stems.models import (
     SourceKind,
     SourceRequest,
 )
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
@@ -68,7 +68,7 @@ def build_reopened_client(tmp_path):
         repository=reopened,
         settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=DemucsSeparator(),
+        separator=StemSeparator(),
         storage=storage,
     )
 

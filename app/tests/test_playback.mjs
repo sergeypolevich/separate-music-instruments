@@ -151,3 +151,15 @@ test("fader snaps to 100 percent only inside the inclusive 95 to 105 percent ban
   assert.equal(snapFaderPercent(106), 106);
   assert.equal(snapFaderPercent(150), 150);
 });
+
+test("four-stem projects mix and play like six-stem ones", async () => {
+  const nodes = makeGainNodes().slice(0, 4);
+  const mixer = new MixerSession(nodes);
+  mixer.setSolo(1, true);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [0, 1, 0, 0]);
+  const tracks = [1, 2, 3, 4].map(() => new FakeAudio());
+  const transport = new SynchronizedTransport(tracks, { requestFrame: () => 1, cancelFrame: () => {} });
+  await transport.play();
+  assert.ok(tracks.every((audio) => !audio.paused));
+  assert.throws(() => new MixerSession([]), /1-6 mixer tracks/);
+});

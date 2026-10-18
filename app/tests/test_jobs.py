@@ -62,6 +62,9 @@ class FakeSeparator:
         self.calls = []
         self.options = []
 
+    def model_stems(self, model_name):
+        return ("vocals", "drums", "bass", "other") if model_name == "htdemucs_ft" else STEMS
+
     def separate(self, audio_path: Path, output_dir: Path, options: SeparationOptions, progress=None):
         track = audio_path.stem
         self.events.append(("separate", track))
@@ -96,7 +99,6 @@ def build_orchestrator(tmp_path, *, downloader=None, separator=None, delay_log=N
         separator=separator,
         storage=storage,
         options=SeparationOptions("htdemucs_6s", "cpu"),
-        expected_stems=STEMS,
         settings=settings,
         sleep=(delay_log or (lambda _delay: None)),
     )
@@ -374,3 +376,17 @@ def test_progress_is_written_rarely_and_reaches_one(tmp_path, monkeypatch):
     assert len(writes) <= 3  # 1000 callbacks in well under 0.5 s: only the first and forced writes
     assert writes == sorted(writes) and 0.10 in writes
     assert store.list_projects("client-1")[0].job_progress == 1.0
+
+
+def test_another_model_separates_the_same_song_again_into_its_own_set(tmp_path):
+    orchestrator, store, storage, _, _, separator = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    first = store.create_batch("client-1", requests)
+    orchestrator.process_batch(first, requests)
+    second = store.create_batch("client-1", requests, separation_options=SeparationOptions("htdemucs_ft", "cpu"))
+
+    orchestrator.process_batch(second, requests)
+
+    assert separator.calls == ["id-track", "id-track"]  # the six-stem set was not reused for the other model
+    keys = sorted(asset.storage_key for asset in store.list_assets(second.job_ids[0], "client-1") if asset.stem_name)
+    assert keys == [f"Stems/id-track (htdemucs_ft)/{stem}.flac" for stem in ("bass", "drums", "other", "vocals")]

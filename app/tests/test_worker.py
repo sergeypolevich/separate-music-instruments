@@ -1,7 +1,7 @@
 from dataclasses import replace
 
 from audio_stems.models import BatchStatus, JobStatus, SeparationOptions, SourceKind, SourceRequest
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.db import SqliteMetadataStore
 from tests import test_jobs as job_fixtures
 from audio_stems.youtube import PytubeDownloader
@@ -93,7 +93,7 @@ def test_worker_composition_uses_local_adapters_and_configured_database(tmp_path
 
     assert isinstance(worker, DatabaseWorker)
     assert isinstance(worker.orchestrator.downloader, PytubeDownloader)
-    assert isinstance(worker.orchestrator.separator, DemucsSeparator)
+    assert isinstance(worker.orchestrator.separator, StemSeparator)
     assert database.exists()
 
 

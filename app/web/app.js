@@ -12,7 +12,8 @@ const stateDescriptions = {
 const batchActiveStates = new Set(["queued", "processing"]);
 const form = document.querySelector("#submit-form");
 const inputField = document.querySelector("#inputs");
-const modelField = document.querySelector("#model");
+const modelOptions = document.querySelector("#model-options");
+let selectedModel = "";
 const formMessage = document.querySelector("#form-message");
 const submitButton = document.querySelector("#submit-button");
 const searchOverlay = document.querySelector("#search-overlay");
@@ -294,11 +295,12 @@ async function setupProjectPlayback(assets, setupId) {
   const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
   const stemLabels = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Guitar", piano: "Piano", other: "Other" };
   const stemsByName = new Map(assets.filter((asset) => asset.asset_type === "stem").map((asset) => [asset.stem_name, asset]));
-  const stems = stemOrder.map((name) => stemsByName.get(name));
+  // Four-stem models have no guitar and piano rows.
+  const stems = stemOrder.map((name) => stemsByName.get(name)).filter(Boolean);
   const heading = document.createElement("p");
   heading.className = "playback-message";
-  if (stems.some((asset) => !asset || !asset.available || !["wav", "flac"].includes(asset.media_format))) {
-    heading.textContent = "Для синхронного воспроизведения нужны все шесть доступных WAV-дорожек.";
+  if (!stems.length || stems.some((asset) => !asset.available || !["wav", "flac"].includes(asset.media_format))) {
+    heading.textContent = "Для синхронного воспроизведения нужны все дорожки проекта.";
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;
     return;
@@ -345,7 +347,7 @@ async function setupProjectPlayback(assets, setupId) {
     activeMixer = mixer;
 
     const time = detailTime;
-    // One playhead layer over the waveform column of all six rows; it is the position slider
+    // One playhead layer over the waveform column of all stem rows; it is the position slider
     // for both pointer and keyboard.
     const playheadLayer = document.createElement("div");
     playheadLayer.className = "playhead-layer";
@@ -432,7 +434,7 @@ async function setupProjectPlayback(assets, setupId) {
       row.className = "mixer-row";
       mixerRowElements.push(row);
       row.addEventListener("pointerdown", () => selectStem(index));
-      // Explicit rows: the playhead layer spans rows 1-6, which would push auto-placed rows down.
+      // Explicit rows: the playhead layer spans all stem rows, which would push auto-placed rows down.
       row.style.gridRow = String(index + 1);
       row.dataset.stem = asset.stem_name;
       const left = document.createElement("div");
@@ -534,6 +536,7 @@ async function setupProjectPlayback(assets, setupId) {
       }
     }));
     detailControls.replaceChildren(buttons);
+    playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
     playbackPanel.replaceChildren(error, mixerRows, ...tracks);
@@ -684,20 +687,36 @@ async function checkUpdates() {
   }
 }
 
+// The separation model is chosen in Settings and remembered in this browser.
 async function loadModels() {
+  let saved = "";
+  try { saved = localStorage.getItem("audio-stems-model") || ""; } catch (_error) { /* storage blocked: use the default */ }
   try {
     const models = await requestJson("/api/v1/models");
-    modelField.replaceChildren(...models.map((model) => {
-      const option = document.createElement("option");
-      option.value = model.name;
-      option.textContent = model.name;
-      option.selected = Boolean(model.default);
+    selectedModel = (models.find((model) => model.name === saved) || models.find((model) => model.default) || models[0] || {}).name || "";
+    modelOptions.replaceChildren(...models.map((model) => {
+      const option = document.createElement("label");
+      option.className = "model-option";
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = "model";
+      radio.value = model.name;
+      radio.checked = model.name === selectedModel;
+      radio.addEventListener("change", () => {
+        selectedModel = model.name;
+        storeSetting("audio-stems-model", model.name);
+      });
+      const name = document.createElement("span");
+      name.className = "model-option-name";
+      name.textContent = `${model.label || model.name} · ${model.stems.length} дорожек`.replace("4 дорожек", "4 дорожки");
+      const note = document.createElement("span");
+      note.className = "model-option-note";
+      note.textContent = model.description || "";
+      option.append(radio, name, note);
       return option;
     }));
   } catch (error) {
-    modelField.replaceChildren(new Option("Не удалось загрузить модели", ""));
-    modelField.disabled = true;
-    setFormMessage(error.message, true);
+    modelOptions.textContent = `Не удалось загрузить модели: ${error.message}`;
   }
 }
 
@@ -714,7 +733,7 @@ async function submitSearch(event) {
   try {
     const created = await requestJson("/api/v1/batches", {
       method: "POST",
-      body: JSON.stringify({ inputs, model_name: modelField.value }),
+      body: JSON.stringify(selectedModel ? { inputs, model_name: selectedModel } : { inputs }),
     });
     inputField.value = "";
     inputField.style.height = "";

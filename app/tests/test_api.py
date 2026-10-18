@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 import httpx
 
 from audio_stems.models import JobStatus, SourceKind, SourceRequest
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
@@ -45,7 +45,7 @@ def build_client(tmp_path):
         repository=repository,
         settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=DemucsSeparator(),
+        separator=StemSeparator(),
     )
     return SyncASGIClient(app), repository
 

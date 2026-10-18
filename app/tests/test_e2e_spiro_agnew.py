@@ -160,7 +160,6 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                 page.locator('[data-screen="project"]').first.click()
                 if reuse_root is None:
                     page.locator("#search-trigger").click()
-                    page.locator("#model").select_option("htdemucs_6s")
                     page.locator("#inputs").fill(QUERY)
                     page.locator("#submit-button").click()
                     page.wait_for_function("document.querySelector('#search-overlay').hidden")

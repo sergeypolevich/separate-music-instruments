@@ -9,14 +9,14 @@ import httpx
 from urllib.parse import quote
 
 from audio_stems.api import create_app
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
 from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
 
 
-PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==1.26.4\nimageio-ffmpeg==0.6.0\nsoundfile==0.14.0\n"
+PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==2.5.4\nimageio-ffmpeg==0.6.0\nsoundfile==0.14.0\naudio-separator==0.47.0\nonnxruntime==1.31.0\nlibrosa==0.11.0\n"
 
 
 class FakeResponse:
@@ -243,7 +243,7 @@ def test_update_api_checks_release_notes_and_returns_restart_requirement(tmp_pat
     app = create_app(
         repository=repository, settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=DemucsSeparator(), update_service=service,
+        separator=StemSeparator(), update_service=service,
     )
 
     async def send(method, path, **kwargs):
@@ -283,7 +283,7 @@ def test_update_api_reports_failed_install_and_can_be_retried(tmp_path):
     app = create_app(
         repository=repository, settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=DemucsSeparator(), update_service=service,
+        separator=StemSeparator(), update_service=service,
     )
 
     async def send():

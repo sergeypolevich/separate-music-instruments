@@ -2,8 +2,9 @@ const STEM_ORDER = ["vocals", "drums", "bass", "guitar", "piano", "other"];
 
 export class MixerSession {
   constructor(gainNodes, onEffectiveGain = () => {}) {
-    if (gainNodes.length !== STEM_ORDER.length) {
-      throw new Error(`Expected ${STEM_ORDER.length} mixer tracks`);
+    // Four- and six-stem models are both supported.
+    if (gainNodes.length < 1 || gainNodes.length > STEM_ORDER.length) {
+      throw new Error(`Expected 1-${STEM_ORDER.length} mixer tracks`);
     }
     this.gainNodes = gainNodes;
     this.onEffectiveGain = onEffectiveGain;
@@ -64,8 +65,8 @@ export class SynchronizedTransport {
     beforePlay = () => Promise.resolve(),
     driftTolerance = 0.08,
   } = {}) {
-    if (tracks.length !== STEM_ORDER.length) {
-      throw new Error(`Expected ${STEM_ORDER.length} synchronized tracks`);
+    if (tracks.length < 1 || tracks.length > STEM_ORDER.length) {
+      throw new Error(`Expected 1-${STEM_ORDER.length} synchronized tracks`);
     }
     this.tracks = tracks;
     this.requestFrame = requestFrame;

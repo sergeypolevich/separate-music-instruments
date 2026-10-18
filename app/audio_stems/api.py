@@ -21,7 +21,7 @@ from audio_stems.models import (
     FailureCategory,
     SeparationOptions,
 )
-from audio_stems.separator import DemucsSeparator
+from audio_stems.separator import StemSeparator
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
@@ -134,13 +134,13 @@ def create_app(
     repository: SqliteMetadataStore,
     settings: Settings,
     source_adapter: YouTubeSourceAdapter | None = None,
-    separator: DemucsSeparator | None = None,
+    separator: StemSeparator | None = None,
     storage: LocalMediaStorage | None = None,
     update_service: UpdateService | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
-    separator = separator or DemucsSeparator()
+    separator = separator or StemSeparator()
     storage = storage or LocalMediaStorage(settings.storage_root, temp_root=settings.temp_root)
     application_root = Path(__file__).resolve().parents[1]
     update_service = update_service or UpdateService(
@@ -188,6 +188,8 @@ def create_app(
         return [
             {
                 "name": model.name,
+                "label": model.label,
+                "description": model.description,
                 "stems": list(model.stems),
                 "default": model.name == settings.model_name,
             }
