@@ -245,3 +245,18 @@ def test_an_unfinished_cleanup_is_finished_when_the_api_starts(tmp_path, monkeyp
 
     assert not files[0].exists() and repository.pending_project_deletions() == []
 
+
+
+def test_a_stem_removed_by_hand_is_reported_unavailable_and_the_project_still_deletes(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, _, files = add_project(repository, storage, "Hand removed")
+    files[1].unlink()  # the user deleted vocals in Explorer
+
+    detail = request("GET", f"/api/v1/projects/{project.project_id}").json()
+    vocals = next(asset for asset in detail["assets"] if asset["stem_name"] == "vocals")
+
+    assert vocals["available"] is False and detail["disk_bytes"] == 5
+    assert request("GET", f"/api/v1/assets/{vocals['asset_id']}").status_code == 404
+    assert request("GET", f"/api/v1/assets/{vocals['asset_id']}/waveform").status_code == 404
+    assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 204
+    assert not files[0].exists()

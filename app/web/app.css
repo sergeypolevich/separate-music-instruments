@@ -139,6 +139,7 @@ h1, h2, h3, p { margin-top: 0; }
 .playback-panel { display: grid; grid-template-columns: subgrid; row-gap: 8px; margin-top: 12px; }
 .playback-panel > * { grid-column: 1 / -1; }
 .playback-message, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
+.playback-panel > .primary-button { justify-self: start; }
 .playback-buttons { display: flex; gap: 6px; }
 .transport-button { width: 57px; min-width: 57px; height: 51px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); color: var(--text); font-size: 27px; }
 .transport-button:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }

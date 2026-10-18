@@ -42,7 +42,7 @@ def _projects():
     ]
 
 
-def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS):
+def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missing=()):
     assets = [
         {
             "asset_id": f"asset-{index}",
@@ -50,7 +50,7 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS):
             "stem_name": stem,
             "media_format": "wav",
             "byte_size": 64_000,
-            "available": True,
+            "available": stem not in missing,
         }
         for index, stem in enumerate(stems)
     ]
@@ -110,6 +110,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     batch_id = "batch-created"
     new_job_id = "job-created"
     submitted = []
+    deleted = []
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -121,7 +122,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 project_id = path.rsplit("/", 1)[-1]
                 item = next((p for p in projects if p["project_id"] == project_id), projects[0])
                 stems = ("vocals", "drums", "bass", "other") if project_id == "project-3" else STEMS  # a 4-stem model
-                self._json(_project_detail(item["project_id"], item["job_id"], item["title"], stems))
+                missing = ("vocals", "drums") if project_id == "project-4" else ()  # removed from disk by hand
+                self._json(_project_detail(item["project_id"], item["job_id"], item["title"], stems, missing))
             elif path == "/api/v1/models":
                 self._json([
                     {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True},
@@ -170,6 +172,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json({"error": {"code": "not_found", "message": "Not found"}}, 404)
 
         def do_DELETE(self):
+            deleted.append(self.path)
             self.send_response(204)
             self.end_headers()
 
@@ -556,6 +559,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
             page.keyboard.press("KeyG")  # no guitar row: the selection stays put
             assert page.evaluate("[...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)") == ["true", "false", "false", "false"]
+            # Files deleted by hand: the project says which and offers to separate the song again.
+            page.locator('.project-tab[data-project-id="project-4"]').click()
+            page.wait_for_function("document.querySelector('#playback-panel').textContent.includes('С диска удалены файлы проекта: Vocal, Drums.')")
+            page.get_by_role("button", name="Разделить заново").click()
+            page.wait_for_function("document.querySelector('.project-tab[data-project-id=\"project-created\"]')")
+            assert deleted[-1] == "/api/v1/projects/project-4"
+            assert submitted[-1] == {"inputs": ["Track 4"], "model_name": "htdemucs_6s"}
+            projects[:] = [p for p in projects if p["project_id"] not in ("project-created",)]
+            submitted.clear()
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6")
 
