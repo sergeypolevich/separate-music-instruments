@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import mimetypes
 import re
 from pathlib import Path
 import subprocess
@@ -26,8 +27,8 @@ from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
 from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
-import wave
 import numpy as np
+import soundfile
 
 
 _OWNER_ID = "local"
@@ -77,38 +78,26 @@ class WaveformError(ValueError):
     pass
 
 
-def _sample_peak(data: bytes, sample_width: int) -> float:
-    max_value = 1 << (sample_width * 8 - 1)
-    if sample_width == 1:
-        samples = np.frombuffer(data, np.uint8).astype(np.int16) - 128
-    elif sample_width == 3:
-        raw = np.frombuffer(data, np.uint8).reshape(-1, 3).astype(np.int32)
-        samples = raw[:, 0] | raw[:, 1] << 8 | raw[:, 2] << 16
-        samples = np.where(samples & 0x800000, samples - (1 << 24), samples)
-    else:
-        samples = np.frombuffer(data, {2: "<i2", 4: "<i4"}[sample_width])
-    # max/min on the native dtype avoids a widened copy; int() keeps -min from overflowing.
-    return min(1.0, max(int(samples.max()), -int(samples.min())) / max_value)
+# Windows maps .flac to audio/x-flac; browsers expect audio/flac.
+mimetypes.add_type("audio/flac", ".flac")
+_WAVEFORM_FORMATS = {"wav", "flac"}
 
 
 def waveform_data(path: Path, levels: int) -> dict[str, object]:
-    """Return at most ``levels`` peak points without loading the full WAV."""
+    """Return at most ``levels`` peak points without loading the whole WAV or FLAC file."""
     if levels < 1 or levels > 2048:
         raise WaveformError("Waveform level count is outside supported bounds")
     try:
         stat = path.stat()
     except OSError as exc:
-        raise WaveformError("WAV file could not be read") from exc
+        raise WaveformError("Audio file could not be read") from exc
     try:
-        with wave.open(str(path), "rb") as source:
-            channels = source.getnchannels()
-            sample_width = source.getsampwidth()
-            sample_rate = source.getframerate()
-            frame_count = source.getnframes()
-            if source.getcomptype() != "NONE":
-                raise WaveformError("Compressed WAV is not supported for waveform extraction")
-            if not 1 <= channels <= 32 or sample_width not in {1, 2, 3, 4} or sample_rate <= 0:
-                raise WaveformError("WAV encoding is not supported for waveform extraction")
+        with soundfile.SoundFile(path) as source:
+            channels = source.channels
+            sample_rate = source.samplerate
+            frame_count = source.frames
+            if not 1 <= channels <= 32 or sample_rate <= 0:
+                raise WaveformError("Audio encoding is not supported for waveform extraction")
 
             bucket_count = min(levels, frame_count)
             peaks: list[float] = []
@@ -119,17 +108,17 @@ def waveform_data(path: Path, levels: int) -> dict[str, object]:
                 peak = 0.0
                 while frames_left:
                     count = min(frames_left, 65536)
-                    samples = source.readframes(count)
-                    actual_frames = len(samples) // (channels * sample_width)
+                    samples = source.read(count, dtype="float32")
+                    actual_frames = len(samples)
                     if actual_frames == 0:
-                        raise WaveformError("WAV file ended before its declared frame count")
-                    peak = max(peak, _sample_peak(samples, sample_width))
+                        raise WaveformError("Audio file ended before its declared frame count")
+                    peak = max(peak, min(1.0, float(np.abs(samples).max())))
                     frames_left -= actual_frames
                 peaks.append(peak)
     except WaveformError:
         raise
-    except (OSError, wave.Error, EOFError) as exc:
-        raise WaveformError("WAV file could not be read") from exc
+    except (OSError, RuntimeError) as exc:  # libsndfile raises RuntimeError subclasses
+        raise WaveformError("Audio file could not be read") from exc
 
     return {
         "sample_rate": sample_rate,
@@ -404,10 +393,10 @@ def create_app(
         asset = repository.get_asset(asset_id, _OWNER_ID)
         if asset is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
-        if (asset.media_format or "").lower() != "wav":
+        if (asset.media_format or "").lower() not in _WAVEFORM_FORMATS:
             raise HTTPException(
                 status_code=415,
-                detail={"code": "unsupported_waveform_format", "message": "Waveform data is available for WAV assets"},
+                detail={"code": "unsupported_waveform_format", "message": "Waveform data is available for WAV and FLAC assets"},
             )
         try:
             path = storage.resolve_path(asset.storage_key)

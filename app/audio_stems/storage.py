@@ -3,12 +3,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
 from threading import RLock
 from typing import Sequence
 from uuid import UUID, uuid4
+
+import soundfile
 
 from audio_stems.models import (
     AdapterError,
@@ -19,6 +22,8 @@ from audio_stems.models import (
     StemArtifact,
     StorageTarget,
     VideoCandidate,
+    disk_full_error,
+    is_disk_full,
 )
 
 
@@ -27,6 +32,15 @@ _WHITESPACE = re.compile(r"\s+")
 _EXTENSION = re.compile(r"^[A-Za-z0-9]{1,10}$")
 _STEM_NAME = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 _INDEX_LOCK = RLock()
+# New stems are FLAC; projects made before version 10 keep their WAV stems.
+_STEM_FORMATS = ("flac", "wav")
+_BLOCK_FRAMES = 1 << 20
+_MIN_FREE_BYTES = 64 * 2**20  # a write that fails with less than this left is treated as a full disk
+
+
+def _file_peak(path: Path) -> float:
+    with soundfile.SoundFile(path) as source:
+        return max((float(abs(block).max()) for block in source.blocks(_BLOCK_FRAMES, dtype="float32")), default=0.0)
 
 
 def safe_filename(title: str) -> str:
@@ -79,6 +93,8 @@ class LocalMediaStorage:
             temporary.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True), encoding="utf-8")
             temporary.replace(self._index_path)
         except OSError as exc:
+            if is_disk_full(exc):
+                raise disk_full_error() from exc
             raise AdapterError("Local storage identity index could not be saved", FailureCategory.TRANSIENT) from exc
 
     @staticmethod
@@ -243,10 +259,12 @@ class LocalMediaStorage:
             raise AdapterError("Stem directory could not be created", FailureCategory.TRANSIENT) from exc
         return path
 
-    def stem_file_target(self, title: str, stem_name: str, source_id: str | None = None) -> StorageTarget:
-        if not _STEM_NAME.fullmatch(stem_name):
+    def stem_file_target(
+        self, title: str, stem_name: str, source_id: str | None = None, extension: str = "flac"
+    ) -> StorageTarget:
+        if not _STEM_NAME.fullmatch(stem_name) or extension not in _STEM_FORMATS:
             raise AdapterError("Invalid stem name", FailureCategory.INVALID_INPUT)
-        path = self.stem_directory(title, source_id) / f"{stem_name}.wav"
+        path = self.stem_directory(title, source_id) / f"{stem_name}.{extension}"
         return StorageTarget(self._key_for(path), path)
 
     def temporary_directory(self, title: str, source_id: str | None = None) -> Path:
@@ -262,8 +280,21 @@ class LocalMediaStorage:
         expected_stems: Sequence[str],
         source_id: str | None = None,
     ) -> bool:
+        return self.existing_stems(title, expected_stems, source_id) is not None
+
+    def existing_stems(
+        self,
+        title: str,
+        expected_stems: Sequence[str],
+        source_id: str | None = None,
+    ) -> dict[str, Path] | None:
+        """Return a complete stored set in one format (FLAC, or WAV from older versions), else None."""
         directory = self.stem_directory(title, source_id)
-        return all((directory / f"{stem}.wav").is_file() for stem in expected_stems)
+        for extension in _STEM_FORMATS:
+            paths = {stem: directory / f"{stem}.{extension}" for stem in expected_stems}
+            if all(path.is_file() for path in paths.values()):
+                return paths
+        return None
 
     def remove_temporary_directory(self, title: str, source_id: str | None = None) -> None:
         shutil.rmtree(self.temporary_directory(title, source_id), ignore_errors=True)
@@ -291,17 +322,60 @@ class LocalMediaStorage:
         source_id: str | None,
         stem: StemArtifact,
     ) -> MediaAsset:
-        target = self.stem_file_target(track_title, stem.name, source_id)
+        extension = stem.path.suffix.lower().lstrip(".")
+        target = self.stem_file_target(track_title, stem.name, source_id, extension)
         try:
             target.path.parent.mkdir(parents=True, exist_ok=True)
             if stem.path.resolve() != target.path.resolve():
                 shutil.copy2(stem.path, target.path)
             size = target.path.stat().st_size
         except OSError as exc:
+            if is_disk_full(exc):
+                raise disk_full_error() from exc
             raise AdapterError("Stem asset could not be saved", FailureCategory.TRANSIENT) from exc
         return MediaAsset(
-            uuid4(), job_id, MediaAssetType.STEM, target.storage_key, size, stem_name=stem.name, media_format="wav"
+            uuid4(), job_id, MediaAssetType.STEM, target.storage_key, size, stem_name=stem.name, media_format=extension
         )
+
+    def save_stems(
+        self,
+        job_id: UUID,
+        track_title: str,
+        source_id: str | None,
+        stems: Sequence[StemArtifact],
+        level: float = 1.0,
+    ) -> list[MediaAsset]:
+        """Store float stems as 16-bit FLAC, all scaled by one gain that undoes the separator's
+        ``level`` as far as nothing clips: the balance between stems stays exactly as separated.
+        Each float file is deleted once stored."""
+        try:
+            peak = max(_file_peak(stem.path) for stem in stems)
+        except (OSError, RuntimeError) as exc:
+            raise AdapterError("Separator returned an unreadable stem", FailureCategory.PERMANENT) from exc
+        gain = min(1.0 / level, 0.999 / peak) if peak > 0 else 1.0 / level
+        assets = []
+        for stem in stems:
+            target = self.stem_file_target(track_title, stem.name, source_id)
+            partial = target.path.with_name(target.path.name + ".part")
+            try:
+                with soundfile.SoundFile(stem.path) as source, soundfile.SoundFile(
+                    partial, "w", source.samplerate, source.channels, "PCM_16", format="FLAC", compression_level=1.0
+                ) as output:
+                    for block in source.blocks(_BLOCK_FRAMES, dtype="float32"):
+                        output.write(block * gain)
+                os.replace(partial, target.path)
+                stem.path.unlink(missing_ok=True)
+            except (OSError, RuntimeError) as exc:  # libsndfile reports write failures as RuntimeError
+                partial.unlink(missing_ok=True)
+                full = isinstance(exc, OSError) and is_disk_full(exc)
+                if full or shutil.disk_usage(target.path.parent).free < _MIN_FREE_BYTES:
+                    raise disk_full_error() from exc
+                raise AdapterError("Stem asset could not be saved", FailureCategory.PERMANENT) from exc
+            assets.append(MediaAsset(
+                uuid4(), job_id, MediaAssetType.STEM, target.storage_key, target.path.stat().st_size,
+                stem_name=stem.name, media_format="flac",
+            ))
+        return assets
 
     def delete_asset(self, storage_key: str) -> None:
         path = self.resolve_path(storage_key)

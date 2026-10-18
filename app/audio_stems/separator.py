@@ -2,10 +2,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
 import imageio_ffmpeg
+import soundfile
 
 from audio_stems.models import (
     AdapterError,
@@ -14,6 +16,7 @@ from audio_stems.models import (
     SeparationResult,
     SeparatorModel,
     StemArtifact,
+    disk_full_error,
 )
 
 
@@ -40,14 +43,30 @@ def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
         return ("cpu",)
 
 
-def decode_to_wav(source: Path, target: Path) -> None:
-    """Decode the source to float WAV with the ffmpeg bundled by imageio-ffmpeg, so separation needs
-    no system ffmpeg; float keeps decoded peaks above 0 dBFS intact."""
-    command = [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-y", "-i", str(source), "-vn", "-c:a", "pcm_f32le", str(target)]
+_INPUT_PEAK = 0.5
+_BLOCK_FRAMES = 1 << 20
+
+
+def decode_to_wav(source: Path, target: Path) -> float:
+    """Decode the source to float WAV with the ffmpeg bundled by imageio-ffmpeg (no system ffmpeg
+    needed) and scale it to a 0.5 peak. Demucs is scale-invariant but clamps its float output to
+    +-1, so the headroom keeps loud stems from clipping. Returns the applied level."""
+    decoded = target.with_name(target.stem + ".decoded.wav")
+    command = [imageio_ffmpeg.get_ffmpeg_exe(), "-v", "error", "-y", "-i", str(source), "-vn", "-c:a", "pcm_f32le", str(decoded)]
     try:
         subprocess.run(command, check=True, capture_output=True)
-    except (OSError, subprocess.CalledProcessError) as exc:
+        with soundfile.SoundFile(decoded) as audio:
+            peak = max((float(abs(block).max()) for block in audio.blocks(_BLOCK_FRAMES, dtype="float32")), default=0.0)
+            level = _INPUT_PEAK / peak if peak > 0 else 1.0
+            audio.seek(0)
+            with soundfile.SoundFile(target, "w", audio.samplerate, audio.channels, "FLOAT") as output:
+                for block in audio.blocks(_BLOCK_FRAMES, dtype="float32"):
+                    output.write(block * level)
+    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:  # libsndfile raises RuntimeError
         raise AdapterError("Audio could not be decoded for separation", FailureCategory.PERMANENT) from exc
+    finally:
+        decoded.unlink(missing_ok=True)
+    return level
 
 
 class DemucsSeparator:
@@ -70,20 +89,33 @@ class DemucsSeparator:
         self.validate_options(options)
         output_dir.mkdir(parents=True, exist_ok=True)
         decoded = output_dir / f"{audio_path.stem}.wav"
-        decode_to_wav(audio_path, decoded)
+        level = decode_to_wav(audio_path, decoded)
+        # Float stems at 44.1 kHz take about as much space each as the 48 kHz float decode,
+        # and the FLAC copies are written while the float files still exist.
+        needed = decoded.stat().st_size * (len(_STEMS) + 1)
+        free = shutil.disk_usage(output_dir).free
+        if free < needed:
+            decoded.unlink(missing_ok=True)
+            raise disk_full_error(needed, free)
+        # Float output without per-stem rescaling, which would shift the balance; storage scales
+        # all stems by one gain instead.
         command = [
             sys.executable, "-m", "demucs", "-n", options.model_name,
-            "-d", options.device, "-o", str(output_dir),
+            "-d", options.device, "-o", str(output_dir), "--float32", "--clip-mode", "none",
         ]
         command.append(str(decoded))
         try:
             subprocess.run(command, check=True)
+        except subprocess.CalledProcessError as exc:
+            if shutil.disk_usage(output_dir).free < needed // 2:
+                raise disk_full_error(needed, shutil.disk_usage(output_dir).free) from exc
+            raise AdapterError(f"Demucs exited with status {exc.returncode}", FailureCategory.PERMANENT) from exc
         except FileNotFoundError as exc:
             raise AdapterError("Demucs executable is unavailable", FailureCategory.PERMANENT) from exc
-        except subprocess.CalledProcessError as exc:
-            raise AdapterError(f"Demucs exited with status {exc.returncode}", FailureCategory.PERMANENT) from exc
         except OSError as exc:
             raise AdapterError("Demucs could not be started", FailureCategory.TRANSIENT) from exc
+        finally:
+            decoded.unlink(missing_ok=True)
 
         model_output = output_dir / options.model_name
         candidates = sorted((path for path in model_output.iterdir() if path.is_dir()), key=lambda p: p.name) if model_output.is_dir() else []
@@ -97,7 +129,7 @@ class DemucsSeparator:
         )
         if len(artifacts) != len(_STEMS):
             raise AdapterError("Demucs did not produce all six expected stems", FailureCategory.PERMANENT)
-        return SeparationResult(artifacts)
+        return SeparationResult(artifacts, level)
 
     def validate_options(self, options: SeparationOptions) -> None:
         if options.model_name not in _MODELS:

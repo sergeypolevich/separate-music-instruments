@@ -47,7 +47,7 @@ def build_reopened_client(tmp_path):
     first_store.add_asset(
         MediaAsset(uuid4(), job_id, MediaAssetType.SOURCE_AUDIO, "Actual Song Title.webm", 5, media_format="webm")
     )
-    stem_path = storage.stem_file_target("Actual Song Title", "vocals", "video-1").path
+    stem_path = storage.stem_file_target("Actual Song Title", "vocals", "video-1", "wav").path
     stem_path.write_bytes(b"stem")
     first_store.add_asset(
         MediaAsset(
@@ -55,7 +55,7 @@ def build_reopened_client(tmp_path):
             4, stem_name="vocals", media_format="wav",
         )
     )
-    missing_path = storage.stem_file_target("Actual Song Title", "drums", "video-1").path
+    missing_path = storage.stem_file_target("Actual Song Title", "drums", "video-1", "wav").path
     first_store.add_asset(
         MediaAsset(
             uuid4(), job_id, MediaAssetType.STEM, "Stems/Actual Song Title/drums.wav",
@@ -138,7 +138,7 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     assert "window.confirm" not in source.split("async function confirmProjectDeletion", 1)[1].split("searchTrigger.addEventListener", 1)[0]
     assert "/api/v1/projects/" in source
     assert 'await import("./playback.mjs")' in source
-    assert 'asset.media_format !== "wav"' in source
+    assert '!["wav", "flac"].includes(asset.media_format)' in source
     assert "const path = `/api/v1/assets/${encodeURIComponent(asset.asset_id)}`" in source
     assert 'audio.crossOrigin = "anonymous"' in source
     assert 'new MixerSession(gainNodes,' in source
