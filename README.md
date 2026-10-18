@@ -6,8 +6,12 @@ After downloading and extracting the GitHub folder, double-click
 `Start.bat`. It prepares Python 3.12 and the project environment
 when needed, starts both the local API and background worker, waits for the API,
 and opens the app in your default browser. The first launch needs internet to
-install Python (if missing) and the runtime dependencies; Demucs model weights
-are downloaded when the first separation runs. The automatically opened window
+install Python (if missing) and the runtime dependencies, including ffmpeg (from
+the `imageio-ffmpeg` package, so no system ffmpeg is needed); model weights are
+downloaded when a model separates its first song. Later launches skip every setup
+check while `app/requirements.txt` matches the installed copy in
+`app/.venv/requirements.installed`, and rerun the setup by themselves when a
+dependency is missing or the requirements changed. The automatically opened window
 shows service logs; close it to stop both services. The app address is
 `http://127.0.0.1:8000`.
 
@@ -116,7 +120,7 @@ saved projects and `/api/v1/models` lists model options. Errors use an
 `error.code` and safe `error.message` response. The API never accepts file paths.
 Project details provide opaque asset IDs. `GET /api/v1/assets/{asset_id}` streams
 an available asset and supports single byte-range requests. The corresponding
-`/waveform` endpoint returns 1024 PCM WAV peak levels, computed once per stem file
+`/waveform` endpoint returns 1024 peak levels of a WAV or FLAC stem, computed once per stem file
 and stored in SQLite, so the page never downloads an audio file just to draw it.
 
 For a quick local API check, with the API running in its own window:
@@ -158,8 +162,10 @@ if you customized it.
 
 ### Maintenance
 
-- Keep enough free disk space for the source audio, six WAV stems, model weights,
-  and temporary Demucs output. Check the configured storage and temp roots in
+- Keep enough free disk space for the source audio, the FLAC stems (about
+  20 MB per minute), model weights (BS-RoFormer SW about 700 MB in
+  `~/Audio Stems/models`), and temporary float output (about 120 MB per minute
+  while a song is separated). A job that does not fit fails with the space it needs. Check the configured storage and temp roots in
   `.env` before moving or cleaning data.
 - Use the project UI to delete completed projects. If the API reports pending
   file cleanup, reopen that project ID's delete action by retrying the API
@@ -187,8 +193,11 @@ to 30 minutes); after success, restart both the API and worker. If installation
 fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
 
-The Demucs adapter exposes its supported models. The UI
-lets each job select a model; the device comes from `AUDIO_STEMS_MODEL_DEVICE`
+The separator exposes three local models: `htdemucs_6s` (default, fastest),
+`htdemucs_ft` (four stems) and `bs_roformer_sw` (through audio-separator); the
+measurements behind the choice are in `app/DEVELOPMENT_STATUS.md` (version 10).
+Settings stores the chosen model in the browser and each job sends it; the device
+comes from `AUDIO_STEMS_MODEL_DEVICE`
 (default `auto`: CUDA, then Apple MPS, then CPU, whichever the installed PyTorch
 can use). SQLite stores the resolved configuration and the worker passes it to
 the separator.
