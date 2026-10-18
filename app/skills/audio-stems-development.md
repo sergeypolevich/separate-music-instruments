@@ -1,6 +1,6 @@
 # Audio Stems Development Workflow
 
-Read this file and the linked project specification in `AGENTS.md` before each implementation stage. Keep work scoped to one stage at a time.
+Read this file and the linked project specification in `AGENTS.md` (repository root) before each implementation stage. All commands below run from `app/` with its `.venv` (`cd app`). Keep work scoped to one stage at a time.
 
 ## Before editing
 

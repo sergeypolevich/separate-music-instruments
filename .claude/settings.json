@@ -3,7 +3,8 @@
     "allow": [
       "Bash(.venv/Scripts/python.exe -m pytest *)",
       "Bash(.venv/Scripts/python.exe -m pytest)",
-      "Bash(.venv/Scripts/pytest.exe *)",
+      "Bash(app/.venv/Scripts/python.exe -m pytest *)",
+      "Bash(cd app && .venv/Scripts/python.exe -m pytest *)",
       "Bash(py -m pytest *)",
       "Bash(pytest *)",
       "Bash(node --test *)",
@@ -17,6 +18,7 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "PowerShell(.venv\\Scripts\\python.exe -m pytest *)",
+      "PowerShell(app\\.venv\\Scripts\\python.exe -m pytest *)",
       "PowerShell(py -m pytest *)",
       "PowerShell(node --test *)",
       "PowerShell(node --check *)",
