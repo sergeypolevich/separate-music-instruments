@@ -18,7 +18,6 @@ const submitButton = document.querySelector("#submit-button");
 const searchOverlay = document.querySelector("#search-overlay");
 const searchTrigger = document.querySelector("#search-trigger");
 const projectTabs = document.querySelector("#project-tabs");
-const projectWorkspace = document.querySelector("#project-workspace");
 const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");

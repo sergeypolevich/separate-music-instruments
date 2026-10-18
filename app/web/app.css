@@ -111,7 +111,6 @@ button { cursor: pointer; }
 .project-tab[data-status="failed"]::before { background: var(--danger); box-shadow: 0 0 9px color-mix(in srgb, var(--danger) 35%, transparent); }
 .project-tab[data-status="searching"]::before, .project-tab[data-status="downloading"]::before, .project-tab[data-status="downloaded"]::before, .project-tab[data-status="separating"]::before { background: var(--warn); }
 .project-tab-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.project-tab-state { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .project-workspace { width: 100%; min-height: 280px; padding: 6px 0 0; }
 .workspace-empty { min-height: 260px; display: grid; align-content: center; justify-items: center; gap: 9px; color: var(--muted); text-align: center; }

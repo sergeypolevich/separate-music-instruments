@@ -25,7 +25,7 @@ def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
     env_file.write_text(
         "AUDIO_STEMS_LOG_LEVEL=DEBUG\n"
         "AUDIO_STEMS_RETRY_COUNT=4\n"
-        "AUDIO_STEMS_SESSION_SECRET='dotenv-secret'\n",
+        "AUDIO_STEMS_MODEL_DEVICE='cpu'\n",
         encoding="utf-8",
     )
 
@@ -36,7 +36,7 @@ def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
 
     assert settings.log_level == "DEBUG"
     assert settings.retry_count == 2
-    assert settings.session_secret == "dotenv-secret"
+    assert settings.model_device == "cpu"  # quoted .env values are unquoted
 
 
 @pytest.mark.parametrize(
@@ -46,7 +46,6 @@ def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
         {"AUDIO_STEMS_RETRY_COUNT": "0"},
         {"AUDIO_STEMS_LOG_MAX_BYTES": "not-an-integer"},
         {"AUDIO_STEMS_ALLOWED_SOURCE_HOSTS": "youtube.com/path"},
-        {"AUDIO_STEMS_AUTH_ENABLED": "true"},
         {"AUDIO_STEMS_API_PORT": "0"},
         {"AUDIO_STEMS_API_PORT": "not-a-port"},
     ],
