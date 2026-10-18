@@ -8,7 +8,7 @@ import subprocess
 import sys
 import tempfile
 import re
-from typing import Callable, Protocol
+from typing import Callable
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
@@ -30,15 +30,6 @@ class ReleaseNote:
     notes: str
     url: str
     published_at: str
-
-
-class ReleaseSource(Protocol):
-    def fetch_releases(self) -> list[ReleaseNote]: ...
-    def fetch_requirements(self, tag_name: str) -> str: ...
-
-
-class RequirementsInstaller(Protocol):
-    def install(self) -> None: ...
 
 
 class UpdateCheckError(RuntimeError):
@@ -152,7 +143,7 @@ def validate_pinned_requirements(manifest: str) -> tuple[str, ...]:
 
 
 class UpdateService:
-    def __init__(self, releases: ReleaseSource, installer: RequirementsInstaller) -> None:
+    def __init__(self, releases: GitHubReleaseClient, installer: DependencyUpdater) -> None:
         self.releases = releases
         self.installer = installer
 

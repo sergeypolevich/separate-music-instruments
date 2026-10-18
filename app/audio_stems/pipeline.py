@@ -5,8 +5,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import logging
-from pathlib import Path
-from typing import Callable, Sequence
+from typing import TYPE_CHECKING, Callable, Sequence
 from urllib.parse import parse_qs, urlparse
 from uuid import UUID
 
@@ -15,24 +14,26 @@ from audio_stems.models import (
     BatchReceipt,
     BatchStatus,
     DownloadedAudio,
-    Downloader,
     FailureCategory,
-    JobRepository,
     JobStatus,
     JobView,
-    MediaStorage,
     SeparationOptions,
     SourceKind,
     SourceRequest,
     StemArtifact,
-    StemSeparator,
     VideoCandidate,
 )
 from audio_stems.config import Settings
 import threading
 import time
 from typing import Callable
-from audio_stems.models import JobRepository, SeparationOptions
+from audio_stems.models import SeparationOptions
+
+if TYPE_CHECKING:
+    from audio_stems.db import SqliteMetadataStore
+    from audio_stems.separator import DemucsSeparator
+    from audio_stems.storage import LocalMediaStorage
+    from audio_stems.youtube import PytubeDownloader
 
 
 logger = logging.getLogger("audio_stems.jobs")
@@ -72,10 +73,10 @@ class BatchOrchestrator:
     def __init__(
         self,
         *,
-        repository: JobRepository,
-        downloader: Downloader,
-        separator: StemSeparator,
-        storage: MediaStorage,
+        repository: SqliteMetadataStore,
+        downloader: PytubeDownloader,
+        separator: DemucsSeparator,
+        storage: LocalMediaStorage,
         options: SeparationOptions,
         expected_stems: Sequence[str],
         settings: Settings,
@@ -325,7 +326,7 @@ worker_logger = logging.getLogger("audio_stems.worker")
 class DatabaseWorker:
     def __init__(
         self,
-        repository: JobRepository,
+        repository: SqliteMetadataStore,
         orchestrator: BatchOrchestrator,
         *,
         poll_seconds: float = 1.0,

@@ -10,7 +10,6 @@ from pytubefix import Search, YouTube
 from audio_stems.models import (
     AdapterError,
     DownloadedAudio,
-    Downloader,
     FailureCategory,
     VideoCandidate,
 )
@@ -32,7 +31,7 @@ def _video_id(url: str) -> str:
     return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
 
 
-class PytubeDownloader(Downloader):
+class PytubeDownloader:
     def __init__(self, storage: LocalMediaStorage, settings: Settings) -> None:
         self.storage = storage
         self.settings = settings

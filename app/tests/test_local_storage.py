@@ -1,9 +1,8 @@
-from pathlib import Path
 from uuid import uuid4
 
 import pytest
 
-from audio_stems.models import AdapterError, DownloadedAudio, FailureCategory, MediaAssetType, MediaStorage, StemArtifact, VideoCandidate
+from audio_stems.models import AdapterError, DownloadedAudio, FailureCategory, MediaAssetType, StemArtifact, VideoCandidate
 from audio_stems.storage import LocalMediaStorage
 
 
@@ -65,7 +64,6 @@ def test_resolve_rejects_absolute_and_traversal_keys(tmp_path, storage_key):
 
 def test_storage_asset_operations_return_relative_managed_keys(tmp_path):
     storage = LocalMediaStorage(tmp_path / "library")
-    assert isinstance(storage, MediaStorage)
     job_id = uuid4()
     source = VideoCandidate("video-7", "A track", "https://youtube.com/watch?v=video-7")
     audio_file = tmp_path / "download.webm"

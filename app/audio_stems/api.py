@@ -18,10 +18,7 @@ from fastapi.staticfiles import StaticFiles
 from audio_stems.models import (
     AdapterError,
     FailureCategory,
-    MediaStorage,
     SeparationOptions,
-    SourceAdapter,
-    StemSeparator,
 )
 from audio_stems.separator import DemucsSeparator
 from audio_stems.storage import LocalMediaStorage
@@ -150,9 +147,9 @@ def create_app(
     *,
     repository: SqliteMetadataStore,
     settings: Settings,
-    source_adapter: SourceAdapter | None = None,
-    separator: StemSeparator | None = None,
-    storage: MediaStorage | None = None,
+    source_adapter: YouTubeSourceAdapter | None = None,
+    separator: DemucsSeparator | None = None,
+    storage: LocalMediaStorage | None = None,
     update_service: UpdateService | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""

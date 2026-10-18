@@ -1,11 +1,11 @@
-"""Provider-independent contracts, typed data models, and the YouTube input normalizer."""
+"""Typed data models shared by the modules, and the YouTube input normalizer."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Mapping, Protocol, Sequence, runtime_checkable
+from typing import Mapping
 from uuid import UUID
 from urllib.parse import parse_qs, urlparse
 
@@ -166,135 +166,6 @@ class JobEvent:
     name: str
     occurred_at: datetime
     details: Mapping[str, str | int | float | bool | None] = field(default_factory=dict)
-
-
-@runtime_checkable
-class SourceAdapter(Protocol):
-    """Normalize client text without fetching media.
-
-    Raise ``AdapterError(INVALID_INPUT)`` when the request is unsupported.
-    """
-
-    def normalize(self, value: str) -> SourceRequest: ...
-
-
-@runtime_checkable
-class Downloader(Protocol):
-    """Search and download source media.
-
-    Implementations use ``NOT_FOUND`` for empty searches and ``TRANSIENT``
-    for retryable network/service failures; input and permanent failures are
-    categorized separately.
-    """
-
-    def search(self, query: str) -> Sequence[VideoCandidate]: ...
-
-    def download(self, source: VideoCandidate) -> DownloadedAudio: ...
-
-
-@runtime_checkable
-class StemSeparator(Protocol):
-    """Describe available models and run one with categorized failures."""
-
-    def available_models(self) -> Sequence[SeparatorModel]: ...
-
-    def resolve_device(self, configured: str) -> str:
-        """Map the configured device ("auto" = best available) to a concrete one."""
-        ...
-
-    def validate_options(self, options: SeparationOptions) -> None: ...
-
-    def separate(
-        self,
-        audio_path: Path,
-        output_dir: Path,
-        options: SeparationOptions,
-    ) -> SeparationResult: ...
-
-
-@runtime_checkable
-class MediaStorage(Protocol):
-    """Manage media assets and return opaque relative keys, never client paths.
-
-    Reject invalid/traversal keys as ``INVALID_INPUT`` and classify filesystem
-    failures as retryable or permanent ``AdapterError`` instances.
-    """
-
-    def audio_target(self, title: str, extension: str, source_id: str | None = None) -> StorageTarget: ...
-
-    def find_existing_audio(self, source: VideoCandidate) -> DownloadedAudio | None: ...
-
-    def validate_audio_file(self, path: Path, media_format: str) -> bool: ...
-
-    def quarantine_audio(self, path: Path) -> Path | None: ...
-
-    def stem_directory(self, title: str, source_id: str | None = None) -> Path: ...
-
-    def stem_file_target(self, title: str, stem_name: str, source_id: str | None = None) -> StorageTarget: ...
-
-    def temporary_directory(self, title: str, source_id: str | None = None) -> Path: ...
-
-    def temporary_model_directory(self, title: str, model_name: str, source_id: str | None = None) -> Path: ...
-
-    def stems_complete(self, title: str, expected_stems: Sequence[str], source_id: str | None = None) -> bool: ...
-
-    def remove_temporary_directory(self, title: str, source_id: str | None = None) -> None: ...
-
-    def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset: ...
-
-    def save_stem(
-        self,
-        job_id: UUID,
-        track_title: str,
-        source_id: str | None,
-        stem: StemArtifact,
-    ) -> MediaAsset: ...
-
-    def resolve_path(self, storage_key: str) -> Path: ...
-
-    def delete_asset(self, storage_key: str) -> None: ...
-
-
-@runtime_checkable
-class JobRepository(Protocol):
-    """Persist jobs/events; raise ``CONFLICT`` for invalid state/idempotency conflicts."""
-
-    def create_batch(
-        self,
-        owner_id: str,
-        sources: Sequence[SourceRequest],
-        idempotency_key: str | None = None,
-        separation_options: SeparationOptions | None = None,
-    ) -> BatchReceipt: ...
-
-    def claim_next_batch(self) -> QueuedBatch | None: ...
-
-    def recover_interrupted_batches(self) -> int: ...
-
-    def list_jobs_for_batch(self, batch_id: UUID, owner_id: str) -> Sequence[JobView]: ...
-
-    def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None: ...
-
-    def get_asset(self, asset_id: UUID, owner_id: str) -> MediaAsset | None: ...
-
-    def transition_job(
-        self,
-        job_id: UUID,
-        status: JobStatus,
-        *,
-        stage: str | None = None,
-        error_summary: str | None = None,
-    ) -> JobView: ...
-
-    def transition_batch(self, batch_id: UUID, status: BatchStatus, result_summary: str | None = None) -> None: ...
-
-    def record_retry(self, job_id: UUID, attempt: int) -> None: ...
-
-    def add_asset(self, asset: MediaAsset) -> None: ...
-
-    def get_job(self, job_id: UUID, owner_id: str) -> JobView | None: ...
-
-    def list_events(self, job_id: UUID, owner_id: str) -> Sequence[JobEvent]: ...
 
 
 class YouTubeSourceAdapter:

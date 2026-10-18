@@ -12,7 +12,6 @@ from audio_stems.models import (
     SeparationResult,
     SeparatorModel,
     StemArtifact,
-    StemSeparator,
 )
 
 
@@ -40,7 +39,7 @@ def detect_compute_devices(torch_module=None) -> tuple[str, ...]:
         return ("cpu",)
 
 
-class DemucsSeparator(StemSeparator):
+class DemucsSeparator:
     """Run Demucs and return the six supported WAV stems."""
 
     def available_models(self) -> tuple[SeparatorModel, ...]:
