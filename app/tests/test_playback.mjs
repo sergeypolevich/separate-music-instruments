@@ -163,3 +163,19 @@ test("four-stem projects mix and play like six-stem ones", async () => {
   assert.ok(tracks.every((audio) => !audio.paused));
   assert.throws(() => new MixerSession([]), /1-6 mixer tracks/);
 });
+
+test("song time starts where the music starts: the leading silence is skipped", () => {
+  const tracks = [new FakeAudio(10), new FakeAudio(10)];
+  const seen = [];
+  const transport = new SynchronizedTransport(tracks, { startOffset: 1.5, onTimeUpdate: (t) => seen.push(t), requestFrame: () => 1, cancelFrame: () => {} });
+  assert.equal(transport.duration, 8.5);
+  transport.seek(0);
+  assert.deepEqual(tracks.map((audio) => audio.currentTime), [1.5, 1.5]);
+  transport.seek(2);
+  assert.equal(transport.currentTime, 2);
+  assert.equal(tracks[1].currentTime, 3.5);
+  transport.stop();
+  assert.equal(tracks[0].currentTime, 1.5);
+  assert.deepEqual(seen, [0, 2, 0]);
+});
+

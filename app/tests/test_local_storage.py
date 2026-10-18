@@ -220,3 +220,22 @@ def test_cleanup_never_follows_or_deletes_symbolic_links(tmp_path):
     storage.clean_unused(set())
 
     assert (outside / "precious.wav").read_bytes() == b"keep"
+
+
+def _stem_with_lead(path, silence, noise=0.0, rate=8000):
+    lead = np.full((int(silence * rate), 2), noise, np.float32)
+    tone = np.full((rate, 2), 0.5, np.float32)
+    soundfile.write(path, np.vstack([lead, tone]), rate, subtype="FLOAT")
+    return path
+
+
+def test_music_start_is_the_first_loud_sample_of_any_stem_minus_a_short_preroll(tmp_path):
+    late = _stem_with_lead(tmp_path / "vocals.wav", 2.0)
+    early = _stem_with_lead(tmp_path / "drums.wav", 1.5, noise=0.001)  # hiss below -50 dBFS is silence
+
+    assert abs(LocalMediaStorage.music_start([late, early]) - 1.48) < 1e-3
+    assert LocalMediaStorage.music_start([_stem_with_lead(tmp_path / "bass.wav", 0.0)]) == 0.0
+    assert LocalMediaStorage.music_start([tmp_path / "missing.wav", late]) == 1.98
+    silent = tmp_path / "silent.wav"
+    soundfile.write(silent, np.zeros((800, 2), np.float32), 8000)
+    assert LocalMediaStorage.music_start([silent]) == 0.0

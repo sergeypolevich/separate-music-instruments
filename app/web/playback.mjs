@@ -64,6 +64,7 @@ export class SynchronizedTransport {
     onEnded = () => {},
     beforePlay = () => Promise.resolve(),
     driftTolerance = 0.08,
+    startOffset = 0,
   } = {}) {
     if (tracks.length < 1 || tracks.length > STEM_ORDER.length) {
       throw new Error(`Expected 1-${STEM_ORDER.length} synchronized tracks`);
@@ -75,21 +76,31 @@ export class SynchronizedTransport {
     this.onEnded = onEnded;
     this.beforePlay = beforePlay;
     this.driftTolerance = driftTolerance;
+    // Positions are song time: 0 is where the music starts, startOffset seconds into the files.
+    this.startOffset = Math.max(0, Number(startOffset) || 0);
     this.frameId = null;
     this.playing = false;
     this.syncFrame = this.syncFrame.bind(this);
   }
 
-  get duration() {
+  get mediaDuration() {
     const durations = this.tracks.map((track) => track.duration)
       .filter((duration) => Number.isFinite(duration) && duration >= 0);
     return durations.length === this.tracks.length ? Math.min(...durations) : 0;
   }
 
+  get duration() {
+    return Math.max(0, this.mediaDuration - this.startOffset);
+  }
+
+  get currentTime() {
+    return Math.max(0, this.tracks[0].currentTime - this.startOffset);
+  }
+
   seek(seconds) {
     const requested = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
     const position = Math.min(Math.max(0, requested), this.duration || Math.max(0, requested));
-    this.tracks.forEach((track) => { track.currentTime = position; });
+    this.tracks.forEach((track) => { track.currentTime = position + this.startOffset; });
     this.onTimeUpdate(position);
     return position;
   }
@@ -136,7 +147,7 @@ export class SynchronizedTransport {
     this.frameId = null;
     if (!this.playing) return;
     const masterTime = this.tracks[0].currentTime;
-    if (this.tracks[0].ended || (this.duration > 0 && masterTime >= this.duration)) {
+    if (this.tracks[0].ended || (this.mediaDuration > 0 && masterTime >= this.mediaDuration)) {
       this.pause();
       this.onEnded();
       return;
@@ -146,7 +157,7 @@ export class SynchronizedTransport {
         track.currentTime = masterTime;
       }
     }
-    this.onTimeUpdate(masterTime);
+    this.onTimeUpdate(Math.max(0, masterTime - this.startOffset));
     this.scheduleFrame();
   }
 }

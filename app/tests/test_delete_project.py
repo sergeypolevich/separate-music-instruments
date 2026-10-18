@@ -286,3 +286,25 @@ def test_storage_cleanup_needs_confirmation_and_waits_for_running_jobs(tmp_path)
 
     assert response.status_code == 200 and response.json()["freed_bytes"] == 7
     assert not (storage.root / "orphan.webm").exists() and all(path.exists() for path in files)
+
+
+def test_the_music_start_is_measured_once_and_waveforms_begin_there(tmp_path, monkeypatch):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, _, files = add_project(repository, storage, "Quiet intro")
+    import numpy as np
+    import soundfile
+    rate = 8000
+    soundfile.write(files[1], np.vstack([np.zeros((rate, 1)), np.full((rate, 1), 0.5)]), rate, subtype="PCM_16")
+    calls = []
+    real = storage.music_start
+    monkeypatch.setattr(storage, "music_start", lambda paths: calls.append(paths) or real(paths))
+
+    first = request("GET", f"/api/v1/projects/{project.project_id}").json()
+    second = request("GET", f"/api/v1/projects/{project.project_id}").json()
+
+    assert abs(first["start_seconds"] - 0.98) < 1e-3 and second["start_seconds"] == first["start_seconds"]
+    assert len(calls) == 1  # stored after the first open
+    vocals = next(asset for asset in first["assets"] if asset["stem_name"] == "vocals")
+    waveform = request("GET", f"/api/v1/assets/{vocals['asset_id']}/waveform").json()
+    assert abs(waveform["duration_seconds"] - 1.02) < 1e-3 and waveform["levels"][-1] > 0.4
+    assert min(waveform["levels"][:5]) == 0.0  # only the 20 ms pre-roll is silent

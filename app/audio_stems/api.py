@@ -20,6 +20,8 @@ from fastapi.staticfiles import StaticFiles
 from audio_stems.models import (
     AdapterError,
     FailureCategory,
+    JobStatus,
+    MediaAssetType,
     SeparationOptions,
 )
 from audio_stems.separator import StemSeparator
@@ -96,8 +98,8 @@ mimetypes.add_type("audio/flac", ".flac")
 _WAVEFORM_FORMATS = {"wav", "flac"}
 
 
-def waveform_data(path: Path, levels: int) -> dict[str, object]:
-    """Return at most ``levels`` peak points without loading the whole WAV or FLAC file."""
+def waveform_data(path: Path, levels: int, start_seconds: float = 0.0) -> dict[str, object]:
+    """Return at most ``levels`` peak points from ``start_seconds`` on, without loading the whole file."""
     if levels < 1 or levels > 2048:
         raise WaveformError("Waveform level count is outside supported bounds")
     try:
@@ -108,9 +110,11 @@ def waveform_data(path: Path, levels: int) -> dict[str, object]:
         with soundfile.SoundFile(path) as source:
             channels = source.channels
             sample_rate = source.samplerate
-            frame_count = source.frames
             if not 1 <= channels <= 32 or sample_rate <= 0:
                 raise WaveformError("Audio encoding is not supported for waveform extraction")
+            start_frame = min(source.frames, int(start_seconds * sample_rate))
+            source.seek(start_frame)
+            frame_count = source.frames - start_frame
 
             bucket_count = min(levels, frame_count)
             peaks: list[float] = []
@@ -138,6 +142,7 @@ def waveform_data(path: Path, levels: int) -> dict[str, object]:
         "channels": channels,
         "frame_count": frame_count,
         "duration_seconds": frame_count / sample_rate,
+        "start_seconds": start_seconds,
         "levels": peaks,
     }
 
@@ -381,6 +386,19 @@ def create_app(
         if job is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
         options = job.separation_options
+        stem_assets = [a for a in repository.list_assets(job.job_id, _OWNER_ID) if a.asset_type is MediaAssetType.STEM]
+        start_seconds = job.start_seconds
+        if start_seconds is None and job.status is JobStatus.COMPLETED and stem_assets:
+            # Measured once, on the first open: only the stems' first seconds are read.
+            paths = []
+            for asset in stem_assets:
+                try:
+                    paths.append(storage.resolve_path(asset.storage_key))
+                except AdapterError:
+                    pass
+            if all(path.is_file() for path in paths):
+                start_seconds = storage.music_start(paths)
+                repository.set_start_seconds(job.job_id, start_seconds)
         assets: list[dict[str, object]] = []
         shared = repository.shared_storage_keys(job.job_id)
         disk_bytes = shared_bytes = 0
@@ -418,6 +436,8 @@ def create_app(
                 ),
             },
             "assets": assets,
+            # Leading silence the player skips: its zero is where the music starts.
+            "start_seconds": start_seconds or 0.0,
             # What deleting frees, and what stays because another project uses the same files.
             "disk_bytes": disk_bytes,
             "shared_bytes": shared_bytes,
@@ -467,14 +487,18 @@ def create_app(
             if not path.is_file():
                 raise FileNotFoundError
             stat = path.stat()
-            # Peaks are computed once per file version and kept in the database.
+            job = repository.get_job(asset.job_id, _OWNER_ID)
+            start = (job.start_seconds if job else None) or 0.0
+            # Peaks are computed once per file version and music start, and kept in the database.
             stored = repository.get_waveform(asset.asset_id)
-            if stored and stored.get("byte_size") == stat.st_size and stored.get("mtime_ns") == stat.st_mtime_ns:
+            if (stored and stored.get("byte_size") == stat.st_size and stored.get("mtime_ns") == stat.st_mtime_ns
+                    and stored.get("start_seconds", 0.0) == start):
                 data = stored["waveform"]
             else:
-                data = waveform_data(path, WAVEFORM_POINTS)
+                data = waveform_data(path, WAVEFORM_POINTS, start)
                 repository.save_waveform(
-                    asset.asset_id, {"byte_size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "waveform": data}
+                    asset.asset_id,
+                    {"byte_size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "start_seconds": start, "waveform": data},
                 )
         except FileNotFoundError as exc:
             raise HTTPException(

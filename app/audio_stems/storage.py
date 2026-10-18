@@ -13,6 +13,7 @@ import time
 from typing import Sequence
 from uuid import UUID, uuid4
 
+import numpy as np
 import soundfile
 
 from audio_stems.models import (
@@ -389,6 +390,31 @@ class LocalMediaStorage:
                 stem_name=stem.name, media_format="flac",
             ))
         return assets
+
+    @staticmethod
+    def music_start(paths, *, threshold_db: float = -50.0, preroll: float = 0.02, limit: float = 120.0) -> float:
+        """Seconds of leading silence shared by all stems: the first sample louder than the threshold
+        in any of them, minus a short pre-roll so the attack is kept. Reads only up to the first sound."""
+        threshold = 10 ** (threshold_db / 20)
+        first = None
+        for path in paths:
+            try:
+                with soundfile.SoundFile(path) as source:
+                    block, read = source.samplerate // 4, 0
+                    stop = min(source.frames, int(limit * source.samplerate), first if first is not None else source.frames)
+                    while read < stop:
+                        samples = source.read(min(block, stop - read), dtype="float32", always_2d=True)
+                        if not len(samples):
+                            break
+                        loud = np.flatnonzero(np.abs(samples).max(axis=1) > threshold)
+                        if loud.size:
+                            first = read + int(loud[0]) if first is None else min(first, read + int(loud[0]))
+                            break
+                        read += len(samples)
+                    rate = source.samplerate
+            except (OSError, RuntimeError):
+                continue  # a missing or unreadable stem does not decide the start
+        return max(0.0, first / rate - preroll) if first is not None else 0.0
 
     def _files(self):
         """Regular files under the root; symbolic links are neither followed nor touched."""

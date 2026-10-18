@@ -68,6 +68,7 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missi
             "separation_options": {"model_name": "htdemucs_6s", "device": "cpu"},
         },
         "assets": assets,
+        "start_seconds": 1.0 if project_id == "project-6" else 0.0,
         "disk_bytes": 12 * 2**20,
         "shared_bytes": 3 * 2**20 if project_id == "project-1" else 0,
     }
@@ -604,6 +605,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
             page.keyboard.press("KeyG")  # no guitar row: the selection stays put
             assert page.evaluate("[...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)") == ["true", "false", "false", "false"]
+            # Leading silence is skipped: the stems wait at the music start and the timer counts from it.
+            page.locator('.project-tab[data-project-id="project-6"]').click()
+            page.wait_for_function("[...document.querySelectorAll('#playback-panel audio')].length === 6 && [...document.querySelectorAll('#playback-panel audio')].every(a => Math.abs(a.currentTime - 1) < 0.01)")
+            assert page.locator("#detail-time").text_content() == "0:00 / 0:04"
             # Files deleted by hand: the project says which and offers to separate the song again.
             page.locator('.project-tab[data-project-id="project-4"]').click()
             page.wait_for_function("document.querySelector('#playback-panel').textContent.includes('С диска удалены файлы проекта: Vocal, Drums.')")
