@@ -249,7 +249,7 @@ Live tests against YouTube or a real Demucs model must be opt-in, clearly marked
 ## 14. Configuration and developer experience
 
 - Keep runtime settings in one validated settings module (for example, Pydantic Settings) and `.env.example`.
-- Configure at least: storage root, temporary root, database URL, log level, log rotation, retry count/delays, allowed source hosts, batch limits, worker concurrency, model name/device, and authentication/session settings.
+- Configure at least: storage root, temporary root, database URL, log level, log rotation, retry count/delays, allowed source hosts, batch limits, model name/device, and the API port. Add settings for worker concurrency and authentication/sessions together with those features, not before.
 - Provide reproducible Windows PowerShell instructions in `README.md` for environment setup, tests, starting API, starting worker, and running any compatibility CLI.
 - Pin or constrain dependencies after testing them together. Record Python and dependency versions used for the working environment.
 - Add formatting/lint/type-check tools only when configured with commands the agent can actually run. Favor a small, reproducible quality gate over a large toolchain.

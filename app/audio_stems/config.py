@@ -75,12 +75,8 @@ class Settings:
     retry_delays: tuple[float, ...]
     allowed_source_hosts: tuple[str, ...]
     batch_limit: int
-    worker_concurrency: int
     model_name: str
     model_device: str
-    auth_enabled: bool
-    session_secret: str | None
-    session_ttl_seconds: int
     api_port: int
 
     @classmethod
@@ -113,13 +109,6 @@ class Settings:
         if any(delay < 0 for delay in retry_delays):
             raise ValueError("AUDIO_STEMS_RETRY_DELAYS cannot contain negative values")
 
-        auth_enabled_raw = value("AUTH_ENABLED", "false").lower()
-        if auth_enabled_raw not in {"true", "false", "1", "0", "yes", "no", "on", "off"}:
-            raise ValueError("AUDIO_STEMS_AUTH_ENABLED must be a boolean")
-        auth_enabled = auth_enabled_raw in {"true", "1", "yes", "on"}
-        session_secret = value("SESSION_SECRET", "") or None
-        if auth_enabled and not session_secret:
-            raise ValueError("AUDIO_STEMS_SESSION_SECRET is required when authentication is enabled")
 
         database_url = value("DATABASE_URL", default_database)
         if not database_url.startswith(("sqlite:///", "postgresql://", "postgresql+")):
@@ -142,12 +131,8 @@ class Settings:
             retry_delays=retry_delays,
             allowed_source_hosts=_parse_hosts(value("ALLOWED_SOURCE_HOSTS", "youtube.com,www.youtube.com,m.youtube.com,youtu.be")),
             batch_limit=_positive_int("AUDIO_STEMS_BATCH_LIMIT", value("BATCH_LIMIT", "25")),
-            worker_concurrency=_positive_int("AUDIO_STEMS_WORKER_CONCURRENCY", value("WORKER_CONCURRENCY", "1")),
             model_name=model_name,
             model_device=model_device,
-            auth_enabled=auth_enabled,
-            session_secret=session_secret,
-            session_ttl_seconds=_positive_int("AUDIO_STEMS_SESSION_TTL_SECONDS", value("SESSION_TTL_SECONDS", "3600")),
             api_port=_port(value("API_PORT", "8000")),
         )
 
