@@ -1,4 +1,4 @@
-"""Windows-safe local media storage behind the MediaStorage contract."""
+"""Windows-safe local media storage: audio at the root, stems flat under Stems/<title>/."""
 from __future__ import annotations
 
 import hashlib

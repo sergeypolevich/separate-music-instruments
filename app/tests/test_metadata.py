@@ -5,7 +5,6 @@ import pytest
 
 from audio_stems.models import (
     JobStatus,
-    JobRepository,
     MediaAsset,
     MediaAssetType,
     SourceKind,
@@ -18,7 +17,6 @@ from audio_stems.db import SqliteMetadataStore
 def test_metadata_relations_events_and_projects_survive_reopening(tmp_path):
     database = tmp_path / "audio_stems.db.db"
     store = SqliteMetadataStore(database)
-    assert isinstance(store, JobRepository)
     receipt = store.create_batch(
         "client-1",
         [

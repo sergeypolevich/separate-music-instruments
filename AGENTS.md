@@ -15,7 +15,7 @@ This file is the shared project specification. Read it before making changes. Im
 1. **Preserve the working behavior before refactoring.** The current application — described from the user's perspective in [`app/docs/FUNCTIONALITY.md`](app/docs/FUNCTIONALITY.md) and covered by the test suite — is the behavioral baseline. Add tests around behavior before moving logic. Do not rewrite large parts of working code in one step.
 2. Make small, reviewable changes. For every change, explain the intent, run the relevant tests, and report what passed and what could not be verified.
 3. Do not silently change output paths, output naming, processing order, model settings, format-selection policy, retry behavior, or skip behavior. Change these only when explicitly requested and update tests.
-4. Keep downloader, separator, source/input adapters, job orchestration, authentication, metadata, logging, and storage behind explicit interfaces. A module must not depend on another module's concrete implementation unless it is the adapter/composition layer.
+4. Keep downloader, separator, source/input normalization, job orchestration, authentication, metadata, logging, and storage in separate modules with narrow, documented methods. Modules use each other's concrete classes directly; introduce an abstract interface (Protocol) only when a second implementation actually exists. Tests replace slow or external pieces with small duck-typed fakes.
 5. Start with a **modular monolith and a separate worker process**, not a collection of microservices. Keep boundaries clear so modules can be extracted later if justified by actual scale or deployment needs.
 6. Unit tests must not require internet access, real YouTube downloads, GPU access, or execution of a real ML model. Use fakes/mocks for those dependencies. Optional live smoke tests must be explicitly marked and disabled by default.
 7. Never claim tests passed unless they were actually run. Do not hide failures or weaken tests merely to make a build green.
@@ -71,7 +71,7 @@ Shared infrastructure: database, local/object storage, structured logs
 
 ### Module responsibilities
 
-Code lives in the `app/audio_stems/` package; the responsibilities below map to these modules: `models` (contracts, data models, and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
+Code lives in the `app/audio_stems/` package; the responsibilities below map to these modules: `models` (shared data models and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
 
 - `sources`: normalizes search-query and direct-URL submissions. It must not download audio itself.
 - `downloader`: searches source candidates and downloads audio. It must not know about web pages, browser extensions, user sessions, or stem models.
@@ -125,15 +125,14 @@ Required job behavior:
 
 ## 7. Stable component contracts
 
-Define Python protocols/abstract interfaces and typed input/output data models before adding multiple implementations. Use dependency injection at the composition layer.
+Keep typed input/output data models (`app/audio_stems/models.py`) and pass collaborators in at the composition layer (`api.create_app`, `pipeline.build_worker`). Do not add Protocol/abstract classes for a single implementation; add one only together with the second implementation, and then cover both with the same tests.
 
-Minimum conceptual contracts:
+The component methods to keep stable:
 
-- `Downloader.search(query) -> list[VideoCandidate]`
-- `Downloader.download(source) -> DownloadedAudio`
-- `StemSeparator.separate(audio_path, output_dir, options) -> SeparationResult`
-- `MediaStorage.save_audio(...)`, `save_stem(...)`, and `resolve_path(...)` or equivalent typed operations
-- `JobRepository` methods for creation, state transitions, querying, and event persistence
+- `PytubeDownloader.search(query) -> list[VideoCandidate]` and `.download(source) -> DownloadedAudio`
+- `DemucsSeparator.separate(audio_path, output_dir, options) -> SeparationResult`
+- `LocalMediaStorage.save_audio(...)`, `save_stem(...)`, `resolve_path(...)` and related typed operations
+- `SqliteMetadataStore` methods for creation, state transitions, querying, and event persistence
 
 Contracts must describe expected failures, not just successful returns. Avoid having one method return unrelated types or use `None` for many indistinguishable failure cases. Prefer typed results/exceptions with clear error categories.
 
@@ -149,7 +148,7 @@ The Demucs implementation and the `pytubefix` implementation are adapters, not a
 - Prevent path traversal, unsafe filenames, accidental overwrite, and collisions. Preserve the readable title; if titles collide, add a stable source identifier to disambiguate.
 - Temporary files belong in a dedicated configurable temporary directory. Clean them only after verifying all expected outputs exist and are valid.
 - Store media metadata such as source URL/video ID, original title, media type, format/extension, size, checksum if practical, created time, and processing model/version. Do not duplicate large audio data inside the relational database.
-- Keep storage operations behind an interface so local disk can later be replaced by object storage without changing the orchestrator.
+- Keep all storage operations in `LocalMediaStorage` so local disk can later be replaced by object storage without changing the orchestrator.
 
 ## 9. Logging, events, and observability
 
@@ -236,7 +235,7 @@ Use `pytest`. Organize tests by unit, integration, and optional live smoke tests
 
 ### Contract and integration tests
 
-- Each downloader/separator/storage adapter passes the same contract tests.
+- If a second downloader/separator/storage implementation is added, both pass the same tests.
 - Job state transitions are valid and persisted.
 - Batch phase ordering is maintained after process restart/recovery.
 - Log JSON contains required fields, especially the exact `ClientID` key, with `null` when unknown.

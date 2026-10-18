@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from audio_stems.models import DownloadedAudio, Downloader, VideoCandidate
+from audio_stems.models import VideoCandidate
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.youtube import PytubeDownloader
 from audio_stems.config import Settings
@@ -57,7 +57,6 @@ def test_search_adapter_returns_candidates_without_downloading(monkeypatch, tmp_
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
 
-    assert isinstance(downloader, Downloader)
 
     results = downloader.search("query")
 
