@@ -73,6 +73,8 @@ button, a, input, textarea, select { font: inherit; }
 /* SVG icons are block boxes sized by font-size, so flex centering centers the drawing itself. */
 .icon { display: block; width: 1em; height: 1em; flex: none; }
 button { cursor: pointer; }
+/* No browser focus rings: a control clicked with the mouse keeps focus, and the next key (Space is a hotkey) would ring it. */
+:focus-visible { outline: none; }
 .shell { width: min(calc(100% - 40px), 760px); margin: 0 auto; }
 .app-header { position: relative; z-index: 3; border-bottom: 1px solid var(--header-line); }
 .topbar { min-height: 72px; display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; align-items: center; gap: 16px; }

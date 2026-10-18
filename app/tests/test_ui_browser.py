@@ -415,6 +415,31 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             for key, index in (("KeyD", 1), ("KeyB", 2), ("KeyG", 3), ("KeyP", 4), ("KeyO", 5), ("KeyV", 0)):
                 page.keyboard.press(key)
                 assert page.evaluate(selected)[index] == "true", key
+            # A clicked control keeps focus, but the next key never draws a focus ring around it.
+            ring = "() => getComputedStyle(document.activeElement).outlineStyle"
+            paused = "document.querySelector('#playback-panel audio').paused"
+            solo = page.locator('[data-control="solo"]').first
+            solo.click()
+            page.keyboard.press("Space")
+            page.wait_for_function(f"!{paused}")
+            assert page.evaluate(ring) == "none" and solo.get_attribute("aria-pressed") == "true"  # Space played, not re-pressed S
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
+            solo.click()
+            seek_layer = page.locator('[data-control="seek"]')
+            seek_layer.click(position={"x": 5, "y": 5})
+            page.keyboard.press("Space")
+            page.wait_for_function(f"!{paused}")
+            assert page.evaluate("document.activeElement.dataset.control") == "seek" and page.evaluate(ring) == "none"
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
+            page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.keyboard.press("Space")
+            page.wait_for_function(f"!{paused}")
+            assert page.evaluate("document.activeElement.dataset.projectId") == "project-0" and page.evaluate(ring) == "none"
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
+            page.keyboard.press("Home")
             # On a volume slider the arrows still move the position, never the volume.
             gain0 = page.locator('[data-control="gain"]').first
             before_gain = gain0.input_value()
