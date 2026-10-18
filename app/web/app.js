@@ -60,6 +60,7 @@ const transportIcons = {
   pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
   start: '<path d="M6 5v14"/><path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/>',
   metronome: '<path d="M9 3h6l4 18H5z"/><path d="M12 16l5-9"/><path d="M7 15h10"/>',
+  countin: '<path d="M4 6.5v11l8.5-5.5z" fill="currentColor" stroke="none"/><text x="18" y="17" font-size="11" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">4</text>',
 };
 
 function setIcon(button, name) {
@@ -432,7 +433,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, countInPlan, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -513,9 +514,16 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     setIcon(reset, "start");
     reset.setAttribute("aria-label", "В начало и пауза");
     reset.title = "В начало и пауза";
+    const countIn = document.createElement("button");
+    countIn.type = "button";
+    countIn.className = "transport-button";
+    countIn.dataset.action = "count-in";
+    setIcon(countIn, "countin");
+    countIn.setAttribute("aria-label", "Отсчёт на четыре и воспроизведение");
+    countIn.title = "Отсчёт на четыре и воспроизведение";
     const buttons = document.createElement("div");
     buttons.className = "playback-buttons";
-    buttons.append(play, reset);
+    buttons.append(play, countIn, reset);
     const error = document.createElement("span");
     error.className = "playback-error";
     const mixerRows = document.createElement("div");
@@ -654,8 +662,19 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       mixerRows.append(row);
     });
 
+    let countInTimer = null;
+    const cancelCountIn = () => {
+      window.clearTimeout(countInTimer);
+      countInTimer = null;
+      countIn.removeAttribute("aria-pressed");
+      metronome.reset();  // drops the count-in clicks that have not sounded yet
+    };
     const togglePlayback = async () => {
       error.textContent = "";
+      if (countInTimer !== null) {  // Space or ▶ during the count-in stops it
+        cancelCountIn();
+        return;
+      }
       if (transport.playing) {
         transport.pause();
         metronome.reset();
@@ -672,6 +691,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     };
     play.addEventListener("click", togglePlayback);
     reset.addEventListener("click", () => {
+      if (countInTimer !== null) cancelCountIn();
       transport.stop();
       metronome.reset();
       updateTransportButton(false);
@@ -746,6 +766,26 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       });
       return beatsRequest;
     };
+    countIn.addEventListener("click", async () => {
+      if (countInTimer !== null || transport.playing) {
+        await togglePlayback();  // a second press stops, like ▶
+        return;
+      }
+      const beats = metronome.beats.length ? metronome.beats : await loadBeats();
+      if (!beats || setupId !== playbackSetupId) return;
+      await audioContext.resume();
+      const plan = countInPlan(beats, transport.currentTime, audioContext.currentTime + 0.05);
+      if (!plan) return;
+      plan.clicks.forEach((when) => metronome.click(when));
+      metronomeButton.dataset.clicks = String(metronome.clicks);
+      countIn.setAttribute("aria-pressed", "true");
+      // Without the metronome only these four clicks sound; with it, it carries on from the song's beats.
+      countInTimer = window.setTimeout(async () => {
+        countInTimer = null;
+        countIn.removeAttribute("aria-pressed");
+        await togglePlayback();
+      }, Math.max(0, (plan.audioStart - audioContext.currentTime) * 1000));
+    });
     metronomeButton.addEventListener("click", async () => {
       if (metronomeOn) {
         setMetronome(false);

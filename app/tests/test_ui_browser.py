@@ -287,7 +287,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.locator(".mixer-row").count() == 6
             assert page.locator(".mixer-row").first.locator(".mixer-left > *").count() == 2
             assert page.locator(".gain-value").count() == 0 and page.locator(".timeline").count() == 0
-            assert page.locator(".playback-buttons button").count() == 2
+            assert page.locator(".playback-buttons button").count() == 3  # ▶, ▶4 (count-in), ⏮
             assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Воспроизвести"
             assert page.locator('[data-action="reset"]').get_attribute("aria-label") == "В начало и пауза"
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
@@ -507,6 +507,26 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_function(paused)
             page.keyboard.press("Home")
+            # ▶4: four clicks first, then the music; with the metronome off no more clicks follow.
+            metronome.click()
+            assert metronome.get_attribute("aria-pressed") == "false"
+            before = int(metronome.get_attribute("data-clicks"))
+            page.locator('[data-action="count-in"]').click()
+            page.wait_for_function(f"Number(document.querySelector('.footer-toggle').dataset.clicks) === {before + 4}")
+            assert page.evaluate(paused)  # still counting in
+            page.wait_for_function(f"!{paused}", timeout=5000)
+            page.wait_for_timeout(700)
+            assert int(metronome.get_attribute("data-clicks")) == before + 4
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
+            page.keyboard.press("Home")
+            # Space during the count-in cancels it: the music does not start.
+            page.locator('[data-action="count-in"]').click()
+            page.wait_for_function("document.querySelector('[data-action=\"count-in\"]').getAttribute('aria-pressed') === 'true'")
+            page.keyboard.press("Space")
+            page.wait_for_timeout(1600)
+            assert page.evaluate(paused) and page.locator('[data-action="count-in"]').get_attribute("aria-pressed") is None
+            metronome.click()
             volume_box = page.locator('[data-control="metronome-volume"]').bounding_box()
             page.mouse.click(volume_box["x"] + volume_box["width"] - 1, volume_box["y"] + volume_box["height"] / 2)
             assert page.locator('[data-control="metronome-volume"]').input_value() == "100"
