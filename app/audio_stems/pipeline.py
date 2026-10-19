@@ -29,6 +29,8 @@ import time
 from typing import Callable
 from audio_stems.models import SeparationOptions
 
+from audio_stems.separator import audio_duration
+
 if TYPE_CHECKING:
     from audio_stems.db import SqliteMetadataStore
     from audio_stems.separator import StemSeparator
@@ -143,6 +145,9 @@ class BatchOrchestrator:
                     job_id, lambda: self.storage.save_audio(job_id, audio), owner_id, receipt.batch_id
                 )
                 self.repository.add_asset(asset)
+                seconds = audio_duration(audio.path)  # the length tells how long the separation will take
+                if seconds:
+                    self.repository.set_audio_seconds(job_id, seconds)
                 self.repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
                 self._report_progress(job_id, 0.10, force=True)
                 downloaded[job_id] = audio

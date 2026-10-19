@@ -97,6 +97,8 @@ class SeparatorModel:
     stems: tuple[str, ...]
     label: str = ""
     description: str = ""
+    # Measured on a 4-core laptop CPU; the API prefers this machine's own history.
+    seconds_per_audio_second: float = 1.0
 
 
 class MediaAssetType(Enum):

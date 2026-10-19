@@ -308,3 +308,28 @@ def test_the_music_start_is_measured_once_and_waveforms_begin_there(tmp_path, mo
     waveform = request("GET", f"/api/v1/assets/{vocals['asset_id']}/waveform").json()
     assert abs(waveform["duration_seconds"] - 1.02) < 1e-3 and waveform["levels"][-1] > 0.4
     assert min(waveform["levels"][:5]) == 0.0  # only the 20 ms pre-roll is silent
+
+
+def test_projects_estimate_the_separation_time_from_this_machines_history(tmp_path):
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+    request, repository, storage = make_delete_client(tmp_path)
+    receipt = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Long song")])
+    job_id = receipt.job_ids[0]
+    repository.transition_job(job_id, JobStatus.DOWNLOADING)
+    repository.set_audio_seconds(job_id, 240)
+
+    waiting = request("GET", "/api/v1/projects").json()[-1]
+    assert waiting["eta_seconds"] == round(0.9 * 240)  # no history yet: the test laptop's speed
+
+    repository.transition_job(job_id, JobStatus.DOWNLOADED)
+    repository.transition_job(job_id, JobStatus.SEPARATING)
+    started = (datetime.now(timezone.utc) - timedelta(seconds=100)).isoformat()
+    with sqlite3.connect(tmp_path / "delete.db") as connection:
+        connection.execute("UPDATE jobs SET separation_started_at = ? WHERE id = ?", (started, str(job_id)))
+    repository.set_job_progress(job_id, 0.10 + 0.87 * 0.5)  # half of the separation done in 100 s
+
+    running = request("GET", "/api/v1/projects").json()[-1]
+    assert 95 <= running["eta_seconds"] <= 105
+    models = {model["name"]: model["seconds_per_audio_second"] for model in request("GET", "/api/v1/models").json()}
+    assert models == {"htdemucs_6s": 0.9, "bs_roformer_sw": 15.6}

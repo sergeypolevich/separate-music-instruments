@@ -179,6 +179,17 @@ function updateProjectTab(button, project) {
 // The open project's job, as last seen by the poll: drives its progress bar and the switch to the mixer.
 let selectedJobState = null;
 
+function formatMinutes(seconds) {
+  return seconds < 60 ? "меньше минуты" : `~${Math.round(seconds / 60)} мин`;
+}
+
+function etaText(state) {
+  if (state.eta_seconds === null || state.eta_seconds === undefined) return "";
+  return state.job_status === "separating"
+    ? ` · осталось ${formatMinutes(state.eta_seconds)}`
+    : ` · разделение займёт ${formatMinutes(state.eta_seconds)}`;
+}
+
 function renderJobProgress(state) {
   let bar = playbackPanel.querySelector(".job-progress");
   if (!bar) {
@@ -197,7 +208,7 @@ function renderJobProgress(state) {
   bar.firstElementChild.style.width = `${percent}%`;
   bar.setAttribute("aria-valuenow", String(percent));
   playbackPanel.querySelector(".job-progress-label").textContent =
-    `${stateDescriptions[state.job_status] || state.job_status} · ${percent}%`;
+    `${stateDescriptions[state.job_status] || state.job_status} · ${percent}%${etaText(state)}`;
 }
 
 function followSelectedJob(projects) {
@@ -985,7 +996,9 @@ async function loadModels() {
       name.textContent = `${model.label || model.name} · ${model.stems.length} дорожек`.replace("4 дорожек", "4 дорожки");
       const note = document.createElement("span");
       note.className = "model-option-note";
-      note.textContent = model.description || "";
+      const typical = model.seconds_per_audio_second
+        ? ` На этом компьютере песня 4 мин разделяется за ${formatMinutes(model.seconds_per_audio_second * 240)}.` : "";
+      note.textContent = `${model.description || ""}${typical}`;
       option.append(radio, name, note);
       return option;
     }));
