@@ -58,3 +58,36 @@ jobs:
       - name: Logs on failure
         if: failure()
         run: tail -n 100 "$RUNNER_TEMP"/start*.log || true
+
+  # A Mac without Python 3.12: Start.command must install it for the user with the pinned uv.
+  mac-without-python:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Hide every Python 3.12
+        run: |
+          for p in $(which -a python3.12 2>/dev/null) /opt/homebrew/bin/python3.12 /usr/local/bin/python3.12 /Library/Frameworks/Python.framework/Versions/3.12/bin/python3.12; do
+            if [ -e "$p" ]; then sudo mv "$p" "$p.hidden"; echo "hidden $p"; fi
+          done
+          ! command -v python3.12
+
+      - name: First start installs Python 3.12 with uv
+        run: |
+          export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop"
+          export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
+          export AUDIO_STEMS_STORAGE_ROOT="$RUNNER_TEMP/data/YouTube Audio"
+          sh ./Start.command > "$RUNNER_TEMP/start.log" 2>&1 &
+          for attempt in $(seq 1 1200); do curl -sf http://127.0.0.1:8000/api/v1/health && break; sleep 2; done
+          curl -sf http://127.0.0.1:8000/api/v1/health
+          touch "$RUNNER_TEMP/stop"
+          wait
+          grep -q "Installing it for this user with uv" "$RUNNER_TEMP/start.log"
+          test -x "$HOME/.local/share/audio-stems/uv-0.12.22/uv"
+          app/.venv/bin/python -c "import sys; assert sys.version_info[:2] == (3, 12); print(sys.version, sys.base_prefix)"
+          app/.venv/bin/python -c "import sys; assert 'uv' in sys.base_prefix, sys.base_prefix"
+
+      - name: Logs on failure
+        if: failure()
+        run: tail -n 100 "$RUNNER_TEMP/start.log" || true
