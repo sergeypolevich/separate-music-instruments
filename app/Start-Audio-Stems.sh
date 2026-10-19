@@ -5,6 +5,8 @@ set -eu
 APP="$(cd "$(dirname "$0")" && pwd)"
 UV_VERSION=0.12.22
 UV_DIR="$HOME/.local/share/audio-stems/uv-$UV_VERSION"
+# When uv is needed, it uses its own Python 3.12, never another system one it might find.
+export UV_PYTHON_PREFERENCE=only-managed
 
 is_python312() {
   "$1" -c 'import sys; raise SystemExit(sys.version_info[:2] != (3, 12))' 2>/dev/null

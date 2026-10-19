@@ -190,3 +190,4 @@ def test_mac_setup_pins_uv_and_checks_its_checksum_for_both_mac_architectures():
     assert "arm64) ARCH=aarch64; SUM=5d714de09501a59393ceca78f4bc232a50478729640d251907160299b2a93ddd" in setup
     assert "x86_64) ARCH=x86_64; SUM=1b8a5b316883df2daf20fb9a446e5b230e01d947d57aba2694977c5ac5a7e98c" in setup
     assert 'exec "$PYTHON" run.py --app' in setup and "sudo" not in setup
+    assert "export UV_PYTHON_PREFERENCE=only-managed" in setup  # uv installs its own 3.12
