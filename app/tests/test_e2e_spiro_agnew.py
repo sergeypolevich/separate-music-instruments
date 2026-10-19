@@ -157,7 +157,7 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     )
                     assert "failed to fetch" not in update_message.inner_text().lower()
 
-                page.locator('[data-screen="project"]').first.click()
+                page.locator("#close-settings").click()  # settings are a popup over the project
                 if reuse_root is None:
                     page.locator("#search-trigger").click()
                     page.locator("#inputs").fill(QUERY)

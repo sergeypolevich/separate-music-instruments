@@ -39,10 +39,7 @@ const checkUpdatesButton = document.querySelector("#check-updates");
 const themeButtons = document.querySelectorAll("[data-theme-choice]");
 const accentHueField = document.querySelector("#accent-hue");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
-const screens = new Map([
-  ["project", document.querySelector("#screen-project")],
-  ["settings", document.querySelector("#screen-settings")],
-]);
+const settingsOverlay = document.querySelector("#settings-overlay");
 let pollingTimer = null;
 let activeTransport = null;
 let activeMixer = null;
@@ -173,16 +170,29 @@ async function deleteAllProjects() {
   diskMessage.textContent = failed.length ? `Не удалось удалить: ${failed.join(", ")}.` : `Удалено проектов: ${projects.length}. Освобождено ${formatBytes(freed)}.`;
 }
 
+// Settings open over the project (which keeps playing) and close on a click outside, Esc or ×.
+function openSettings() {
+  settingsOverlay.hidden = false;
+  document.body.classList.add("search-open");
+  history.replaceState(null, "", "#settings");
+  loadStorage();
+  loadModels();
+}
+
+function closeSettings() {
+  if (settingsOverlay.hidden) return;
+  settingsOverlay.hidden = true;
+  document.body.classList.remove("search-open");
+  history.replaceState(null, "", "#project");
+}
+
 function activateScreen(name) {
-  for (const [screenName, screen] of screens) screen.hidden = screenName !== name;
-  document.querySelectorAll("[data-screen]").forEach((link) => {
-    if (link.matches("nav a")) {
-      if (link.dataset.screen === name) link.setAttribute("aria-current", "page");
-      else link.removeAttribute("aria-current");
-    }
-  });
-  if (name === "project") loadProjects();
-  if (name === "settings") loadStorage();
+  if (name === "settings") {
+    openSettings();
+  } else {
+    closeSettings();
+    loadProjects();
+  }
 }
 
 function statusBucket(status) {
@@ -1219,6 +1229,10 @@ document.querySelector("#close-search").addEventListener("click", () => closeSea
 searchOverlay.addEventListener("click", (event) => {
   if (event.target === searchOverlay) closeSearch();
 });
+document.querySelector("#close-settings").addEventListener("click", closeSettings);
+settingsOverlay.addEventListener("click", (event) => {
+  if (event.target === settingsOverlay) closeSettings();
+});
 function isTextEntry(target) {
   if (!(target instanceof Element)) return false;
   if (target.isContentEditable || target.matches("textarea, select")) return true;
@@ -1237,15 +1251,19 @@ document.addEventListener("keydown", (event) => {
     closeSearch();
     return;
   }
+  if (event.key === "Escape" && !settingsOverlay.hidden) {
+    closeSettings();
+    return;
+  }
   // Tab never walks the focus (and its focus rings) outside dialogs; in a project it picks the next track.
-  if (event.key === "Tab" && searchOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
+  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
     event.preventDefault();
-    if (activeControls && !screens.get("project").hidden && !event.ctrlKey && !event.metaKey && !event.altKey) {
+    if (activeControls && !event.ctrlKey && !event.metaKey && !event.altKey) {
       activeControls.cycleSelection(event.shiftKey ? -1 : 1);
     }
     return;
   }
-  if (!activeControls || !searchOverlay.hidden || deleteDialog.open || screens.get("project").hidden) return;
+  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || deleteDialog.open) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
   const controls = activeControls;
   const actions = {
@@ -1280,10 +1298,7 @@ document.addEventListener("keydown", (event) => {
 document.querySelectorAll("[data-screen]").forEach((link) => {
   link.addEventListener("click", (event) => {
     event.preventDefault();
-    const name = link.dataset.screen;
-    activateScreen(name);
-    if (name === "project") history.replaceState(null, "", "#project");
-    else history.replaceState(null, "", `#${name}`);
+    activateScreen(link.dataset.screen);
   });
 });
 form.addEventListener("submit", submitSearch);
@@ -1304,6 +1319,6 @@ checkUpdatesButton.addEventListener("click", checkUpdates);
 cleanStorageButton.addEventListener("click", cleanStorage);
 deleteAllButton.addEventListener("click", deleteAllProjects);
 
-const initialScreen = location.hash.slice(1);
-activateScreen(screens.has(initialScreen) ? initialScreen : "project");
+loadProjects();
 loadModels();
+if (location.hash === "#settings") openSettings();
