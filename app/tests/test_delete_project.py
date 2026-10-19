@@ -331,5 +331,14 @@ def test_projects_estimate_the_separation_time_from_this_machines_history(tmp_pa
 
     running = request("GET", "/api/v1/projects").json()[-1]
     assert 95 <= running["eta_seconds"] <= 105
-    models = {model["name"]: model["seconds_per_audio_second"] for model in request("GET", "/api/v1/models").json()}
-    assert models == {"htdemucs_6s": 0.9, "bs_roformer_sw": 15.6}
+    models = {m["name"]: (m["seconds_per_audio_second"], m["measured"]) for m in request("GET", "/api/v1/models").json()}
+    assert models == {"htdemucs_6s": (0.9, False), "bs_roformer_sw": (15.6, False)}  # defaults until measured
+    # After separations the median of this machine's runs replaces the default and is marked measured.
+    for seconds in (60, 70, 80):
+        done = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, f"Song {seconds}")]).job_ids[0]
+        repository.set_audio_seconds(done, 100)
+        with sqlite3.connect(tmp_path / "delete.db") as connection:
+            connection.execute("UPDATE jobs SET separation_seconds = ?, separation_options_json = ? WHERE id = ?",
+                               (seconds, '{"model_name": "htdemucs_6s", "device": "cpu"}', str(done)))
+    models = {m["name"]: (m["seconds_per_audio_second"], m["measured"]) for m in request("GET", "/api/v1/models").json()}
+    assert models["htdemucs_6s"] == (0.7, True) and models["bs_roformer_sw"] == (15.6, False)

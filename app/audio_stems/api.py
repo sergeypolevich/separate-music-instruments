@@ -248,7 +248,7 @@ def create_app(
 
     @app.get("/api/v1/models")
     def models() -> list[dict[str, object]]:
-        speed = rates()
+        speed, measured = rates(), repository.separation_rates()
         return [
             {
                 "name": model.name,
@@ -257,6 +257,7 @@ def create_app(
                 "stems": list(model.stems),
                 "default": model.name == settings.model_name,
                 "seconds_per_audio_second": round(speed[model.name], 2),
+                "measured": model.name in measured,  # the median of this machine's runs, else the test laptop's
             }
             for model in separator.available_models()
         ]
