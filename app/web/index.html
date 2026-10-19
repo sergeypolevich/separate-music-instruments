@@ -59,12 +59,33 @@
         </section>
       </section>
 
-      <section id="screen-settings" class="screen secondary-screen shell" aria-labelledby="settings-title" hidden>
-        <header class="screen-heading">
-          <a class="back-link" href="#project" data-screen="project"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg><span>Проект</span></a>
+    </main>
+
+    <div id="search-overlay" class="search-overlay" hidden>
+      <section class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="search-title">
+        <div class="search-dialog-heading">
+          <div><p class="eyebrow">НОВАЯ ЗАДАЧА</p><h1 id="search-title">Что будем разделять?</h1></div>
+          <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <form id="submit-form">
+          <label for="inputs">Название песни или YouTube-ссылка</label>
+          <textarea id="inputs" name="inputs" rows="2" maxlength="2048" required
+            placeholder="Например: Artist — Song title&#10;Можно добавить несколько строк"></textarea>
+          <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
+          <div class="form-footer">
+            <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
+            <button id="submit-button" type="submit"><span>Начать разделение</span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></button>
+          </div>
+        </form>
+      </section>
+    </div>
+
+    <div id="settings-overlay" class="search-overlay" hidden>
+      <section id="screen-settings" class="search-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <div class="search-dialog-heading">
           <h1 id="settings-title">Настройки</h1>
-          <p>Оформление, модель разделения, место на диске и обновления.</p>
-        </header>
+          <button id="close-settings" class="icon-button" type="button" aria-label="Закрыть настройки" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
         <section class="settings-card" aria-labelledby="appearance-title">
           <div class="section-heading"><h2 id="appearance-title">Оформление</h2></div>
           <div class="appearance-row">
@@ -101,25 +122,6 @@
           <p id="updates-message" class="empty-state" role="status" aria-live="polite">Проверка выполняется только по запросу.</p>
           <div id="release-list" class="release-list"></div>
         </section>
-      </section>
-    </main>
-
-    <div id="search-overlay" class="search-overlay" hidden>
-      <section class="search-dialog" role="dialog" aria-modal="true" aria-labelledby="search-title">
-        <div class="search-dialog-heading">
-          <div><p class="eyebrow">НОВАЯ ЗАДАЧА</p><h1 id="search-title">Что будем разделять?</h1></div>
-          <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
-        </div>
-        <form id="submit-form">
-          <label for="inputs">Название песни или YouTube-ссылка</label>
-          <textarea id="inputs" name="inputs" rows="2" maxlength="2048" required
-            placeholder="Например: Artist — Song title&#10;Можно добавить несколько строк"></textarea>
-          <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
-          <div class="form-footer">
-            <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
-            <button id="submit-button" type="submit"><span>Начать разделение</span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg></button>
-          </div>
-        </form>
       </section>
     </div>
 

@@ -672,8 +672,21 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             switches_gap = page.locator(".mixer-switches").first.evaluate("el => getComputedStyle(el).columnGap")
             assert switches_gap == "11px"
 
+            # Settings open as a popup over the project: a click outside or Esc closes them, × too.
+            settings = page.locator("#settings-overlay")
             page.locator('[data-screen="settings"]').click()
-            assert page.locator("#screen-settings").is_visible()
+            assert settings.is_visible() and page.locator("#screen-project").is_visible()
+            assert page.locator(".back-link").count() == 0
+            page.keyboard.press("Space")  # the player's hotkeys rest while the popup is open
+            page.wait_for_timeout(300)
+            assert page.evaluate(audio_state)["paused"]
+            page.mouse.click(5, viewport[1] - 5)
+            assert not settings.is_visible()
+            page.locator('[data-screen="settings"]').click()
+            page.keyboard.press("Escape")
+            assert not settings.is_visible()
+            page.locator('[data-screen="settings"]').click()
+            assert settings.is_visible()
             # Appearance: the theme switch and accent hue apply at once and survive a reload.
             body_bg = "getComputedStyle(document.body).backgroundColor"
             swatch = "getComputedStyle(document.querySelector('.accent-swatch')).backgroundColor"
@@ -727,7 +740,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('[data-theme-choice="dark"]').click()
             page.locator("#accent-hue").evaluate("el => { el.value = '84'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             assert page.evaluate(body_bg) == dark_bg and page.evaluate(swatch) == default_accent
-            page.locator('[data-screen="project"]').first.click()
+            assert page.locator("#settings-overlay").is_visible()  # the reload kept #settings
+            page.locator("#close-settings").click()
+            assert not page.locator("#settings-overlay").is_visible()
             # After the reload above the project list loads asynchronously.
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
             # A four-stem project shows four rows, and the playhead spans exactly them.
