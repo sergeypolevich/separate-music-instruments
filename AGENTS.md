@@ -2,7 +2,7 @@
 
 Before starting each implementation stage, read [`app/skills/audio-stems-development.md`](app/skills/audio-stems-development.md), [`app/DEVELOPMENT_PLAN.md`](app/DEVELOPMENT_PLAN.md), and the current checkpoint in [`app/DEVELOPMENT_STATUS.md`](app/DEVELOPMENT_STATUS.md).
 
-Repository layout: the root holds only what a user or an agent needs first — `Start.bat` and `Start.command` (the Windows and macOS launchers), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/`. Everything else (code, tests, web UI, docs, requirements, the `.venv`) lives in `app/`; run Python and test commands from `app/`. User data stays outside the code at `~/Audio Stems` (`Music/`, `audio_stems.db`, `logs/`).
+Repository layout: the root holds only what a user or an agent needs first — `Start.bat` and `Start.command` (the Windows and macOS launchers), the user guides `README.md`, `README.ru.md` and `README.de.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/`. Everything else (code, tests, web UI, docs, requirements, the `.venv`) lives in `app/`; run Python and test commands from `app/`. User data stays outside the code at `~/Audio Stems` (`Music/`, `audio_stems.db`, `logs/`).
 
 ## 1. Purpose
 
@@ -250,7 +250,7 @@ Live tests against YouTube or a real Demucs model must be opt-in, clearly marked
 
 - Keep runtime settings in one validated settings module (for example, Pydantic Settings) and `.env.example`.
 - Configure at least: storage root, temporary root, database URL, log level, log rotation, retry count/delays, allowed source hosts, batch limits, model name/device, and the API port. Add settings for worker concurrency and authentication/sessions together with those features, not before.
-- Provide reproducible Windows PowerShell instructions in `README.md` for environment setup, tests, starting API, starting worker, and running any compatibility CLI.
+- Keep the root `README*.md` files for users (download and start, in English, Russian and German). Provide reproducible Windows PowerShell instructions in `app/README.md` for environment setup, tests, starting API, starting worker, and running any compatibility CLI.
 - Pin or constrain dependencies after testing them together. Record Python and dependency versions used for the working environment.
 - Add formatting/lint/type-check tools only when configured with commands the agent can actually run. Favor a small, reproducible quality gate over a large toolchain.
 
