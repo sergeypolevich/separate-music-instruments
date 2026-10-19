@@ -235,8 +235,12 @@ export class StretchEngine {
     return new StretchEngine(context, nodes);
   }
 
+  // The position heard now, from our own schedule and the AudioContext clock (the clock the metronome
+  // uses). The nodes' reported inputTime runs ahead of what is heard by their latency (tenths of a
+  // second at low speeds) and only updates every 20 ms, so it put the clicks early.
   get position() {
-    return this.playing ? this.nodes[0].inputTime : this.paused;
+    if (!this.playing) return this.paused;
+    return this.segment.input + Math.max(0, this.context.currentTime - this.segment.output) * this.rate;
   }
 
   play(input) {
@@ -244,12 +248,16 @@ export class StretchEngine {
     this.paused = input;
     // outputTime (not the README's `output`) is the field this release reads for the start time.
     const when = this.context.currentTime;
+    this.segment = { input, output: when };
     this.nodes.forEach((node) => node.schedule({ outputTime: when, active: true, input, rate: this.rate }));
   }
 
   seek(input) {
     this.paused = input;
-    if (this.playing) this.nodes.forEach((node) => node.schedule({ input, rate: this.rate }));
+    if (!this.playing) return;
+    const when = this.context.currentTime;
+    this.segment = { input, output: when };
+    this.nodes.forEach((node) => node.schedule({ outputTime: when, input, rate: this.rate }));
   }
 
   pause() {

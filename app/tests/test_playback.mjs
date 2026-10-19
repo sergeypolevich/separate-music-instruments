@@ -250,11 +250,12 @@ class FakeStretchNode {
 
 test("the stretch engine gives every stem node the same schedule", () => {
   const nodes = [new FakeStretchNode(), new FakeStretchNode()];
-  const engine = new StretchEngine({ currentTime: 5 }, nodes);
+  const context = { currentTime: 5 };
+  const engine = new StretchEngine(context, nodes);
   engine.rate = 0.5;
   engine.play(12);
   assert.ok(nodes.every((node) => JSON.stringify(node.schedules[0]) === JSON.stringify({ outputTime: 5, active: true, input: 12, rate: 0.5 })));
-  nodes.forEach((node) => { node.inputTime = 13.5; });  // the worklet reports progress
+  context.currentTime = 8;  // 3 clock seconds at 50 % = 1.5 song seconds
   assert.equal(engine.position, 13.5);
   assert.equal(engine.pause(), 13.5);
   assert.ok(nodes.every((node) => node.schedules.at(-1).active === false));
@@ -262,16 +263,39 @@ test("the stretch engine gives every stem node the same schedule", () => {
   assert.equal(engine.position, 20);
 });
 
+test("the stretch position is what is heard, not the worklet's reported input time", () => {
+  // The nodes report an input time ahead of the output by their latency; clicks timed from it came early.
+  const nodes = [new FakeStretchNode()];
+  const context = new FakeContext();  // the clock the metronome schedules on, at 10 s
+  const engine = new StretchEngine(context, nodes);
+  engine.rate = 0.25;
+  engine.play(1.0);
+  nodes[0].inputTime = 1.4;  // reported: latency ahead
+  context.currentTime = 12;  // 2 clock seconds at 25 % = 0.5 song seconds
+  assert.equal(engine.position, 1.5);
+  engine.seek(3);  // a seek while playing restarts the schedule from the clock's now
+  assert.deepEqual(nodes[0].schedules.at(-1), { outputTime: 12, input: 3, rate: 0.25 });
+  context.currentTime = 16;
+  assert.equal(engine.position, 4);
+  // The metronome on the same clock: beat 5.0 is one song second away, four clock seconds at 25 %.
+  const metronome = new Metronome(context, {}, { lookahead: 1 });
+  metronome.rate = 0.25;
+  metronome.setBeats([4, 5]);
+  metronome.update(engine.position + 0.8);
+  assert.deepEqual(context.started.map((t) => +(t - 16).toFixed(3)), [0.8]);
+});
+
 test("a speed change while playing hands the position to the stretch engine and back", async () => {
   const tracks = [new FakeAudio(30), new FakeAudio(30)];
   const transport = new SynchronizedTransport(tracks, { startOffset: 1, requestFrame: () => 1, cancelFrame: () => {} });
-  transport.stretch = new StretchEngine({ currentTime: 0 }, [new FakeStretchNode(), new FakeStretchNode()]);
+  const clock = { currentTime: 0 };
+  transport.stretch = new StretchEngine(clock, [new FakeStretchNode(), new FakeStretchNode()]);
   transport.seek(4);
   await transport.play();
   await transport.setPlaybackRate(0.5);
   assert.ok(transport.stretching && tracks.every((audio) => audio.paused));  // the streams fall silent
   assert.equal(transport.stretch.nodes[0].schedules.at(-1).input, 5);      // file time = song 4 s + 1 s offset
-  transport.stretch.nodes.forEach((node) => { node.inputTime = 7; });
+  clock.currentTime = 4;  // 4 clock seconds at 50 % = 2 song seconds
   assert.equal(transport.currentTime, 6);
   await transport.setPlaybackRate(1);
   assert.ok(!transport.stretching && tracks.every((audio) => !audio.paused && audio.currentTime === 7));
