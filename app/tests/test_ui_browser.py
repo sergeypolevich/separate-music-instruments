@@ -13,6 +13,9 @@ import pytest
 
 
 ROOT = Path(__file__).parents[1]
+# AUDIO_STEMS_SOFT_CHECKS=<folder> (CI on macOS): the browser test goes on past a failed check and lists every
+# failure at the end, with a screenshot of each, instead of stopping at the first. See _soft_checks below.
+SOFT_CHECKS = os.environ.get("AUDIO_STEMS_SOFT_CHECKS")
 STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
 
 
@@ -239,6 +242,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             if browser is None:
                 pytest.skip(f"No browser for Playwright: {launch_error}")
             page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
+            if SOFT_CHECKS:
+                page.set_default_timeout(10_000)  # a failed wait costs 10 s, not 30, when the run goes on past it
+                page.set_default_navigation_timeout(30_000)  # the first load really takes longer
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
@@ -585,7 +591,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.type("s m ")
             page.keyboard.press("ArrowRight")
             assert page.locator("#inputs").input_value() == "s m "
-            page.keyboard.press("Tab")  # inside the search dialog Tab still moves the focus
+            # Inside the search dialog Tab still moves the focus (Safari on macOS skips buttons on Tab, so Option+Tab).
+            page.keyboard.press("Alt+Tab" if browser.browser_type.name == "webkit" else "Tab")
             assert page.evaluate("document.activeElement.id") == "submit-button"
             assert page.evaluate(audio_state)["paused"] and page.evaluate(audio_state)["t"] == 0
             assert page.locator('[data-control="solo"][aria-pressed="true"]').count() == 0
@@ -744,3 +751,75 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
         server.shutdown()
         server.server_close()
         server_thread.join(timeout=5)
+
+
+_soft_failures: list[str] = []
+
+
+def _soft_failed(line: int, error: Exception, scope: dict) -> None:
+    text = Path(__file__).read_text(encoding="utf-8").splitlines()[line - 1].strip()
+    message = (str(error).strip().splitlines() or [""])[0]
+    _soft_failures.append(f"line {line}: {type(error).__name__}: {message}\n    {text}")
+    if len(_soft_failures) >= 25:  # past this they are mostly knock-on failures, and each wait costs 10 s
+        pytest.fail(f"Stopped after {len(_soft_failures)} failed checks:" + chr(10) + chr(10).join(_soft_failures), pytrace=False)
+    if scope.get("page") is not None:
+        folder = Path(SOFT_CHECKS)
+        folder.mkdir(parents=True, exist_ok=True)
+        try:
+            scope["page"].screenshot(path=str(folder / f"{scope.get('viewport', ('',))[0]}-line{line}.png"))
+        except Exception:
+            pass
+
+
+def _soft_checks(test):
+    """The same test with each simple statement (assert, call, assignment) wrapped in try/except, so a failed
+    check is recorded and the run goes on; nested classes and functions stay as they are. Later failures can
+    be caused by earlier ones, so read the list from the top."""
+    import ast
+    import functools
+    import inspect
+
+    tree = ast.parse(inspect.getsource(test))
+    ast.increment_lineno(tree, test.__code__.co_firstlineno - 1)
+    function = tree.body[0]
+    function.decorator_list = []
+
+    class Wrap(ast.NodeTransformer):
+        def visit_ClassDef(self, node):
+            return node
+
+        def visit_FunctionDef(self, node):
+            return self.generic_visit(node) if node is function else node
+
+        def generic_visit(self, node):
+            super().generic_visit(node)
+            for field in ("body", "orelse", "finalbody"):
+                statements = getattr(node, field, None)
+                if isinstance(statements, list) and statements and isinstance(statements[0], ast.stmt):
+                    setattr(node, field, [self.wrap(s) if isinstance(s, (ast.Assert, ast.Expr, ast.Assign)) else s for s in statements])
+            return node
+
+        @staticmethod
+        def wrap(statement):
+            guard = ast.parse(f"try:\n pass\nexcept Exception as _soft_error:\n _soft_failed({statement.lineno}, _soft_error, locals())").body[0]
+            for node in ast.walk(guard):
+                if hasattr(node, "lineno"):
+                    node.lineno = node.end_lineno = statement.lineno
+            guard.body = [statement]
+            return guard
+
+    namespace = {}
+    exec(compile(ast.fix_missing_locations(Wrap().visit(tree)), __file__, "exec"), test.__globals__, namespace)
+
+    @functools.wraps(test)
+    def run(*args, **kwargs):
+        _soft_failures.clear()
+        namespace[test.__name__](*args, **kwargs)
+        if _soft_failures:
+            pytest.fail(f"{len(_soft_failures)} failed checks:\n" + "\n".join(_soft_failures), pytrace=False)
+
+    return run
+
+
+if SOFT_CHECKS:
+    test_v3_layout_search_navigation_and_mixer_in_browser = _soft_checks(test_v3_layout_search_navigation_and_mixer_in_browser)

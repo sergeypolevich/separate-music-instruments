@@ -47,3 +47,4 @@ Thumbs.db
 
 # Claude Code personal overrides
 .claude/settings.local.json
+soft-checks/
