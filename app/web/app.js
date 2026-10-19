@@ -98,7 +98,9 @@ function closeSearch({ restoreFocus = true } = {}) {
 const diskUsage = document.querySelector("#disk-usage");
 const diskMessage = document.querySelector("#disk-message");
 const cleanStorageButton = document.querySelector("#clean-storage");
+const deleteAllButton = document.querySelector("#delete-all-projects");
 let cleanableBytes = 0;
+let projectsBytes = 0;
 
 async function loadStorage() {
   try {
@@ -114,8 +116,11 @@ async function loadStorage() {
       return [term, value];
     }));
     cleanStorageButton.disabled = report.busy || cleanableBytes === 0;
+    projectsBytes = report.projects_bytes;
+    deleteAllButton.disabled = report.busy;
+    deleteAllButton.textContent = projectsBytes ? `Удалить все проекты (${formatBytes(projectsBytes)})` : "Удалить все проекты";
     cleanStorageButton.textContent = cleanableBytes ? `Очистить ${formatBytes(cleanableBytes)}` : "Очистить";
-    diskMessage.textContent = report.busy ? "Дождитесь окончания разделения: пока оно идёт, очистка недоступна." : "";
+    diskMessage.textContent = report.busy ? "Дождитесь окончания разделения: пока оно идёт, очистка и удаление недоступны." : "";
   } catch (error) {
     diskMessage.textContent = error.message;
   }
@@ -133,6 +138,39 @@ async function cleanStorage() {
     diskMessage.textContent = error.message;
     cleanStorageButton.disabled = false;
   }
+}
+
+// Deletes every project one by one through the same route as the bin, so shared files and locked
+// files are handled the same way.
+async function deleteAllProjects() {
+  let projects;
+  try {
+    projects = await requestJson("/api/v1/projects");
+  } catch (error) {
+    diskMessage.textContent = error.message;
+    return;
+  }
+  if (!projects.length) {
+    diskMessage.textContent = "Проектов нет.";
+    return;
+  }
+  const freed = projectsBytes;
+  if (!window.confirm(`Удалить все проекты (${projects.length}) вместе с их аудио и дорожками — ${formatBytes(freed)}? Это нельзя отменить.`)) return;
+  deleteAllButton.disabled = cleanStorageButton.disabled = true;
+  cleanupPlayback();  // Windows cannot delete a file the browser is still reading
+  const failed = [];
+  for (const project of projects) {
+    try {
+      await requestJson(`/api/v1/projects/${encodeURIComponent(project.project_id)}`, { method: "DELETE" });
+    } catch (_error) {
+      failed.push(project.title || project.input_value);
+    }
+  }
+  selectedProjectId = null;
+  selectedProjectTitle = "";
+  await loadProjects();
+  await loadStorage();
+  diskMessage.textContent = failed.length ? `Не удалось удалить: ${failed.join(", ")}.` : `Удалено проектов: ${projects.length}. Освобождено ${formatBytes(freed)}.`;
 }
 
 function activateScreen(name) {
@@ -1264,6 +1302,7 @@ confirmDeleteButton.addEventListener("click", confirmProjectDeletion);
 document.querySelector("#cancel-delete").addEventListener("click", () => deleteDialog.close("cancel"));
 checkUpdatesButton.addEventListener("click", checkUpdates);
 cleanStorageButton.addEventListener("click", cleanStorage);
+deleteAllButton.addEventListener("click", deleteAllProjects);
 
 const initialScreen = location.hash.slice(1);
 activateScreen(screens.has(initialScreen) ? initialScreen : "project");

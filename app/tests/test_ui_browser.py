@@ -132,7 +132,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     submitted = []
     deleted = []
     running_detail = {}
-    disk = {"unused": 40 * 2**20, "temp": 10 * 2**20}
+    disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
     beats_polls = []
     wav_bytes = _silent_wav()
 
@@ -184,7 +184,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self.wfile.write(body)
             elif path == "/api/v1/storage":
                 self._json({"projects_bytes": 3 * 2**30, "unused_bytes": disk["unused"], "temp_bytes": disk["temp"],
-                            "models_bytes": 800 * 2**20, "busy": False})
+                            "models_bytes": 800 * 2**20, "busy": disk["busy"]})
             elif path.startswith("/api/v1/batches/"):
                 self._json({"batch_id": batch_id, "status": "completed", "jobs": []})
             else:
@@ -693,6 +693,21 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#clean-storage").click()
             page.wait_for_function("document.querySelector('#disk-message').textContent === 'Освобождено 50 МБ.'")
             assert page.locator("#clean-storage").is_disabled()
+            # «Удалить все проекты» asks once with the size, then deletes every project through the bin's route.
+            delete_all = page.locator("#delete-all-projects")
+            assert delete_all.text_content() == "Удалить все проекты (3,0 ГБ)" and delete_all.is_enabled()
+            questions = []
+            page.once("dialog", lambda dialog: (questions.append(dialog.message), dialog.accept()))
+            before_deleted = len(deleted)
+            delete_all.click()
+            page.wait_for_function("document.querySelector('#disk-message').textContent.startsWith('Удалено проектов')")
+            assert "3,0 ГБ" in questions[0] and f"({len(projects)})" in questions[0]
+            assert sorted(deleted[before_deleted:]) == sorted(f"/api/v1/projects/{p['project_id']}" for p in projects)
+            # While a separation runs, neither cleanup nor deleting everything is offered.
+            disk["busy"] = True
+            page.evaluate("document.querySelector('[data-screen=\"settings\"]').click()")
+            page.wait_for_function("document.querySelector('#delete-all-projects').disabled")
+            disk["busy"] = False
             # Separation: models are a radio list; the choice is remembered across reloads.
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()
