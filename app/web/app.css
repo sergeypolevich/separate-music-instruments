@@ -125,7 +125,7 @@ button { cursor: pointer; }
 .workspace-empty p { margin: 0; font-size: 13px; }
 .empty-mark { display: flex; color: var(--accent); font-size: 30px; }
 /* The project is one grid: controls | title on top, then the mixer rows on the same two columns (subgrid). */
-.project-detail { position: relative; width: 100%; min-width: 0; display: grid; grid-template-columns: minmax(150px, 190px) minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 8px 16px 58px; }
+.project-detail { --columns: minmax(150px, 190px) minmax(0, 1fr); --column-gap: 12px; position: relative; width: 100%; min-width: 0; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); align-items: center; padding: 8px 16px 58px; }
 .project-detail > * { grid-column: 1 / -1; }
 .project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
 /* Title on the left of the waveform column, timer pushed to its right edge. */
@@ -169,7 +169,9 @@ h1, h2, h3, p { margin-top: 0; }
 .playback-error { color: var(--danger); }
 /* Stem rows reuse the project columns through subgrid, so the waveform column matches the title column. */
 .mixer-grid { --row-gap: 4px; --row-pad: 4px; display: grid; grid-template-columns: subgrid; row-gap: var(--row-gap); }
-.mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: subgrid; }
+/* The card's own columns, not a third nested subgrid: Safari loses that one after re-renders. A row spans the
+   card's full width, so the columns line up with the playhead layer. */
+.mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); }
 .mixer-row { position: relative; min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid var(--line-soft); }
 .mixer-left { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
 .mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
@@ -289,7 +291,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav a { font-size: 11px; }
   .project-tabs-shell { padding: 7px 9px 0; }
   .project-workspace { padding: 4px 0 0; }
-  .project-detail { grid-template-columns: minmax(112px, 34%) minmax(0, 1fr); column-gap: 7px; padding: 6px 9px 52px; }
+  .project-detail { --columns: minmax(112px, 34%) minmax(0, 1fr); --column-gap: 7px; padding: 6px 9px 52px; }
   .mixer-row { min-height: 57px; }
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
@@ -308,5 +310,5 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 6px; }
   .top-nav a { font-size: 10px; }
   .brand > span:last-child { display: none; }
-  .project-detail { grid-template-columns: minmax(104px, 36%) minmax(0, 1fr); }
+  .project-detail { --columns: minmax(104px, 36%) minmax(0, 1fr); }
 }
