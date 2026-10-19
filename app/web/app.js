@@ -227,6 +227,12 @@ function updateProjectTab(button, project) {
 // The open project's job, as last seen by the poll: drives its progress bar and the switch to the mixer.
 let selectedJobState = null;
 
+// Separation time for one minute of music: "~55 с" or "~11 мин".
+function perMinuteOfSong(secondsPerSecond) {
+  const seconds = secondsPerSecond * 60;
+  return seconds < 60 ? `~${Math.max(5, Math.round(seconds / 5) * 5)} с` : `~${Math.round(seconds / 60)} мин`;
+}
+
 function formatMinutes(seconds) {
   return seconds < 60 ? "меньше минуты" : `~${Math.round(seconds / 60)} мин`;
 }
@@ -1136,9 +1142,14 @@ async function loadModels() {
       name.textContent = `${model.label || model.name} · ${model.stems.length} дорожек`.replace("4 дорожек", "4 дорожки");
       const note = document.createElement("span");
       note.className = "model-option-note";
-      const typical = model.seconds_per_audio_second
-        ? ` На этом компьютере песня 4 мин разделяется за ${formatMinutes(model.seconds_per_audio_second * 240)}.` : "";
-      note.textContent = `${model.description || ""}${typical}`;
+      note.textContent = model.description || "";
+      if (model.seconds_per_audio_second) {
+        const time = document.createElement("span");
+        time.className = "model-option-time";
+        time.textContent = `${perMinuteOfSong(model.seconds_per_audio_second)} на минуту песни · ${model.measured
+          ? "по последним разделениям на этом компьютере" : "оценка, уточнится после первого разделения"}`;
+        note.append(document.createElement("br"), time);
+      }
       option.append(radio, name, note);
       return option;
     }));

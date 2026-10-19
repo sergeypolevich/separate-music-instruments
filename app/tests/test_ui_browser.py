@@ -158,8 +158,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json(detail)
             elif path == "/api/v1/models":
                 self._json([
-                    {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True},
-                    {"name": "htdemucs_ft", "label": "Demucs ft", "description": "Cleaner", "stems": ["vocals", "drums", "bass", "other"], "default": False},
+                    {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True,
+                     "seconds_per_audio_second": 0.9, "measured": True},
+                    {"name": "htdemucs_ft", "label": "Demucs ft", "description": "Cleaner", "stems": ["vocals", "drums", "bass", "other"], "default": False,
+                     "seconds_per_audio_second": 11.2, "measured": False},
                 ])
             elif path.startswith("/api/v1/assets/") and path.endswith("/waveform"):
                 asset_id = path.split("/")[-2]
@@ -725,6 +727,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()
             assert page.locator(".model-option-name").nth(1).text_content() == "Demucs ft · 4 дорожки"
+            # The time per minute of music: this machine's median, else the default estimate.
+            assert page.locator(".model-option-time").all_text_contents() == [
+                "~55 с на минуту песни · по последним разделениям на этом компьютере",
+                "~11 мин на минуту песни · оценка, уточнится после первого разделения"]
             page.locator(".model-option").nth(1).click()
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
