@@ -13,7 +13,7 @@ import pytest
 import soundfile
 
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
-from audio_stems.separator import StemSeparator, decode_to_wav, detect_compute_devices, run_with_progress
+from audio_stems.separator import StemSeparator, audio_duration, decode_to_wav, detect_compute_devices, run_with_progress
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -22,11 +22,12 @@ def test_separator_reports_model_names_and_supported_options():
     models = separator.available_models()
 
     stems = {model.name: model.stems for model in models}
-    assert set(stems) == {"htdemucs_6s", "htdemucs_ft", "bs_roformer_sw"}
+    assert set(stems) == {"htdemucs_6s", "bs_roformer_sw"}  # the user kept the fast model and the best one
     assert stems["htdemucs_6s"] == stems["bs_roformer_sw"] == ("vocals", "drums", "bass", "guitar", "piano", "other")
-    assert stems["htdemucs_ft"] == ("vocals", "drums", "bass", "other")
     assert all(model.label and model.description for model in models)
-    assert separator.model_stems("htdemucs_ft") == stems["htdemucs_ft"]
+    speed = {model.name: model.seconds_per_audio_second for model in models}
+    assert speed == {"htdemucs_6s": 0.9, "bs_roformer_sw": 15.6}  # measured on the test laptop
+    assert separator.model_stems("bs_roformer_sw") == stems["bs_roformer_sw"]
     with pytest.raises(AdapterError):
         separator.model_stems("made-up-model")
 
@@ -257,29 +258,10 @@ def test_roformer_runs_audio_separator_in_its_own_process_and_maps_its_file_name
     arguments = json.loads(command[-1])
     assert command[:2] == [sys.executable, "-c"] and "audio_separator.separator" in command[2]
     assert arguments["checkpoint"] == "BS-Roformer-SW.ckpt" and arguments["models"] == str(tmp_path / "models")
+    assert arguments["overlap"] == 2  # the quality the user chose after listening
     assert arguments["input"] == str(tmp_path / "out" / "source.wav") and passes == 1
     assert [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "guitar", "piano", "other"]
     assert result.stems[0].path.name == "source_(Vocals)_BS-Roformer-SW.wav"
-
-
-def test_a_bag_of_four_demucs_models_reports_four_progress_passes(monkeypatch, tmp_path):
-    runs = []
-
-    def fake_run(command, passes, progress):
-        runs.append(passes)
-        track = tmp_path / "out" / "htdemucs_ft" / "source"
-        track.mkdir(parents=True)
-        for stem in ("vocals", "drums", "bass", "other"):
-            (track / f"{stem}.wav").write_bytes(b"RIFF")
-
-    monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
-    monkeypatch.setattr("audio_stems.separator.run_with_progress", fake_run)
-    source = tmp_path / "source.webm"
-    source.write_bytes(b"audio")
-
-    result = StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_ft", "cpu"))
-
-    assert runs == [4] and [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "other"]
 
 
 def test_progress_arrives_while_the_separator_runs_not_at_its_exit():
@@ -297,3 +279,13 @@ def test_progress_arrives_while_the_separator_runs_not_at_its_exit():
 
     assert [value for value, _ in seen] == [0.5, 1.0]
     assert seen[0][1] < finished - 1.5  # the half-way value was not held back until exit
+
+
+def test_the_song_length_is_read_from_the_header(tmp_path):
+    path = tmp_path / "five.wav"
+    soundfile.write(path, np.zeros((5 * 8000, 2), np.float32), 8000)
+    broken = tmp_path / "broken.webm"
+    broken.write_bytes(b"not audio")
+
+    assert abs(audio_duration(path) - 5.0) < 0.05
+    assert audio_duration(broken) is None

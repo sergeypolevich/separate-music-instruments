@@ -65,6 +65,9 @@ class ProjectRecord:
     job_id: UUID
     job_status: str
     job_progress: float = 0.0
+    audio_seconds: float | None = None
+    separation_started_at: str | None = None
+    model_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -339,8 +342,14 @@ class SqliteMetadataStore:
                 raise ValueError(f"Invalid job transition: {current_status.value} -> {status.value}")
             connection.execute(
                 "UPDATE jobs SET status = ?, current_stage = ?, error_summary = ?, updated_at = ?, "
-                "progress = CASE WHEN ? THEN 1 ELSE progress END WHERE id = ?",
-                (status.value, stage, error_summary, now, status is JobStatus.COMPLETED, str(job_id)),
+                "progress = CASE WHEN ? THEN 1 ELSE progress END, "
+                # Separation timing for the estimates: start on entering 'separating', length on completion.
+                "separation_started_at = CASE WHEN ? THEN ? ELSE separation_started_at END, "
+                "separation_seconds = CASE WHEN ? AND separation_started_at IS NOT NULL "
+                "THEN (julianday(?) - julianday(separation_started_at)) * 86400 ELSE separation_seconds END "
+                "WHERE id = ?",
+                (status.value, stage, error_summary, now, status is JobStatus.COMPLETED,
+                 status is JobStatus.SEPARATING, now, status is JobStatus.COMPLETED, now, str(job_id)),
             )
             details: dict[str, object] = {"status": status.value}
             if stage is not None:
@@ -444,6 +453,25 @@ class SqliteMetadataStore:
         with self._connection() as connection:
             connection.execute("UPDATE analyses SET status = 'queued', progress = 0 WHERE status = 'running'")
             return connection.execute("SELECT 1 FROM analyses WHERE status = 'queued'").fetchone() is not None
+
+    def set_audio_seconds(self, job_id: UUID, seconds: float) -> None:
+        with self._connection() as connection:
+            connection.execute("UPDATE jobs SET audio_seconds = ? WHERE id = ?", (seconds, str(job_id)))
+
+    def separation_rates(self) -> dict[str, float]:
+        """Seconds of separation per second of music on this machine: the median of each model's last
+        five separations."""
+        with self._connection() as connection:
+            rows = connection.execute(
+                "SELECT separation_options_json, separation_seconds, audio_seconds FROM jobs "
+                "WHERE separation_seconds > 0 AND audio_seconds > 0 ORDER BY updated_at DESC LIMIT 200"
+            ).fetchall()
+        by_model: dict[str, list[float]] = {}
+        for row in rows:
+            options = _options_from_json(row["separation_options_json"])
+            if options:
+                by_model.setdefault(options.model_name, []).append(row["separation_seconds"] / row["audio_seconds"])
+        return {model: sorted(rates[:5])[len(rates[:5]) // 2] for model, rates in by_model.items()}
 
     def set_start_seconds(self, job_id: UUID, seconds: float) -> None:
         with self._connection() as connection:
@@ -606,12 +634,15 @@ class SqliteMetadataStore:
             source_id=row["source_id"], title=row["title"],
             created_at=_parse_datetime(row["created_at"]),
             job_id=UUID(row["job_id"]), job_status=row["job_status"], job_progress=row["job_progress"],
+            audio_seconds=row["audio_seconds"], separation_started_at=row["separation_started_at"],
+            model_name=(_options_from_json(row["separation_options_json"]) or SeparationOptions("", "")).model_name or None,
         )
 
     def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None:
         with self._connection() as connection:
             row = connection.execute(
-                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress "
+                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress, j.audio_seconds, "
+                "j.separation_started_at, j.separation_options_json "
                 "FROM projects p JOIN jobs j ON j.project_id = p.id "
                 "WHERE p.id = ? AND p.owner_id = ?",
                 (str(project_id), owner_id),
@@ -621,7 +652,8 @@ class SqliteMetadataStore:
     def list_projects(self, owner_id: str) -> list[ProjectRecord]:
         with self._connection() as connection:
             rows = connection.execute(
-                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress "
+                "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress, j.audio_seconds, "
+                "j.separation_started_at, j.separation_options_json "
                 "FROM projects p JOIN jobs j ON j.project_id = p.id "
                 "WHERE p.owner_id = ? ORDER BY p.created_at, p.rowid",
                 (owner_id,),

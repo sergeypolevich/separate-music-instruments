@@ -246,9 +246,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 assert page.locator(removed).count() == 0
             # An open running project shows a progress bar instead of the mixer, then becomes the mixer.
             running_detail["project-5"] = "separating"
-            projects[5].update(job_status="separating", progress=0.25)
+            projects[5].update(job_status="separating", progress=0.25, eta_seconds=720)
             page.locator('.project-tab[data-project-id="project-5"]').click()
-            page.wait_for_function("document.querySelector('.job-progress-label') && document.querySelector('.job-progress-label').textContent === 'Разделяем дорожки · 25%'")
+            page.wait_for_function("document.querySelector('.job-progress-label') && document.querySelector('.job-progress-label').textContent === 'Разделяем дорожки · 25% · осталось ~12 мин'")
             assert page.locator(".mixer-row").count() == 0
             projects[5].update(progress=0.6)
             page.wait_for_function("document.querySelector('.job-progress > span').style.width === '60%'", timeout=15000)
@@ -256,7 +256,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             fill_width = page.evaluate("document.querySelector('.job-progress > span').getBoundingClientRect().width / document.querySelector('.job-progress').getBoundingClientRect().width")
             assert abs(fill_width - 0.6) < 0.02
             running_detail.pop("project-5")
-            projects[5].update(job_status="completed", progress=1.0)
+            projects[5].update(job_status="completed", progress=1.0, eta_seconds=None)
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6", timeout=15000)
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")

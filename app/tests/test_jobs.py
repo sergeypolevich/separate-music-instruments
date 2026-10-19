@@ -390,3 +390,14 @@ def test_another_model_separates_the_same_song_again_into_its_own_set(tmp_path):
     assert separator.calls == ["id-track", "id-track"]  # the six-stem set was not reused for the other model
     keys = sorted(asset.storage_key for asset in store.list_assets(second.job_ids[0], "client-1") if asset.stem_name)
     assert keys == [f"Stems/id-track (htdemucs_ft)/{stem}.flac" for stem in ("bass", "drums", "other", "vocals")]
+
+
+def test_the_song_length_is_remembered_after_the_download(tmp_path, monkeypatch):
+    monkeypatch.setattr("audio_stems.pipeline.audio_duration", lambda path: 241.5)
+    orchestrator, store, _, _, _, _ = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "track")]
+    receipt = store.create_batch("client-1", requests)
+
+    orchestrator.process_batch(receipt, requests)
+
+    assert store.list_projects("client-1")[0].audio_seconds == 241.5

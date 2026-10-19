@@ -39,19 +39,18 @@ class _Model:
     passes: int = 1  # tqdm bars per run: a bag of models draws one per model
     checkpoint: str | None = None
     overlap: int | None = None
+    seconds_per_audio_second: float = 1.0  # CPU time per second of music on the test laptop
 
 
-# Chosen by SDR/SAR on MUSDB18 previews and CPU time on a 4-core laptop (DEVELOPMENT_STATUS, stage 28).
+# Chosen by SDR/SAR on MUSDB18 previews, CPU time on a 4-core laptop and the user's listening test
+# (DEVELOPMENT_STATUS, versions 10 and 11).
 _MODELS = {
-    "htdemucs_6s": _Model("Demucs, быстрая", "Самая быстрая: около 4 минут на песню длиной 4 минуты.", _SIX, "demucs"),
-    "htdemucs_ft": _Model(
-        "Demucs fine-tuned",
-        "Самый чистый бас, «прочее» чище быстрой модели, барабаны чуть хуже; около 21 минуты.", _FOUR, "demucs", passes=4,
-    ),
+    "htdemucs_6s": _Model("Demucs, быстрая", "Быстрое разделение на шесть дорожек.", _SIX, "demucs",
+                          seconds_per_audio_second=0.9),
     "bs_roformer_sw": _Model(
         "BS-RoFormer SW",
-        "Лучшие вокал, барабаны и «прочее», меньше всего артефактов; около 28 минут.",
-        _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=1,
+        "Заметно лучше по звучанию всех шести дорожек и меньше всего артефактов, но во много раз медленнее.",
+        _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=2, seconds_per_audio_second=15.6,
     ),
 }
 # Runs audio-separator in its own process so its memory is freed after every song.
@@ -122,6 +121,17 @@ def run_with_progress(command: list[str], passes: int, progress: Callable[[float
         raise subprocess.CalledProcessError(process.returncode, command, stderr=tail)
 
 
+def audio_duration(path: Path) -> float | None:
+    """Length from the container header (ffmpeg reads no audio for this); None when unknown."""
+    try:
+        result = subprocess.run([imageio_ffmpeg.get_ffmpeg_exe(), "-hide_banner", "-i", str(path)],
+                                capture_output=True, text=True, errors="replace", timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    match = re.search(r"Duration: (\d+):(\d\d):(\d\d(?:\.\d+)?)", result.stderr)
+    return int(match[1]) * 3600 + int(match[2]) * 60 + float(match[3]) if match else None
+
+
 def decode_to_wav(source: Path, target: Path) -> float:
     """Decode the source to float WAV with the ffmpeg bundled by imageio-ffmpeg (no system ffmpeg
     needed) and scale it to a 0.5 peak. Demucs is scale-invariant but clamps its float output to
@@ -153,7 +163,7 @@ class StemSeparator:
 
     def available_models(self) -> tuple[SeparatorModel, ...]:
         # The capability endpoint is intentionally independent of loading weights.
-        return tuple(SeparatorModel(name, m.stems, m.label, m.description) for name, m in _MODELS.items())
+        return tuple(SeparatorModel(name, m.stems, m.label, m.description, m.seconds_per_audio_second) for name, m in _MODELS.items())
 
     def model_stems(self, model_name: str) -> tuple[str, ...]:
         if model_name not in _MODELS:

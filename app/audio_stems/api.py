@@ -1,6 +1,7 @@
 """Versioned localhost HTTP API and WAV waveform peaks; all work is delegated to the SQLite queue."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import logging
 import mimetypes
 import os
@@ -228,8 +229,26 @@ def create_app(
     def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    def rates() -> dict[str, float]:
+        """This machine's measured speed per model, else the test laptop's."""
+        measured = repository.separation_rates()
+        return {m.name: measured.get(m.name, m.seconds_per_audio_second) for m in separator.available_models()}
+
+    def eta_seconds(project, speed: dict[str, float]) -> float | None:
+        if project.job_status in {"completed", "failed", "cancelled"} or not project.audio_seconds:
+            return None
+        expected = speed.get(project.model_name or settings.model_name, 1.0) * project.audio_seconds
+        if project.job_status != "separating" or not project.separation_started_at:
+            return round(expected)
+        elapsed = max(0.0, (datetime.now(timezone.utc) - datetime.fromisoformat(project.separation_started_at)).total_seconds())
+        done = (project.job_progress - 0.10) / 0.87  # the separation's share of the job's progress
+        # Early on the separator's own progress is too coarse; trust the measured speed until then.
+        remaining = elapsed / done - elapsed if done >= 0.05 else expected - elapsed
+        return round(max(0.0, remaining))
+
     @app.get("/api/v1/models")
     def models() -> list[dict[str, object]]:
+        speed = rates()
         return [
             {
                 "name": model.name,
@@ -237,6 +256,7 @@ def create_app(
                 "description": model.description,
                 "stems": list(model.stems),
                 "default": model.name == settings.model_name,
+                "seconds_per_audio_second": round(speed[model.name], 2),
             }
             for model in separator.available_models()
         ]
@@ -414,6 +434,7 @@ def create_app(
 
     @app.get("/api/v1/projects")
     def list_projects() -> list[dict[str, object]]:
+        speed = rates()
         return [
             {
                 "project_id": str(project.project_id),
@@ -425,6 +446,8 @@ def create_app(
                 "job_id": str(project.job_id),
                 "job_status": project.job_status,
                 "progress": round(project.job_progress, 3),
+                # Seconds until the stems are ready: the usual length before separation, then what is left.
+                "eta_seconds": eta_seconds(project, speed),
             }
             for project in repository.list_projects(_OWNER_ID)
         ]

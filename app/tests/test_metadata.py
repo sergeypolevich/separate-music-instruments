@@ -105,7 +105,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 7
+    assert version == 8
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
 
@@ -180,7 +180,7 @@ def test_two_processes_migrating_a_new_database_at_once_both_succeed(tmp_path):
 
     assert all(code == 0 for code, _ in results), results
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 7
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
 
 
 def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):
@@ -190,3 +190,35 @@ def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):
     monkeypatch.setattr("audio_stems.db.Path.with_name", lambda self, name: broken)
     with pytest.raises(sqlite3.OperationalError):
         SqliteMetadataStore(tmp_path / "audio_stems.db")
+
+
+def test_separation_time_is_recorded_and_the_usual_speed_is_the_median_of_the_last_five(tmp_path):
+    import time
+    store = SqliteMetadataStore(tmp_path / "audio_stems.db")
+
+    def separated(model, audio_seconds, separation_seconds):
+        receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Song")],
+                                     separation_options=SeparationOptions(model, "cpu"))
+        job_id = receipt.job_ids[0]
+        for status in (JobStatus.DOWNLOADING, JobStatus.DOWNLOADED, JobStatus.SEPARATING, JobStatus.COMPLETED):
+            store.transition_job(job_id, status)
+        store.set_audio_seconds(job_id, audio_seconds)
+        with sqlite3.connect(tmp_path / "audio_stems.db") as connection:
+            connection.execute("UPDATE jobs SET separation_seconds = ? WHERE id = ?", (separation_seconds, str(job_id)))
+        return job_id
+
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Timed")])
+    job_id = receipt.job_ids[0]
+    for status in (JobStatus.DOWNLOADING, JobStatus.DOWNLOADED, JobStatus.SEPARATING):
+        store.transition_job(job_id, status)
+    time.sleep(0.05)
+    store.transition_job(job_id, JobStatus.COMPLETED)
+    with sqlite3.connect(tmp_path / "audio_stems.db") as connection:
+        started, seconds = connection.execute("SELECT separation_started_at, separation_seconds FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
+    assert started is not None and 0.03 < seconds < 5
+
+    for rate in (1.0, 9.0, 2.0, 3.0, 4.0):
+        separated("bs_roformer_sw", 100, rate * 100)
+    separated("htdemucs_6s", 200, 180)
+    rates = SqliteMetadataStore(tmp_path / "audio_stems.db").separation_rates()
+    assert rates["bs_roformer_sw"] == 3.0 and rates["htdemucs_6s"] == 0.9
