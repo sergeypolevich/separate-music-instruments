@@ -32,7 +32,9 @@ jobs:
           test -f app/.venv/requirements.installed
           tail -n 20 "$RUNNER_TEMP/start.log"
 
+      # Every check below runs even when an earlier one failed, so one run shows all failures.
       - name: Second start takes the fast path
+        if: ${{ !cancelled() }}
         run: |
           export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop2"
           export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
@@ -42,20 +44,44 @@ jobs:
           wait
           ! grep -q "Installing" "$RUNNER_TEMP/start2.log"
 
-      - name: Offline tests
+      - name: Test tools
+        id: tools
+        if: ${{ !cancelled() }}
         working-directory: app
         run: |
           .venv/bin/python -m pip install -r requirements-test.txt
           .venv/bin/python -m playwright install chromium webkit
-          .venv/bin/python -m pytest -q
-          node --test tests/test_playback.mjs
+
+      # The browser test goes on past a failed check and lists them all, with screenshots (artifact).
+      - name: Offline tests (browser test in Chrome)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        working-directory: app
+        timeout-minutes: 15
+        env:
+          AUDIO_STEMS_SOFT_CHECKS: soft-checks/chrome
+        run: .venv/bin/python -m pytest -q
+
+      - name: Player tests (node)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        working-directory: app
+        run: node --test tests/test_playback.mjs
 
       - name: Browser test in WebKit (Safari's engine)
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         working-directory: app
-        timeout-minutes: 10
+        timeout-minutes: 15
         env:
           AUDIO_STEMS_TEST_BROWSER: webkit
+          AUDIO_STEMS_SOFT_CHECKS: soft-checks/webkit
         run: .venv/bin/python -m pytest -q tests/test_ui_browser.py
+
+      - name: Screenshots of failed checks
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: failed-checks
+          path: app/soft-checks
+          if-no-files-found: ignore
 
       - name: Logs on failure
         if: failure()
