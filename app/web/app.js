@@ -60,7 +60,7 @@ const transportIcons = {
   pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
   start: '<path d="M6 5v14"/><path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/>',
   metronome: '<path d="M9 3h6l4 18H5z"/><path d="M12 16l5-9"/><path d="M7 15h10"/>',
-  countin: '<path d="M4 6.5v11l8.5-5.5z" fill="currentColor" stroke="none"/><text x="18" y="17" font-size="11" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">4</text>',
+  countin: '<text x="6.5" y="17" font-size="14" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">4</text><path d="M12.5 6.5v11l8.5-5.5z" fill="currentColor" stroke="none"/>',
 };
 
 function setIcon(button, name) {
