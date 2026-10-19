@@ -266,6 +266,11 @@ export function metronomeGain(percent) {
 }
 
 // Index of the first beat at or after a song time (beats are sorted).
+// Speech or free-time music gives beats no metronome can follow (20 BPM on a spoken clip): show "no rhythm".
+export function rhythmFound(result) {
+  return Boolean(result) && result.bpm >= 40 && result.bpm <= 240 && result.beats.length >= 8;
+}
+
 export function firstBeatAtOrAfter(beats, songTime) {
   let low = 0;
   let high = beats.length;
