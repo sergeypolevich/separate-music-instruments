@@ -51,9 +51,10 @@ jobs:
 
       - name: Browser test in WebKit (Safari's engine)
         working-directory: app
-        timeout-minutes: 10
+        timeout-minutes: 6
         env:
           AUDIO_STEMS_TEST_BROWSER: webkit
+          DEBUG: pw:api
         run: .venv/bin/python -m pytest -v -o faulthandler_timeout=180 tests/test_ui_browser.py
 
       - name: Logs on failure
