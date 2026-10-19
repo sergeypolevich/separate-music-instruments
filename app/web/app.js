@@ -522,7 +522,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     });
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     if (!AudioContextClass) throw new Error("Web Audio is not supported in this browser");
-    const audioContext = new AudioContextClass();
+    // The stems' own rate (both models write 44.1 kHz). At the device's rate (usually 48 kHz) Chrome resamples
+    // every <audio> stem on its own and the six no longer add up cleanly: crackle on bright sounds. At 44.1 kHz
+    // the mix reaches the output unchanged and is resampled once, as a whole, by the audio output.
+    const audioContext = new AudioContextClass({ sampleRate: 44100 });
     const gainNodes = tracks.map((audio) => {
       const source = audioContext.createMediaElementSource(audio);
       const gain = audioContext.createGain();
