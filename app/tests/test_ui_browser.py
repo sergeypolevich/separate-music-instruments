@@ -554,6 +554,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # Speed 25-150 % keeps the pitch: other speeds play the decoded stems through Signalsmith Stretch.
             speed = page.locator('[data-control="speed"]')
             assert [speed.get_attribute(a) for a in ("min", "max", "step")] == ["25", "150", "5"] and speed.input_value() == "100"
+            # The 100 % mark and its label sit where the thumb is at 100 %; the metronome's mark at 50 %.
+            marks = page.evaluate("""() => {
+                const at = (fader, share) => { const r = fader.getBoundingClientRect(); return r.left + 6 + (r.width - 12) * share; };
+                const mark = (fader) => fader.getBoundingClientRect().left + parseFloat(getComputedStyle(fader, '::before').left);
+                const speed = document.querySelector('.speed-fader'), volume = document.querySelector('.footer-fader');
+                const label = [...speed.querySelectorAll('.speed-scale span')].find((s) => s.textContent === '100%').getBoundingClientRect();
+                return [mark(speed) - at(speed, 0.6), label.left + label.width / 2 - at(speed, 0.6), mark(volume) - at(volume, 0.5),
+                        [...speed.querySelectorAll('.speed-scale span')].map((s) => s.textContent)]; }""")
+            assert all(abs(offset) <= 1 for offset in marks[:3]), marks
+            assert marks[3] == ["25%", "100%", "150%"]
             speed.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stretch'", timeout=20000)
             assert page.locator(".footer-speed-value").text_content() == "50%"

@@ -761,7 +761,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     speed.setAttribute("aria-label", "Скорость воспроизведения");
     const speedValue = document.createElement("span");
     speedValue.className = "footer-speed-value";
-    speedFader.append(speed);
+    const scale = document.createElement("div");
+    scale.className = "speed-scale";
+    scale.setAttribute("aria-hidden", "true");
+    scale.innerHTML = [25, 100, 150].map((value) => `<span style="left: ${((value - 25) / 125) * 100}%">${value}%</span>`).join("");
+    speedFader.append(scale, speed);
     speedWrap.append(speedLabel, speedFader, speedValue);
     let stretchLoading = null;
     const loadStretch = () => {
