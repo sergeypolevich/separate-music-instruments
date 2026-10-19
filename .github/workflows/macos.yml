@@ -55,7 +55,7 @@ jobs:
         env:
           AUDIO_STEMS_TEST_BROWSER: webkit
           DEBUG: pw:api
-        run: .venv/bin/python -m pytest -v -o faulthandler_timeout=180 tests/test_ui_browser.py
+        run: .venv/bin/python -m pytest -v -s -o faulthandler_timeout=180 tests/test_ui_browser.py
 
       - name: Logs on failure
         if: failure()
