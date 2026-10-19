@@ -104,10 +104,11 @@ button { cursor: pointer; }
 .project-tabs.fade-right { mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent); }
 .project-tabs.fade-left.fade-right { mask-image: linear-gradient(to right, transparent, #000 32px, #000 calc(100% - 32px), transparent); }
 .tabs-empty { flex: none; margin: 0; color: var(--faint); font-size: 11px; }
-.project-tab { position: relative; flex: 0 0 auto; max-width: min(240px, 65vw); min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--tab-bg); color: var(--muted); text-align: left; font-size: 11px; }
+.project-tab { position: relative; flex: 0 0 auto; max-width: min(240px, 65vw); min-height: 36px; display: flex; align-items: center; gap: 8px; padding: 0 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--tab-bg); color: var(--muted); text-align: left; font-size: 14px; }
 .project-tab:hover, .project-tab[aria-selected="true"] { border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); color: var(--text); background: var(--panel); }
 .project-tab::before { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--faint); content: ""; }
-.project-tab[data-status="completed"]::before { background: var(--ok); box-shadow: 0 0 9px color-mix(in srgb, var(--ok) 42%, transparent); }
+/* A ready project is the normal state: no dot. Only projects in work or failed show one. */
+.project-tab[data-status="completed"]::before { display: none; }
 .project-tab[data-status="failed"]::before { background: var(--danger); box-shadow: 0 0 9px color-mix(in srgb, var(--danger) 35%, transparent); }
 .project-tab[data-status="searching"]::before, .project-tab[data-status="downloading"]::before, .project-tab[data-status="downloaded"]::before, .project-tab[data-status="separating"]::before { background: var(--warn); }
 /* Registered so the fill can animate; a running job fills its tab from the left. */
@@ -146,7 +147,9 @@ h1, h2, h3, p { margin-top: 0; }
 .footer-toggle:not([data-analyzing]) { --job-progress: 0%; }
 /* Two classes: a single one loses to the later .mixer-fader mark (100 of 150). */
 .mixer-fader.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
-.footer-speed { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding: 4px 8px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
+/* «Улучшить качество» sits midway between the metronome and the speed: equal free space on both sides. */
+.footer-upgrade { margin-inline: auto; }
+.footer-speed { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
 /* While the stems are prepared for a speed change: a translucent fill, so it never looks frozen. */
 .footer-speed[data-loading] { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress)); }
 .mixer-fader.speed-fader { --mark: 75 / 125; width: min(240px, 46vw); }
@@ -247,6 +250,7 @@ h1, h2, h3, p { margin-top: 0; }
 .appearance-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin-top: 12px; }
 .appearance-row > span:first-child, .appearance-row label { color: var(--text-soft); font-size: 12px; }
 .theme-switch { display: inline-flex; gap: 6px; }
+.theme-button { width: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 18px; }
 .theme-switch button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
 .accent-swatch { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
 

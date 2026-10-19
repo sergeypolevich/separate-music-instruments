@@ -266,10 +266,19 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             if SOFT_CHECKS:
                 page.set_default_timeout(10_000)  # a failed wait costs 10 s, not 30, when the run goes on past it
                 page.set_default_navigation_timeout(30_000)  # the first load really takes longer
+            page.add_init_script("""(() => { const C = window.AudioContext; window.__contexts = [];
+                window.AudioContext = class extends C { constructor(...a) { super(...a); window.__contexts.push(this); } }; })()""")
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
             page.locator(".mixer-row").first.wait_for()
+            # The player runs at the stems' own 44.1 kHz: at the device's rate Chrome resamples every stem on its own.
+            page.wait_for_function("window.__contexts.length > 0")
+            assert page.evaluate("window.__contexts.at(-1).sampleRate") == 44100
+            # Tabs: 14 px text; a ready project shows no status dot, a failed one does.
+            tab_style = "id => { const t = document.querySelector(`.project-tab[data-project-id='${id}']`); return [getComputedStyle(t).fontSize, getComputedStyle(t, '::before').display]; }"
+            assert page.evaluate(tab_style, "project-0") == ["14px", "none"]
+            assert page.evaluate(tab_style, "project-1")[1] != "none"  # failed
             # An open project shows only its card: no empty-state hint, subtitle, model line or file list.
             assert not page.locator("#project-empty").is_visible()
             for removed in ("#refresh-projects", "#asset-list", "#detail-input", "#detail-model", "#screen-help"):
@@ -610,6 +619,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # moves to the new stems at the same position and plays on; the button then says it is done.
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Улучшить качество · ~23 мин" and upgrade.is_enabled()
+            if viewport[0] > 1000:  # midway between the metronome volume and the speed block
+                gaps = page.evaluate("""() => { const v = document.querySelector('.footer-fader').getBoundingClientRect(),
+                    u = document.querySelector('.footer-upgrade').getBoundingClientRect(), s = document.querySelector('.footer-speed').getBoundingClientRect();
+                    return [u.left - v.right, s.left - u.right]; }""")
+                assert abs(gaps[0] - gaps[1]) <= 2, gaps
             page.keyboard.press("Home")
             page.keyboard.press("Space")
             page.wait_for_function(f"!{paused}")
@@ -769,6 +783,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 "~55 с на минуту песни · по последним разделениям на этом компьютере",
                 "~11 мин на минуту песни · оценка, уточнится после первого разделения"]
             page.locator(".model-option").nth(1).click()
+            # The theme buttons are a moon and a sun, named for screen readers.
+            assert page.evaluate("[...document.querySelectorAll('[data-theme-choice]')].map(b => [b.textContent.trim(), b.getAttribute('aria-label'), !!b.querySelector('svg')])") == [
+                ["", "Ночная тема", True], ["", "Дневная тема", True]]
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
             assert page.locator('[data-theme-choice="light"]').get_attribute("aria-pressed") == "true"
