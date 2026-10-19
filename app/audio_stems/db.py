@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 import json
 from pathlib import Path
 import sqlite3
-from typing import Iterator
+from typing import Iterator, Sequence
 from uuid import UUID, uuid4
 
 from audio_stems.models import (
@@ -392,13 +392,14 @@ class SqliteMetadataStore:
     def get_analysis(self, project_id: UUID | str, kind: str) -> dict[str, object] | None:
         with self._connection() as connection:
             row = connection.execute(
-                "SELECT status, progress, result_json, error FROM analyses WHERE project_id = ? AND kind = ?",
+                "SELECT status, progress, result_json, error, updated_at FROM analyses WHERE project_id = ? AND kind = ?",
                 (str(project_id), kind),
             ).fetchone()
         if row is None:
             return None
         return {"status": row["status"], "progress": row["progress"],
-                "result": json.loads(row["result_json"]) if row["result_json"] else None, "error": row["error"]}
+                "result": json.loads(row["result_json"]) if row["result_json"] else None, "error": row["error"],
+                "updated_at": row["updated_at"]}
 
     def queue_analysis(self, project_id: UUID | str, kind: str, request: dict[str, object]) -> None:
         """Queue (or re-queue after a failure) an analysis; a queued, running or done one is kept."""
@@ -448,11 +449,53 @@ class SqliteMetadataStore:
                 (error, _utc_now(), project_id, kind),
             )
 
-    def requeue_interrupted_analyses(self) -> bool:
-        """Analyses left 'running' by a closed app start over; True when any analysis is queued."""
+    def requeue_interrupted_analyses(self, kind: str) -> bool:
+        """Analyses of a kind left 'running' by a closed app start over; True when one of that kind is queued.
+        Each kind is requeued by the process that runs it (beats: the API's runner, upgrade: the worker)."""
         with self._connection() as connection:
-            connection.execute("UPDATE analyses SET status = 'queued', progress = 0 WHERE status = 'running'")
-            return connection.execute("SELECT 1 FROM analyses WHERE status = 'queued'").fetchone() is not None
+            connection.execute("UPDATE analyses SET status = 'queued', progress = 0 WHERE status = 'running' AND kind = ?", (kind,))
+            return connection.execute("SELECT 1 FROM analyses WHERE status = 'queued' AND kind = ?", (kind,)).fetchone() is not None
+
+    def upgrade_active(self, project_id: UUID | str | None = None) -> bool:
+        """True while a quality upgrade is queued or running (for one project, or any)."""
+        query = "SELECT 1 FROM analyses WHERE kind = 'upgrade' AND status IN ('queued', 'running')"
+        with self._connection() as connection:
+            if project_id is None:
+                return connection.execute(query).fetchone() is not None
+            return connection.execute(query + " AND project_id = ?", (str(project_id),)).fetchone() is not None
+
+    def replace_project_stems(
+        self, job_id: UUID, assets: Sequence[MediaAsset], options: SeparationOptions, separation_seconds: float | None,
+    ) -> tuple[str, ...]:
+        """Switch a finished project to new stems in one transaction: the old stem records go (with their
+        waveforms), the new ones come in, and the job records the new model and its separation time.
+        Returns the old files no project uses any more, for the caller to delete."""
+        now = _utc_now()
+        with self._connection() as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            old = [row[0] for row in connection.execute(
+                "SELECT storage_key FROM media_assets WHERE job_id = ? AND asset_type = ?",
+                (str(job_id), MediaAssetType.STEM.value),
+            )]
+            connection.execute(
+                "DELETE FROM media_assets WHERE job_id = ? AND asset_type = ?", (str(job_id), MediaAssetType.STEM.value)
+            )
+            for asset in assets:
+                connection.execute(
+                    """INSERT INTO media_assets
+                       (id, job_id, asset_type, stem_name, storage_key, media_format, byte_size, checksum, created_at)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (str(asset.asset_id), str(job_id), asset.asset_type.value, asset.stem_name, asset.storage_key,
+                     asset.media_format, asset.byte_size, asset.checksum, now),
+                )
+            # start_seconds is measured again from the new stems on the next open.
+            connection.execute(
+                "UPDATE jobs SET separation_options_json = ?, separation_seconds = COALESCE(?, separation_seconds), "
+                "start_seconds = NULL, updated_at = ? WHERE id = ?",
+                (json.dumps({"model_name": options.model_name, "device": options.device}), separation_seconds, now, str(job_id)),
+            )
+            in_use = {row[0] for row in connection.execute("SELECT storage_key FROM media_assets")}
+        return tuple(key for key in dict.fromkeys(old) if key not in in_use)
 
     def set_audio_seconds(self, job_id: UUID, seconds: float) -> None:
         with self._connection() as connection:
@@ -591,11 +634,13 @@ class SqliteMetadataStore:
         return keys
 
     def has_active_jobs(self) -> bool:
+        """A job or a quality upgrade is under way (both write temporary files)."""
         with self._connection() as connection:
-            return connection.execute(
+            busy = connection.execute(
                 "SELECT 1 FROM jobs WHERE status NOT IN (?, ?, ?)",
                 (JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value),
             ).fetchone() is not None
+        return busy or self.upgrade_active()
 
     def list_assets(self, job_id: UUID, owner_id: str) -> list[MediaAsset]:
         with self._connection() as connection:
@@ -683,6 +728,11 @@ class SqliteMetadataStore:
                 raise AdapterError("Project was not found", FailureCategory.NOT_FOUND)
             if row["batch_status"] == BatchStatus.PROCESSING.value:
                 raise AdapterError("Project batch is currently processing", FailureCategory.CONFLICT)
+            if connection.execute(
+                "SELECT 1 FROM analyses WHERE project_id = ? AND kind = 'upgrade' AND status IN ('queued', 'running')",
+                (str(project_id),),
+            ).fetchone():
+                raise AdapterError("Project quality is being upgraded", FailureCategory.CONFLICT)
             if row["job_status"] == JobStatus.QUEUED.value:
                 if row["batch_status"] != BatchStatus.QUEUED.value or row["batch_size"] != 1:
                     raise AdapterError("Queued multi-job batches cannot be partially deleted", FailureCategory.CONFLICT)

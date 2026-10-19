@@ -53,6 +53,8 @@ _MODELS = {
         _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=2, seconds_per_audio_second=15.6,
     ),
 }
+# «Улучшить качество» re-separates a project with this model.
+BEST_MODEL = "bs_roformer_sw"
 # Runs audio-separator in its own process so its memory is freed after every song.
 _AUDIO_SEPARATOR = (
     "import json, sys\n"

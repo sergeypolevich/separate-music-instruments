@@ -1,3 +1,4 @@
+import sqlite3
 import asyncio
 from pathlib import Path
 from dataclasses import replace
@@ -342,3 +343,37 @@ def test_projects_estimate_the_separation_time_from_this_machines_history(tmp_pa
                                (seconds, '{"model_name": "htdemucs_6s", "device": "cpu"}', str(done)))
     models = {m["name"]: (m["seconds_per_audio_second"], m["measured"]) for m in request("GET", "/api/v1/models").json()}
     assert models["htdemucs_6s"] == (0.7, True) and models["bs_roformer_sw"] == (15.6, False)
+
+
+def test_upgrade_route_queues_once_reports_state_and_blocks_deletion(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, receipt, _ = add_project(repository, storage, "Upgrade me")
+    repository.set_audio_seconds(receipt.job_ids[0], 120)
+
+    detail = request("GET", f"/api/v1/projects/{project.project_id}").json()
+    assert detail["upgrade"] == {"status": "none", "progress": 0.0, "error": None, "best": False,
+                                 "estimate_seconds": round(15.6 * 120), "eta_seconds": None}
+    queued = request("POST", f"/api/v1/projects/{project.project_id}/upgrade")
+    again = request("POST", f"/api/v1/projects/{project.project_id}/upgrade")
+    assert queued.status_code == again.status_code == 202 and queued.json()["status"] == "queued"
+    assert queued.json()["eta_seconds"] == round(15.6 * 120)
+    assert request("GET", f"/api/v1/projects/{project.project_id}/upgrade").json()["status"] == "queued"
+    # While it waits or runs, the project stays (its files are in use) and the disk card is busy.
+    assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 409
+    assert request("GET", "/api/v1/storage").json()["busy"] is True
+
+
+def test_upgrade_route_refuses_the_best_model_and_unfinished_projects(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    best, best_receipt, _ = add_project(repository, storage, "Already best")
+    with sqlite3.connect(tmp_path / "delete.db") as connection:
+        connection.execute("UPDATE jobs SET separation_options_json = ? WHERE id = ?",
+                           ('{"model_name": "bs_roformer_sw", "device": "cpu"}', str(best_receipt.job_ids[0])))
+    running, _, _ = add_project(repository, storage, "Still running", completed=False)
+
+    refused = request("POST", f"/api/v1/projects/{best.project_id}/upgrade")
+    assert refused.status_code == 409 and refused.json()["error"]["code"] == "already_best"
+    assert request("GET", f"/api/v1/projects/{best.project_id}").json()["upgrade"]["best"] is True
+    unfinished = request("POST", f"/api/v1/projects/{running.project_id}/upgrade")
+    assert unfinished.status_code == 409 and unfinished.json()["error"]["code"] == "source_unavailable"
+

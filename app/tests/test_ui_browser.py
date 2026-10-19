@@ -75,6 +75,8 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missi
         "start_seconds": 1.0 if project_id == "project-6" else 0.0,
         "disk_bytes": 12 * 2**20,
         "shared_bytes": 3 * 2**20 if project_id == "project-1" else 0,
+        "upgrade": {"status": "none", "progress": 0.0, "error": None, "best": project_id == "project-3",
+                    "estimate_seconds": 1380, "eta_seconds": None},
     }
 
 
@@ -134,6 +136,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     running_detail = {}
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
     beats_polls = []
+    upgrade_polls = []
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -146,12 +149,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 done = len(beats_polls) >= 3
                 self._json({"status": "done" if done else "running", "progress": 1.0 if done else 0.3 * len(beats_polls),
                             "error": None, "result": {"beats": [i * 0.25 for i in range(20)], "downbeats": [], "bpm": 240} if done else None})
+            elif path.endswith("/upgrade"):
+                upgrade_polls.append(path)
+                step = len(upgrade_polls)
+                state = {"status": "running", "progress": 0.4, "error": None, "best": False, "estimate_seconds": 1380, "eta_seconds": 830}
+                if step >= 3:  # finished: the project now has the best model's stems
+                    state.update(status="done", progress=1.0, best=True, eta_seconds=None)
+                self._json(state)
             elif path.startswith("/api/v1/projects/"):
                 project_id = path.rsplit("/", 1)[-1]
                 item = next((p for p in projects if p["project_id"] == project_id), projects[0])
                 stems = ("vocals", "drums", "bass", "other") if project_id == "project-3" else STEMS  # a 4-stem model
                 missing = ("vocals", "drums") if project_id == "project-4" else ()  # removed from disk by hand
                 detail = _project_detail(item["project_id"], item["job_id"], item["title"], stems, missing)
+                if project_id == "project-0" and len(upgrade_polls) >= 3:  # upgraded: new stem files
+                    for asset in detail["assets"]:
+                        asset["asset_id"] += "-sw"
+                    detail["job"]["separation_options"]["model_name"] = "bs_roformer_sw"
+                    detail["upgrade"].update(status="done", progress=1.0, best=True)
                 if project_id in running_detail:  # still processing: no stems yet
                     detail["job"]["status"] = running_detail[project_id]
                     detail["assets"] = []
@@ -195,6 +210,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path.endswith("/upgrade"):
+                upgrade_polls.append(self.path)
+                self._json({"status": "queued", "progress": 0.0, "error": None, "best": False, "estimate_seconds": 1380, "eta_seconds": 1380}, 202)
+                return
             if self.path.endswith("/project-2/beats"):  # speech: no steady beat
                 self._json({"status": "done", "progress": 1.0, "error": None, "result": {"beats": [0, 2.9, 5.8], "downbeats": [], "bpm": 20.7}})
                 return
@@ -521,7 +540,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function(paused)
             page.keyboard.press("Home")
             # Metronome: the first press detects beats (progress on the button), then it clicks on them.
-            metronome = page.locator(".footer-toggle")
+            metronome = page.locator(".footer-toggle").first
             assert metronome.text_content() == "Метроном" and metronome.get_attribute("aria-pressed") == "false"
             assert page.locator('[data-control="metronome-volume"]').input_value() == "50"
             metronome.click()
@@ -587,6 +606,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stream'")
             assert speed.input_value() == "100" and page.locator(".footer-speed-value").text_content() == "100%"
             assert abs(page.evaluate("document.querySelector('#playback-panel audio').currentTime") - moved) < 0.1
+            # «Улучшить качество»: progress on the button while the project keeps playing, then the player
+            # moves to the new stems at the same position and plays on; the button then says it is done.
+            upgrade = page.locator('[data-action="upgrade"]')
+            assert upgrade.text_content() == "Улучшить качество · ~23 мин" and upgrade.is_enabled()
+            page.keyboard.press("Home")
+            page.keyboard.press("Space")
+            page.wait_for_function(f"!{paused}")
+            upgrade.click()
+            page.wait_for_function("document.querySelector('[data-action=\"upgrade\"]').textContent.startsWith('Улучшаем · 40%')", timeout=5000)
+            assert upgrade.text_content() == "Улучшаем · 40% · осталось ~14 мин" and not page.evaluate(paused)
+            before_switch = page.evaluate(position)
+            page.wait_for_function("[...document.querySelectorAll('#playback-panel audio')].every(a => a.src.includes('-sw'))", timeout=10000)
+            page.wait_for_function(f"!{paused}", timeout=10000)
+            assert page.evaluate(position) >= before_switch - 0.3
+            upgrade = page.locator('[data-action="upgrade"]')
+            assert upgrade.text_content() == "Улучшенное качество разделения" and upgrade.is_disabled()
+            page.keyboard.press("Space")
+            page.wait_for_function(paused)
             page.keyboard.press("Home")
             metronome.click()
             volume_box = page.locator('[data-control="metronome-volume"]').bounding_box()
@@ -628,10 +665,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 2'")
             assert page.evaluate("window.oldStems.every(a => a.paused && !a.hasAttribute('src'))")
             # No steady beat found: the metronome, its volume and ▶4 say so and stay off.
-            page.locator(".footer-toggle").click()
+            page.locator(".footer-toggle").first.click()
             page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Ритм не найден'")
             assert page.evaluate("['.footer-toggle', '[data-control=\"metronome-volume\"]', '[data-action=\"count-in\"]'].every(s => document.querySelector(s).disabled)")
-            assert page.locator(".footer-toggle").get_attribute("aria-pressed") == "false"
+            assert page.locator(".footer-toggle").first.get_attribute("aria-pressed") == "false"
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function(
                 "document.querySelector('#detail-title').textContent === 'Track 0' "
@@ -754,6 +791,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")
+            assert page.locator('[data-action="upgrade"]').text_content() == "Улучшенное качество разделения"  # already the best model
             assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
             page.keyboard.press("KeyG")  # no guitar row: the selection stays put
             assert page.evaluate("[...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)") == ["true", "false", "false", "false"]

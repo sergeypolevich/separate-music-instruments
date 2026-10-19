@@ -26,7 +26,7 @@ from audio_stems.models import (
     MediaAssetType,
     SeparationOptions,
 )
-from audio_stems.separator import StemSeparator
+from audio_stems.separator import BEST_MODEL, StemSeparator
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
@@ -182,7 +182,7 @@ def create_app(
                          cwd=application_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     start_analysis = start_analysis or spawn_analysis_runner
-    if repository.requeue_interrupted_analyses():
+    if repository.requeue_interrupted_analyses("beats"):
         start_analysis()
 
     # Finish cleanups that an earlier run could not complete (a file was locked at the time).
@@ -284,8 +284,8 @@ def create_app(
         }
 
     def beats_state(project_id: UUID) -> dict[str, object]:
-        state = repository.get_analysis(project_id, "beats")
-        return state or {"status": "none", "progress": 0, "result": None, "error": None}
+        state = repository.get_analysis(project_id, "beats") or {"status": "none", "progress": 0, "result": None, "error": None}
+        return {key: state[key] for key in ("status", "progress", "result", "error")}
 
     @app.get("/api/v1/projects/{project_id}/beats")
     def get_beats(project_id: UUID) -> dict[str, object]:
@@ -323,6 +323,62 @@ def create_app(
         })
         start_analysis()
         return JSONResponse(beats_state(project_id), status_code=202)
+
+    def upgrade_state(project, job) -> dict[str, object]:
+        """«Улучшить качество»: whether the project already has the best model, how long the upgrade takes
+        on this machine, and how far a running one is."""
+        state = repository.get_analysis(project.project_id, "upgrade") or {
+            "status": "none", "progress": 0.0, "error": None, "updated_at": None}
+        best = bool(job.separation_options and job.separation_options.model_name == BEST_MODEL)
+        seconds = project.audio_seconds
+        if not seconds:  # projects from before version 11 never stored the song's length
+            stems = [a for a in repository.list_assets(job.job_id, _OWNER_ID) if a.asset_type is MediaAssetType.STEM]
+            try:
+                seconds = soundfile.info(storage.resolve_path(stems[0].storage_key)).duration if stems else None
+            except (AdapterError, OSError, RuntimeError):
+                seconds = None
+        rate = rates().get(BEST_MODEL)
+        estimate = round(rate * seconds) if rate and seconds else None
+        eta = estimate if state["status"] == "queued" else None
+        if state["status"] == "running" and estimate is not None and state["updated_at"]:
+            # updated_at is the claim time while running; progress only comes from the separator.
+            elapsed = max(0.0, (datetime.now(timezone.utc) - datetime.fromisoformat(state["updated_at"])).total_seconds())
+            done = state["progress"]
+            eta = round(max(0.0, elapsed / done - elapsed if done >= 0.05 else estimate - elapsed))
+        return {"status": state["status"], "progress": round(state["progress"], 3), "error": state["error"],
+                "best": best, "estimate_seconds": estimate, "eta_seconds": eta}
+
+    def project_and_job(project_id: UUID):
+        project = repository.get_project(project_id, _OWNER_ID)
+        job = repository.get_job(project.job_id, _OWNER_ID) if project else None
+        if job is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        return project, job
+
+    @app.get("/api/v1/projects/{project_id}/upgrade")
+    def get_upgrade(project_id: UUID) -> dict[str, object]:
+        return upgrade_state(*project_and_job(project_id))
+
+    @app.post("/api/v1/projects/{project_id}/upgrade")
+    def request_upgrade(project_id: UUID) -> JSONResponse:
+        project, job = project_and_job(project_id)
+        state = upgrade_state(project, job)
+        if state["status"] in ("queued", "running"):
+            return JSONResponse(state, status_code=202)
+        if state["best"]:
+            raise HTTPException(status_code=409, detail={"code": "already_best", "message": "Проект уже разделён лучшей моделью"})
+        source = next((a for a in repository.list_assets(job.job_id, _OWNER_ID) if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
+        try:
+            source_ok = source is not None and storage.resolve_path(source.storage_key).is_file()
+        except AdapterError:
+            source_ok = False
+        if job.status is not JobStatus.COMPLETED or not source_ok:
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "source_unavailable", "message": "Для улучшения нужно исходное аудио завершённого проекта"},
+            )
+        repository.queue_analysis(project_id, "upgrade", {"owner_id": _OWNER_ID})  # the worker runs it
+        return JSONResponse(upgrade_state(project, job), status_code=202)
 
     @app.get("/api/v1/storage")
     def storage_report() -> dict[str, object]:
@@ -517,6 +573,7 @@ def create_app(
             # What deleting frees, and what stays because another project uses the same files.
             "disk_bytes": disk_bytes,
             "shared_bytes": shared_bytes,
+            "upgrade": upgrade_state(project, job),
         }
 
     @app.delete("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -18,7 +18,8 @@ from audio_stems.models import (
     VideoCandidate,
     disk_full_error,
 )
-from audio_stems.pipeline import BatchOrchestrator
+from audio_stems.models import MediaAssetType
+from audio_stems.pipeline import BatchOrchestrator, DatabaseWorker
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
@@ -401,3 +402,81 @@ def test_the_song_length_is_remembered_after_the_download(tmp_path, monkeypatch)
     orchestrator.process_batch(receipt, requests)
 
     assert store.list_projects("client-1")[0].audio_seconds == 241.5
+
+
+def _finished_project(orchestrator, store, query):
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, query)]
+    receipt = store.create_batch("local", requests)
+    orchestrator.process_batch(receipt, requests)
+    project = store.list_projects("local")[-1]
+    return project, receipt.job_ids[0]
+
+
+def _stem_keys(store, job_id):
+    return sorted(a.storage_key for a in store.list_assets(job_id, "local") if a.asset_type is MediaAssetType.STEM)
+
+
+def test_upgrade_switches_a_project_to_the_best_model_and_deletes_the_old_stems(tmp_path):
+    orchestrator, store, storage, events, _, separator = build_orchestrator(tmp_path)
+    project, job_id = _finished_project(orchestrator, store, "song")
+    old_keys = _stem_keys(store, job_id)
+    assert all(key.startswith(f"Stems/{project.title}/") for key in old_keys)
+    store.queue_analysis(project.project_id, "upgrade", {"owner_id": "local"})
+    progress = []
+    store.set_analysis_progress = lambda *args: progress.append(args[-1])
+
+    assert DatabaseWorker(store, orchestrator).run_once() is True  # no batch queued: the upgrade runs
+
+    assert separator.options[-1].model_name == "bs_roformer_sw"
+    new_keys = _stem_keys(store, job_id)
+    assert len(new_keys) == 6 and all(key.startswith(f"Stems/{project.title} (bs_roformer_sw)/") for key in new_keys)
+    assert all(storage.resolve_path(key).is_file() for key in new_keys)
+    assert not any(storage.resolve_path(key).exists() for key in old_keys)  # the old stems are gone
+    assert store.get_job(job_id, "local").separation_options.model_name == "bs_roformer_sw"
+    assert store.get_analysis(project.project_id, "upgrade")["status"] == "done"
+    assert not storage.temporary_directory(project.title, project.source_id).exists()
+    # Running it again changes nothing: the project already has the best model.
+    assert orchestrator.upgrade_project(project.project_id, "local") == ()
+
+
+def test_upgrade_keeps_old_stems_another_project_still_uses(tmp_path):
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path)
+    first, first_job = _finished_project(orchestrator, store, "song")
+    _, second_job = _finished_project(orchestrator, store, "song")  # reuses the same stem files
+    shared = _stem_keys(store, first_job)
+    assert _stem_keys(store, second_job) == shared
+
+    replaced = orchestrator.upgrade_project(first.project_id, "local")
+
+    assert replaced == ()  # nothing to delete: the second project still plays them
+    assert all(storage.resolve_path(key).is_file() for key in shared)
+    assert _stem_keys(store, second_job) == shared
+
+
+def test_upgrade_without_the_source_audio_fails_with_a_clear_message(tmp_path):
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path)
+    project, job_id = _finished_project(orchestrator, store, "song")
+    old_keys = _stem_keys(store, job_id)
+    source = next(a for a in store.list_assets(job_id, "local") if a.asset_type is MediaAssetType.SOURCE_AUDIO)
+    storage.resolve_path(source.storage_key).unlink()
+    store.queue_analysis(project.project_id, "upgrade", {"owner_id": "local"})
+
+    assert DatabaseWorker(store, orchestrator).run_once() is True
+
+    state = store.get_analysis(project.project_id, "upgrade")
+    assert state["status"] == "failed" and state["error"] == "Исходное аудио проекта не найдено на диске"
+    assert _stem_keys(store, job_id) == old_keys  # the project keeps its stems
+
+
+def test_queued_batches_go_before_upgrades(tmp_path):
+    orchestrator, store, _, events, _, _ = build_orchestrator(tmp_path)
+    project, _ = _finished_project(orchestrator, store, "song")
+    store.queue_analysis(project.project_id, "upgrade", {"owner_id": "local"})
+    store.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "next")])
+    worker = DatabaseWorker(store, orchestrator)
+
+    worker.run_once()
+    assert store.get_analysis(project.project_id, "upgrade")["status"] == "queued"
+    worker.run_once()
+    assert store.get_analysis(project.project_id, "upgrade")["status"] == "done"
+
