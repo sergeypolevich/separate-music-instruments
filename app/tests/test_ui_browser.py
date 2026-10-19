@@ -572,7 +572,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # Ctrl+F opens the search; typing there never reaches the player.
             page.keyboard.press("Control+KeyF")
             assert page.locator("#search-overlay").is_visible()
-            assert page.evaluate("document.activeElement.id") == "inputs"
+            page.wait_for_function("document.activeElement.id === 'inputs'")  # focused on the next tick
             page.keyboard.type("s m ")
             page.keyboard.press("ArrowRight")
             assert page.locator("#inputs").input_value() == "s m "
