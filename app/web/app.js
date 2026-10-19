@@ -770,18 +770,33 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     let stretchLoading = null;
     const loadStretch = () => {
       stretchLoading = stretchLoading || (async () => {
+        // Three steps per stem (downloaded, decoded, handed to its node), shown as a fill on the block.
+        let steps = 0;
+        const step = () => {
+          steps += 1;
+          const percent = Math.round((steps / (3 * tracks.length)) * 100);
+          speedWrap.style.setProperty("--job-progress", `${percent}%`);
+          speedValue.textContent = `подготовка ${percent}%`;
+        };
         speedWrap.dataset.loading = "true";
-        speedValue.textContent = "загрузка…";
+        speedWrap.style.setProperty("--job-progress", "0%");
+        speedValue.textContent = "подготовка 0%";
         const { default: createStretch } = await import("./vendor/signalsmith-stretch-1.3.2.mjs");
         const decoded = await Promise.all(tracks.map(async (audio) => {
           const response = await fetch(audio.currentSrc || audio.src);
-          return audioContext.decodeAudioData(await response.arrayBuffer());
+          const data = await response.arrayBuffer();
+          step();
+          const buffer = await audioContext.decodeAudioData(data);
+          step();
+          return buffer;
         }));
-        transport.stretch = await StretchEngine.create(audioContext, createStretch, decoded, gainNodes);
+        transport.stretch = await StretchEngine.create(audioContext, createStretch, decoded, gainNodes, step);
         delete speedWrap.dataset.loading;
+        speedWrap.style.removeProperty("--job-progress");
       })().catch((reason) => {
         stretchLoading = null;
         delete speedWrap.dataset.loading;
+        speedWrap.style.removeProperty("--job-progress");
         error.textContent = `Не удалось включить изменение скорости: ${reason.message}`;
         throw reason;
       });

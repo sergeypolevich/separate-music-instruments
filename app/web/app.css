@@ -148,7 +148,9 @@ h1, h2, h3, p { margin-top: 0; }
 .footer-toggle:not([data-analyzing]) { --job-progress: 0%; }
 /* Two classes: a single one loses to the later .mixer-fader mark (100 of 150). */
 .mixer-fader.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
-.footer-speed { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; color: var(--text-soft); font-size: 12px; }
+.footer-speed { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; padding: 4px 8px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
+/* While the stems are prepared for a speed change: a translucent fill, so it never looks frozen. */
+.footer-speed[data-loading] { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress)); }
 .mixer-fader.speed-fader { --mark: 75 / 125; width: min(240px, 46vw); }
 /* A tick at every value the fader can take (25, 30 ... 150), on the thumb's travel. */
 .speed-fader::after { position: absolute; top: 50%; left: 6px; right: 5px; height: 7px; background: linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / calc((100% - 1px) / 25) 100% repeat-x; transform: translateY(-50%); pointer-events: none; content: ""; }

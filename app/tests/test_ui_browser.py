@@ -564,8 +564,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                         [...speed.querySelectorAll('.speed-scale span')].map((s) => s.textContent)]; }""")
             assert all(abs(offset) <= 1 for offset in marks[:3]), marks
             assert marks[3] == ["25%", "100%", "150%"]
+            # Preparing the stems shows a translucent fill with the share done, gone when ready.
+            page.evaluate("""() => { window.speedFills = []; const wrap = document.querySelector('.footer-speed');
+                new MutationObserver(() => window.speedFills.push([wrap.style.getPropertyValue('--job-progress'), wrap.querySelector('.footer-speed-value').textContent]))
+                    .observe(wrap, { attributes: true, subtree: true, childList: true, characterData: true }); }""")
             speed.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stretch'", timeout=20000)
+            fills = page.evaluate("window.speedFills")
+            assert any(fill not in ("", "0%", "100%") and text.startswith("подготовка ") for fill, text in fills), fills
+            assert page.evaluate("getComputedStyle(document.querySelector('.footer-speed')).backgroundImage") == "none"
             assert page.locator(".footer-speed-value").text_content() == "50%"
             position = "Number(document.querySelector('[data-control=\"seek\"]').getAttribute('aria-valuenow'))"
             page.keyboard.press("Space")

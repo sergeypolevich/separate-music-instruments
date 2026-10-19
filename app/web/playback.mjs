@@ -221,7 +221,7 @@ export class StretchEngine {
   }
 
   // decoded: AudioBuffers in stem order; outputs: the mixer's gain nodes, so S/M and faders still apply.
-  static async create(context, createStretch, decoded, outputs) {
+  static async create(context, createStretch, decoded, outputs, onNode = () => {}) {
     const nodes = [];
     for (const [index, buffer] of decoded.entries()) {
       const node = await createStretch(context);
@@ -230,6 +230,7 @@ export class StretchEngine {
       await node.setUpdateInterval(0.02);
       node.connect(outputs[index]);
       nodes.push(node);
+      onNode();
     }
     return new StretchEngine(context, nodes);
   }
