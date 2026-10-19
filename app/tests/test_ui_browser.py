@@ -314,7 +314,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 strip = tabs.bounding_box()
                 page.mouse.move(strip["x"] + strip["width"] / 2, strip["y"] + strip["height"] / 2)
                 page.mouse.wheel(0, 200)
-                page.wait_for_function("document.querySelector('#project-tabs').scrollLeft > 0")
+                # Safari updates the fades on the scroll event a frame later.
+                page.wait_for_function("document.querySelector('#project-tabs').classList.contains('fade-left')")
                 assert tabs.evaluate(fades) == [True, True]
                 # Dragging a tab scrolls the strip and does not open that tab.
                 tabs.evaluate("el => { el.scrollLeft = 0; }")
@@ -482,6 +483,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             ring = "() => getComputedStyle(document.activeElement).outlineStyle"
             paused = "document.querySelector('#playback-panel audio').paused"
             solo = page.locator('[data-control="solo"]').first
+            # The rows' columns line up with the playhead layer (Safari once shifted S/M under the layer).
+            layer_x = page.locator(".playhead-layer").bounding_box()["x"]
+            assert abs(page.locator(".mixer-waveform").first.bounding_box()["x"] - layer_x) <= 1
+            assert solo.bounding_box()["x"] + solo.bounding_box()["width"] < layer_x
             solo.click()
             page.keyboard.press("Space")
             page.wait_for_function(f"!{paused}")
