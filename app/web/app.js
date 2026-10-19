@@ -444,7 +444,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, countInPlan, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -740,7 +740,74 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       storeSetting("audio-stems-metronome-volume", volume.value);
     });
     volumeWrap.append(volume);
-    footer.append(metronomeButton, volumeWrap);
+
+    // Speed 25-150 % in 5 % steps, pitch kept. The first change decodes the stems (about half a GB for
+    // a 4-minute song, released with the project) and plays them through Signalsmith Stretch.
+    const speedWrap = document.createElement("div");
+    speedWrap.className = "footer-speed";
+    const speedLabel = document.createElement("span");
+    speedLabel.className = "footer-speed-label";
+    speedLabel.textContent = "Скорость";
+    const speedFader = document.createElement("div");
+    speedFader.className = "mixer-fader speed-fader";
+    const speed = document.createElement("input");
+    speed.type = "range";
+    speed.min = "25";
+    speed.max = "150";
+    speed.step = "5";
+    speed.value = "100";
+    speed.dataset.control = "speed";
+    speed.tabIndex = -1;
+    speed.setAttribute("aria-label", "Скорость воспроизведения");
+    const speedValue = document.createElement("span");
+    speedValue.className = "footer-speed-value";
+    speedFader.append(speed);
+    speedWrap.append(speedLabel, speedFader, speedValue);
+    let stretchLoading = null;
+    const loadStretch = () => {
+      stretchLoading = stretchLoading || (async () => {
+        speedWrap.dataset.loading = "true";
+        speedValue.textContent = "загрузка…";
+        const { default: createStretch } = await import("./vendor/signalsmith-stretch-1.3.2.mjs");
+        const decoded = await Promise.all(tracks.map(async (audio) => {
+          const response = await fetch(audio.currentSrc || audio.src);
+          return audioContext.decodeAudioData(await response.arrayBuffer());
+        }));
+        transport.stretch = await StretchEngine.create(audioContext, createStretch, decoded, gainNodes);
+        delete speedWrap.dataset.loading;
+      })().catch((reason) => {
+        stretchLoading = null;
+        delete speedWrap.dataset.loading;
+        error.textContent = `Не удалось включить изменение скорости: ${reason.message}`;
+        throw reason;
+      });
+      return stretchLoading;
+    };
+    const showSpeed = () => {
+      speed.style.setProperty("--fill", `${((Number(speed.value) - 25) / 125) * 100}%`);
+      if (!speedWrap.dataset.loading) speedValue.textContent = `${speed.value}%`;
+    };
+    const applySpeed = async () => {
+      showSpeed();
+      const rate = Number(speed.value) / 100;
+      if (rate !== 1 && !transport.stretch) {
+        try { await loadStretch(); } catch (_reason) { speed.value = "100"; showSpeed(); return; }
+        if (setupId !== playbackSetupId) return;
+      }
+      const target = Number(speed.value) / 100;  // the fader may have moved while loading
+      metronome.reset();  // clicks already scheduled were timed for the old speed
+      metronome.rate = target;
+      await transport.setPlaybackRate(target);
+      speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
+      showSpeed();
+    };
+    speed.addEventListener("input", applySpeed);
+    speed.addEventListener("dblclick", () => {
+      speed.value = "100";
+      applySpeed();
+    });
+    showSpeed();
+    footer.append(metronomeButton, volumeWrap, speedWrap);
 
     const setMetronome = (on) => {
       metronomeOn = on;
@@ -785,7 +852,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       const beats = metronome.beats.length ? metronome.beats : await loadBeats();
       if (!beats || setupId !== playbackSetupId) return;
       await audioContext.resume();
-      const plan = countInPlan(beats, transport.currentTime, audioContext.currentTime + 0.05);
+      const plan = countInPlan(beats, transport.currentTime, audioContext.currentTime + 0.05, 4, transport.rate);
       if (!plan) return;
       plan.clicks.forEach((when) => metronome.click(when));
       metronomeButton.dataset.clicks = String(metronome.clicks);

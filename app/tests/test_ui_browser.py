@@ -536,6 +536,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_timeout(1600)
             assert page.evaluate(paused) and page.locator('[data-action="count-in"]').get_attribute("aria-pressed") is None
+            # Speed 25-150 % keeps the pitch: other speeds play the decoded stems through Signalsmith Stretch.
+            speed = page.locator('[data-control="speed"]')
+            assert [speed.get_attribute(a) for a in ("min", "max", "step")] == ["25", "150", "5"] and speed.input_value() == "100"
+            speed.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stretch'", timeout=20000)
+            assert page.locator(".footer-speed-value").text_content() == "50%"
+            position = "Number(document.querySelector('[data-control=\"seek\"]').getAttribute('aria-valuenow'))"
+            page.keyboard.press("Space")
+            page.wait_for_timeout(2000)
+            page.keyboard.press("Space")
+            moved = page.evaluate(position)
+            assert 0.6 < moved < 1.4, moved  # about one song second in two seconds at 50 %
+            assert page.evaluate(paused)  # the streams stay silent while stretching
+            speed.dblclick()
+            page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stream'")
+            assert speed.input_value() == "100" and page.locator(".footer-speed-value").text_content() == "100%"
+            assert abs(page.evaluate("document.querySelector('#playback-panel audio').currentTime") - moved) < 0.1
+            page.keyboard.press("Home")
             metronome.click()
             volume_box = page.locator('[data-control="metronome-volume"]').bounding_box()
             page.mouse.click(volume_box["x"] + volume_box["width"] - 1, volume_box["y"] + volume_box["height"] / 2)
