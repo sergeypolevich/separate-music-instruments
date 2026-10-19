@@ -78,6 +78,9 @@ export class SynchronizedTransport {
     this.driftTolerance = driftTolerance;
     // Positions are song time: 0 is where the music starts, startOffset seconds into the files.
     this.startOffset = Math.max(0, Number(startOffset) || 0);
+    // Speeds other than 100 % play the same stems through Signalsmith Stretch (see StretchEngine).
+    this.rate = 1;
+    this.stretch = null;
     this.frameId = null;
     this.playing = false;
     this.syncFrame = this.syncFrame.bind(this);
@@ -93,16 +96,39 @@ export class SynchronizedTransport {
     return Math.max(0, this.mediaDuration - this.startOffset);
   }
 
+  get stretching() {
+    return this.rate !== 1 && this.stretch !== null;
+  }
+
+  get mediaTime() {
+    return this.stretching ? this.stretch.position : this.tracks[0].currentTime;
+  }
+
   get currentTime() {
-    return Math.max(0, this.tracks[0].currentTime - this.startOffset);
+    return Math.max(0, this.mediaTime - this.startOffset);
   }
 
   seek(seconds) {
     const requested = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
     const position = Math.min(Math.max(0, requested), this.duration || Math.max(0, requested));
+    // The stems keep the position in both engines, so a speed change never jumps.
     this.tracks.forEach((track) => { track.currentTime = position + this.startOffset; });
+    if (this.stretching) this.stretch.seek(position + this.startOffset);
     this.onTimeUpdate(position);
     return position;
+  }
+
+  // Speed with the pitch kept: 100 % streams the stems as they are; any other speed hands them to the
+  // stretch engine at the same position (it must be attached first, see StretchEngine).
+  async setPlaybackRate(rate) {
+    if (rate === this.rate) return;
+    const position = this.currentTime;
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+    this.rate = rate;
+    if (this.stretch) this.stretch.rate = rate;
+    this.seek(position);
+    if (wasPlaying) await this.play();
   }
 
   async play() {
@@ -110,6 +136,13 @@ export class SynchronizedTransport {
     // Playing as soon as the start is requested, so a quick second toggle pauses instead of
     // starting again while the six tracks are still confirming playback.
     this.playing = true;
+    if (this.stretching) {
+      await this.beforePlay();
+      if (!this.playing) return;
+      this.stretch.play(this.tracks[0].currentTime);
+      this.scheduleFrame();
+      return;
+    }
     try {
       const ready = this.beforePlay();
       // Invoke every play() in the same gesture before awaiting any promise.
@@ -130,6 +163,10 @@ export class SynchronizedTransport {
       this.frameId = null;
     }
     this.tracks.forEach((track) => track.pause());
+    if (this.stretching) {
+      const position = this.stretch.pause();
+      this.tracks.forEach((track) => { track.currentTime = position; });
+    }
   }
 
   stop() {
@@ -146,7 +183,17 @@ export class SynchronizedTransport {
   syncFrame() {
     this.frameId = null;
     if (!this.playing) return;
-    const masterTime = this.tracks[0].currentTime;
+    const masterTime = this.mediaTime;
+    if (this.stretching) {
+      if (this.mediaDuration > 0 && masterTime >= this.mediaDuration) {
+        this.pause();
+        this.onEnded();
+        return;
+      }
+      this.onTimeUpdate(Math.max(0, masterTime - this.startOffset));
+      this.scheduleFrame();
+      return;
+    }
     if (this.tracks[0].ended || (this.mediaDuration > 0 && masterTime >= this.mediaDuration)) {
       this.pause();
       this.onEnded();
@@ -159,6 +206,57 @@ export class SynchronizedTransport {
     }
     this.onTimeUpdate(Math.max(0, masterTime - this.startOffset));
     this.scheduleFrame();
+  }
+}
+
+// Signalsmith Stretch nodes, one per stem, fed with the decoded stems and given identical schedules,
+// so they stay sample-locked. Positions are file seconds.
+export class StretchEngine {
+  constructor(context, nodes) {
+    this.context = context;
+    this.nodes = nodes;
+    this.rate = 1;
+    this.playing = false;
+    this.paused = 0;
+  }
+
+  // decoded: AudioBuffers in stem order; outputs: the mixer's gain nodes, so S/M and faders still apply.
+  static async create(context, createStretch, decoded, outputs) {
+    const nodes = [];
+    for (const [index, buffer] of decoded.entries()) {
+      const node = await createStretch(context);
+      const channels = Array.from({ length: buffer.numberOfChannels }, (_, c) => buffer.getChannelData(c));
+      await node.addBuffers(channels);
+      await node.setUpdateInterval(0.02);
+      node.connect(outputs[index]);
+      nodes.push(node);
+    }
+    return new StretchEngine(context, nodes);
+  }
+
+  get position() {
+    return this.playing ? this.nodes[0].inputTime : this.paused;
+  }
+
+  play(input) {
+    this.playing = true;
+    this.paused = input;
+    // outputTime (not the README's `output`) is the field this release reads for the start time.
+    const when = this.context.currentTime;
+    this.nodes.forEach((node) => node.schedule({ outputTime: when, active: true, input, rate: this.rate }));
+  }
+
+  seek(input) {
+    this.paused = input;
+    if (this.playing) this.nodes.forEach((node) => node.schedule({ input, rate: this.rate }));
+  }
+
+  pause() {
+    const position = this.position;
+    this.playing = false;
+    this.paused = position;
+    this.nodes.forEach((node) => node.schedule({ active: false, input: position }));
+    return position;
   }
 }
 
@@ -182,13 +280,14 @@ export function firstBeatAtOrAfter(beats, songTime) {
 // Count-in on the song's grid: the press is beat 0 (silent), then `count` clicks one beat apart, and
 // the next beat after the last click is the song's first beat at or after `position`. Music before
 // that beat (a pickup) starts during the count-in. Times are on the AudioContext clock.
-export function countInPlan(beats, position, now, count = 4) {
+export function countInPlan(beats, position, now, count = 4, rate = 1) {
   const index = Math.min(firstBeatAtOrAfter(beats, position), Math.max(0, beats.length - 2));
   if (beats.length < 2) return null;
   const gaps = beats.slice(index, index + 5).map((beat, i, near) => (i ? beat - near[i - 1] : null)).filter((gap) => gap > 0);
-  const period = gaps.sort((a, b) => a - b)[gaps.length >> 1];
+  // A song second lasts 1/rate clock seconds at a changed speed.
+  const period = gaps.sort((a, b) => a - b)[gaps.length >> 1] / rate;
   let downbeat = now + (count + 1) * period;
-  let audioStart = downbeat - Math.max(0, beats[index] - position);
+  let audioStart = downbeat - Math.max(0, beats[index] - position) / rate;
   if (audioStart < now) {  // a pickup longer than the count-in: push everything later
     downbeat += now - audioStart;
     audioStart = now;
@@ -204,6 +303,7 @@ export class Metronome {
     this.context = context;
     this.output = output;
     this.lookahead = lookahead;
+    this.rate = 1;  // playback speed: a song second lasts 1/rate clock seconds
     this.beats = [];
     this.next = 0;
     this.lastSongTime = null;
@@ -238,8 +338,8 @@ export class Metronome {
     this.lastSongTime = songTime;
     const now = this.context.currentTime;
     this.pending = this.pending.filter(({ when }) => when > now);
-    while (this.next < this.beats.length && this.beats[this.next] <= songTime + this.lookahead) {
-      this.click(now + Math.max(0, this.beats[this.next] - songTime));
+    while (this.next < this.beats.length && this.beats[this.next] <= songTime + this.lookahead * this.rate) {
+      this.click(now + Math.max(0, this.beats[this.next] - songTime) / this.rate);
       this.next += 1;
     }
   }

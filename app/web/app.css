@@ -147,6 +147,10 @@ h1, h2, h3, p { margin-top: 0; }
 .footer-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: var(--text); background-color: color-mix(in srgb, var(--accent) 14%, var(--tab-bg)); }
 .footer-toggle:not([data-analyzing]) { --job-progress: 0%; }
 .footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
+.footer-speed { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; color: var(--text-soft); font-size: 12px; }
+.speed-fader { --mark: 75 / 125; width: min(240px, 46vw); }
+.footer-speed-value { min-width: 64px; color: var(--text); font-variant-numeric: tabular-nums; }
+.footer-speed[data-loading] .footer-speed-value { color: var(--muted); }
 .job-progress-label { margin: 6px 0 0; color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 .job-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .job-progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .8s linear; }

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
+import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -243,3 +243,50 @@ test("count-in follows the grid: a pickup before the first beat plays during the
   assert.equal(countInPlan([1], 0, 100), null);
 });
 
+class FakeStretchNode {
+  constructor() { this.inputTime = 0; this.schedules = []; }
+  schedule(change) { this.schedules.push(change); if ("input" in change) this.inputTime = change.input; }
+}
+
+test("the stretch engine gives every stem node the same schedule", () => {
+  const nodes = [new FakeStretchNode(), new FakeStretchNode()];
+  const engine = new StretchEngine({ currentTime: 5 }, nodes);
+  engine.rate = 0.5;
+  engine.play(12);
+  assert.ok(nodes.every((node) => JSON.stringify(node.schedules[0]) === JSON.stringify({ outputTime: 5, active: true, input: 12, rate: 0.5 })));
+  nodes.forEach((node) => { node.inputTime = 13.5; });  // the worklet reports progress
+  assert.equal(engine.position, 13.5);
+  assert.equal(engine.pause(), 13.5);
+  assert.ok(nodes.every((node) => node.schedules.at(-1).active === false));
+  engine.seek(20);
+  assert.equal(engine.position, 20);
+});
+
+test("a speed change while playing hands the position to the stretch engine and back", async () => {
+  const tracks = [new FakeAudio(30), new FakeAudio(30)];
+  const transport = new SynchronizedTransport(tracks, { startOffset: 1, requestFrame: () => 1, cancelFrame: () => {} });
+  transport.stretch = new StretchEngine({ currentTime: 0 }, [new FakeStretchNode(), new FakeStretchNode()]);
+  transport.seek(4);
+  await transport.play();
+  await transport.setPlaybackRate(0.5);
+  assert.ok(transport.stretching && tracks.every((audio) => audio.paused));  // the streams fall silent
+  assert.equal(transport.stretch.nodes[0].schedules.at(-1).input, 5);      // file time = song 4 s + 1 s offset
+  transport.stretch.nodes.forEach((node) => { node.inputTime = 7; });
+  assert.equal(transport.currentTime, 6);
+  await transport.setPlaybackRate(1);
+  assert.ok(!transport.stretching && tracks.every((audio) => !audio.paused && audio.currentTime === 7));
+});
+
+
+test("at half speed the metronome and the count-in stretch with the music", () => {
+  const context = new FakeContext();
+  const metronome = new Metronome(context, {}, { lookahead: 0.12 });
+  metronome.rate = 0.5;
+  metronome.setBeats([0, 0.5, 1.0]);
+  metronome.update(0.45);  // beat 0.5 is 0.05 song seconds away: 0.1 s on the clock at 50 %
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0.1]);
+  const plan = countInPlan([0, 0.5, 1, 1.5, 2], 0, 100, 4, 0.5);
+  assert.equal(plan.period, 1);
+  assert.deepEqual(plan.clicks, [101, 102, 103, 104]);
+  assert.equal(plan.audioStart, 105);
+});
