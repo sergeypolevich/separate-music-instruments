@@ -190,6 +190,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
             body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path.endswith("/project-2/beats"):  # speech: no steady beat
+                self._json({"status": "done", "progress": 1.0, "error": None, "result": {"beats": [0, 2.9, 5.8], "downbeats": [], "bpm": 20.7}})
+                return
             if self.path.endswith("/beats"):
                 beats_polls.append(self.path)
                 self._json({"status": "running", "progress": 0.3, "error": None, "result": None}, 202)
@@ -504,7 +507,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.keyboard.press("Space")
             page.wait_for_function(f"!{paused}")
-            assert page.evaluate("document.activeElement.dataset.projectId") == "project-0" and page.evaluate(ring) == "none"
+            # Safari on macOS never focuses a clicked button, so there the focus stays where it was.
+            assert page.evaluate("document.activeElement.dataset.projectId") in ("project-0", None) and page.evaluate(ring) == "none"
             page.keyboard.press("Space")
             page.wait_for_function(paused)
             page.keyboard.press("Home")
@@ -597,6 +601,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-2"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 2'")
             assert page.evaluate("window.oldStems.every(a => a.paused && !a.hasAttribute('src'))")
+            # No steady beat found: the metronome, its volume and ▶4 say so and stay off.
+            page.locator(".footer-toggle").click()
+            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Ритм не найден'")
+            assert page.evaluate("['.footer-toggle', '[data-control=\"metronome-volume\"]', '[data-action=\"count-in\"]'].every(s => document.querySelector(s).disabled)")
+            assert page.locator(".footer-toggle").get_attribute("aria-pressed") == "false"
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function(
                 "document.querySelector('#detail-title').textContent === 'Track 0' "

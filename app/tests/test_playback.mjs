@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, snapFaderPercent } from "../web/playback.mjs";
+import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, rhythmFound, snapFaderPercent } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -289,4 +289,15 @@ test("at half speed the metronome and the count-in stretch with the music", () =
   assert.equal(plan.period, 1);
   assert.deepEqual(plan.clicks, [101, 102, 103, 104]);
   assert.equal(plan.audioStart, 105);
+});
+
+test("no rhythm below 40 or above 240 BPM or with too few beats", () => {
+  const beats = (n, step) => Array.from({ length: n }, (_, i) => i * step);
+  assert.equal(rhythmFound({ bpm: 120, beats: beats(20, 0.5) }), true);
+  assert.equal(rhythmFound({ bpm: 40, beats: beats(20, 1.5) }), true);
+  assert.equal(rhythmFound({ bpm: 240, beats: beats(20, 0.25) }), true);
+  assert.equal(rhythmFound({ bpm: 20.7, beats: beats(6, 2.9) }), false);  // the spoken Spiro Agnew clip
+  assert.equal(rhythmFound({ bpm: 260, beats: beats(40, 0.23) }), false);
+  assert.equal(rhythmFound({ bpm: 120, beats: beats(7, 0.5) }), false);
+  assert.equal(rhythmFound({ bpm: null, beats: [] }), false);
 });

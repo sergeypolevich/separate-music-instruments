@@ -444,7 +444,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, metronomeGain, snapFaderPercent } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, metronomeGain, rhythmFound, snapFaderPercent } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -831,6 +831,12 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
         metronomeButton.style.removeProperty("--job-progress");
         metronomeLabel.textContent = "Метроном";
         if (state.status !== "done") throw new Error(state.error || "Не удалось определить доли");
+        if (!rhythmFound(state.result)) {
+          setMetronome(false);
+          metronomeLabel.textContent = "Ритм не найден";
+          metronomeButton.disabled = volume.disabled = countIn.disabled = true;
+          return null;
+        }
         metronome.setBeats(state.result.beats);
         return state.result.beats;
       })().catch((reason) => {
