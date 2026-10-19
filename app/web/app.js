@@ -48,6 +48,8 @@ let activeControls = null;
 let activeAudioContext = null;
 let playbackSetupId = 0;
 let playbackKey = "";
+// Position, play state, speed and metronome to restore when a project switches to upgraded stems.
+let pendingResume = null;
 let selectedProjectId = null;
 let selectedProjectTitle = "";
 
@@ -474,7 +476,7 @@ function renderProject(project) {
     } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
     } else {
-      setupProjectPlayback(project.assets, ++playbackSetupId, project.start_seconds || 0);
+      setupProjectPlayback(project.assets, ++playbackSetupId, project.start_seconds || 0, project);
     }
   }
   document.querySelectorAll(".project-tab").forEach((tab) => {
@@ -482,7 +484,7 @@ function renderProject(project) {
   });
 }
 
-async function setupProjectPlayback(assets, setupId, startOffset = 0) {
+async function setupProjectPlayback(assets, setupId, startOffset = 0, project = {}) {
   const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
   const stemLabels = STEM_LABELS;
   const stemsByName = new Map(assets.filter((asset) => asset.asset_type === "stem").map((asset) => [asset.stem_name, asset]));
@@ -880,7 +882,58 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
       applySpeed();
     });
     showSpeed();
-    footer.append(metronomeButton, volumeWrap, speedWrap);
+
+    // «Улучшить качество»: the worker separates the song again with the best model while this project
+    // keeps playing; when the new stems are ready the player switches to them at the same position.
+    const upgradeButton = document.createElement("button");
+    upgradeButton.type = "button";
+    upgradeButton.className = "footer-toggle footer-upgrade";
+    upgradeButton.dataset.action = "upgrade";
+    const showUpgrade = (state) => {
+      const busy = state.status === "queued" || state.status === "running";
+      upgradeButton.disabled = Boolean(state.best) || busy;
+      if (busy) upgradeButton.dataset.analyzing = "true";
+      else delete upgradeButton.dataset.analyzing;
+      upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
+      const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · осталось ${formatMinutes(state.eta_seconds)}` : "";
+      if (state.best) upgradeButton.textContent = "Улучшенное качество разделения";
+      else if (state.status === "queued") upgradeButton.textContent = `Улучшение в очереди${left}`;
+      else if (state.status === "running") upgradeButton.textContent = `Улучшаем · ${Math.round(state.progress * 100)}%${left}`;
+      else upgradeButton.textContent = `Улучшить качество${state.estimate_seconds ? ` · ${formatMinutes(state.estimate_seconds)}` : ""}`;
+    };
+    const followUpgrade = async (state) => {
+      while (state.status === "queued" || state.status === "running") {
+        showUpgrade(state);
+        await new Promise((resolve) => window.setTimeout(resolve, 1000));
+        if (setupId !== playbackSetupId) return;
+        state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/upgrade`);
+        if (setupId !== playbackSetupId) return;
+      }
+      showUpgrade(state);
+      if (state.status === "failed") error.textContent = state.error || "Не удалось улучшить качество";
+      if (state.status === "done" && state.best) {
+        pendingResume = activeControls ? activeControls.snapshot() : null;
+        await openProject(projectId);  // new stem files: the player is rebuilt on them
+      }
+    };
+    const followSafely = (state) => followUpgrade(state).catch((reason) => {
+      error.textContent = reason.message;
+      upgradeButton.disabled = false;
+    });
+    upgradeButton.addEventListener("click", async () => {
+      upgradeButton.disabled = true;
+      try {
+        await followSafely(await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/upgrade`, { method: "POST" }));
+      } catch (reason) {
+        error.textContent = reason.message;
+        upgradeButton.disabled = false;
+      }
+    });
+    const upgrade = project.upgrade || { status: "none", best: false };
+    showUpgrade(upgrade);
+    if (upgrade.status === "queued" || upgrade.status === "running") followSafely(upgrade);
+
+    footer.append(metronomeButton, volumeWrap, upgradeButton, speedWrap);
 
     const setMetronome = (on) => {
       metronomeOn = on;
@@ -959,7 +1012,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
         // Once all stems know their length, move them past the leading silence.
         if (!positioned) {
           positioned = true;
-          transport.seek(0);
+          const resume = pendingResume && pendingResume.projectId === projectId ? pendingResume : null;
+          pendingResume = null;
+          transport.seek(resume ? resume.position : 0);
+          if (resume) restore(resume);
         } else {
           updateTime(transport.currentTime);
         }
@@ -972,7 +1028,20 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0) {
     playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
     playbackPanel.hidden = false;
     selectStem(0);
+    // After an upgrade the new player picks up where the old one was.
+    const restore = async (resume) => {
+      if (resume.speed !== speed.value) {
+        speed.value = resume.speed;
+        await applySpeed();
+      }
+      if (resume.metronome) {
+        setMetronome(true);
+        await loadBeats();
+      }
+      if (resume.playing && setupId === playbackSetupId) await togglePlayback();
+    };
     activeControls = {
+      snapshot: () => ({ projectId, position: transport.currentTime, playing: transport.playing, speed: speed.value, metronome: metronomeOn }),
       togglePlayback,
       seekBy: (seconds) => transport.seek(transport.currentTime + seconds),
       seekTo: (seconds) => transport.seek(seconds),

@@ -17,6 +17,7 @@ from audio_stems.models import (
     FailureCategory,
     JobStatus,
     JobView,
+    MediaAssetType,
     SeparationOptions,
     SourceKind,
     SourceRequest,
@@ -29,7 +30,7 @@ import time
 from typing import Callable
 from audio_stems.models import SeparationOptions
 
-from audio_stems.separator import audio_duration
+from audio_stems.separator import BEST_MODEL, audio_duration
 
 if TYPE_CHECKING:
     from audio_stems.db import SqliteMetadataStore
@@ -298,12 +299,7 @@ class BatchOrchestrator:
             owner_id,
             batch_id,
         )
-        stem_map = {stem.name: stem for stem in result.stems}
-        if any(name not in stem_map for name in stems):
-            raise AdapterError("Separator returned incomplete output", FailureCategory.PERMANENT)
-        artifacts = [stem_map[stem_name] for stem_name in stems]
-        if any(not artifact.path.is_file() or artifact.path.stat().st_size == 0 for artifact in artifacts):
-            raise AdapterError("Separator returned an invalid stem", FailureCategory.PERMANENT)
+        artifacts = _checked_artifacts(result.stems, stems)
         # Not retried: it deletes each float stem once its FLAC is written, to need less temporary space.
         for asset in self.storage.save_stems(job_id, title, source_id, artifacts, result.level, variant):
             self.repository.add_asset(asset)
@@ -340,6 +336,55 @@ class BatchOrchestrator:
             )
 
 
+    def upgrade_project(
+        self, project_id: UUID, owner_id: str, progress: Callable[[float], None] | None = None,
+    ) -> tuple[str, ...]:
+        """«Улучшить качество»: separate a finished project again with the best model and switch it to the
+        new stems. The old stems stay playable until the switch; returns the old files no project uses any
+        more (deleted by the caller once the player has let go of them)."""
+        project = self.repository.get_project(project_id, owner_id)
+        job = self.repository.get_job(project.job_id, owner_id) if project else None
+        if job is None or job.status is not JobStatus.COMPLETED:
+            raise AdapterError("Улучшить можно только завершённый проект", FailureCategory.PERMANENT)
+        if job.separation_options and job.separation_options.model_name == BEST_MODEL:
+            return ()
+        options = SeparationOptions(BEST_MODEL, self.options.device)
+        source = next((a for a in self.repository.list_assets(job.job_id, owner_id)
+                       if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
+        audio_path = self.storage.resolve_path(source.storage_key) if source else None
+        if audio_path is None or not audio_path.is_file():
+            raise AdapterError("Исходное аудио проекта не найдено на диске", FailureCategory.PERMANENT)
+        title, source_id = project.title or project.input_value, project.source_id
+        stems = self.separator.model_stems(BEST_MODEL)
+        existing = self.storage.existing_stems(title, stems, source_id, BEST_MODEL)
+        seconds = None
+        if existing:  # another project of the same song already has them
+            assets = [self.storage.save_stem(job.job_id, title, source_id, StemArtifact(name, path), BEST_MODEL)
+                      for name, path in existing.items()]
+        else:
+            started = time.monotonic()
+            temp_dir = self.storage.temporary_directory(title, source_id)
+            result = self.separator.separate(audio_path, temp_dir, options, progress=progress)
+            artifacts = _checked_artifacts(result.stems, stems)
+            assets = self.storage.save_stems(job.job_id, title, source_id, artifacts, result.level, BEST_MODEL)
+            if not self.storage.stems_complete(title, stems, source_id, BEST_MODEL):
+                raise AdapterError("Stored stem set is incomplete", FailureCategory.PERMANENT)
+            self.storage.remove_temporary_directory(title, source_id)
+            seconds = time.monotonic() - started
+        return self.repository.replace_project_stems(job.job_id, assets, options, seconds)
+
+
+def _checked_artifacts(results: Sequence[StemArtifact], stems: Sequence[str]) -> list[StemArtifact]:
+    """The separator's stems in the model's order, or an error when one is missing or empty."""
+    stem_map = {stem.name: stem for stem in results}
+    if any(name not in stem_map for name in stems):
+        raise AdapterError("Separator returned incomplete output", FailureCategory.PERMANENT)
+    artifacts = [stem_map[stem_name] for stem_name in stems]
+    if any(not artifact.path.is_file() or artifact.path.stat().st_size == 0 for artifact in artifacts):
+        raise AdapterError("Separator returned an invalid stem", FailureCategory.PERMANENT)
+    return artifacts
+
+
 worker_logger = logging.getLogger("audio_stems.worker")
 
 
@@ -360,6 +405,7 @@ class DatabaseWorker:
         self.sleep = sleep
 
     def recover_on_start(self) -> int:
+        self.repository.requeue_interrupted_analyses("upgrade")
         count = self.repository.recover_interrupted_batches()
         if count:
             worker_logger.warning(
@@ -371,7 +417,7 @@ class DatabaseWorker:
     def run_once(self) -> bool:
         claimed = self.repository.claim_next_batch()
         if claimed is None:
-            return False
+            return self.run_upgrade()  # one heavy separation at a time: upgrades wait for batches
         try:
             self.orchestrator.process_batch(
                 claimed.receipt,
@@ -385,6 +431,38 @@ class DatabaseWorker:
             )
             self.repository.recover_interrupted_batches()
             return False
+        return True
+
+    def run_upgrade(self, *, delete_attempts: int = 20, delete_pause: float = 0.5) -> bool:
+        """Work one queued «Улучшить качество»; True when one ran."""
+        task = self.repository.claim_analysis("upgrade")
+        if task is None:
+            return False
+        project_id, request = task
+        reported = [0.0]
+
+        def progress(value: float) -> None:
+            if value - reported[0] >= 0.01:
+                reported[0] = value
+                self.repository.set_analysis_progress(project_id, "upgrade", min(0.99, value))
+
+        try:
+            replaced = self.orchestrator.upgrade_project(UUID(project_id), request["owner_id"], progress)
+        except AdapterError as error:
+            self.repository.fail_analysis(project_id, "upgrade", str(error))
+            return True
+        except Exception:
+            worker_logger.exception("Quality upgrade failed", extra={"event": "upgrade_failed", "project_id": project_id})
+            self.repository.fail_analysis(project_id, "upgrade", "Не удалось улучшить качество")
+            return True
+        self.repository.finish_analysis(project_id, "upgrade", {"model_name": BEST_MODEL})
+        # The UI switches to the new stems within a second; until then Windows keeps the old ones locked.
+        for key in replaced:
+            try:
+                self.orchestrator.storage.delete_asset(key, attempts=delete_attempts, pause=delete_pause)
+            except AdapterError:
+                worker_logger.warning("An old stem is still locked; Settings → cleanup removes it later",
+                                      extra={"event": "upgrade_cleanup_pending", "project_id": project_id})
         return True
 
     def run_forever(self, stop_event: threading.Event | None = None) -> None:
