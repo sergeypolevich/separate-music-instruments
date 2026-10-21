@@ -109,5 +109,23 @@ def run(
         print("Audio Stems services stopped.", flush=True)
 
 
+def disable_quick_edit(kernel32=None) -> bool:
+    """Turn off QuickEdit in the launcher's console window. With it, one click in the window starts a
+    text selection that blocks every process writing to the console: the API froze on a log line."""
+    if kernel32 is None:
+        if os.name != "nt":
+            return False
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+    import ctypes
+    handle = kernel32.GetStdHandle(-10)  # STD_INPUT_HANDLE: the console mode lives on the input buffer
+    mode = ctypes.c_uint32()
+    if not kernel32.GetConsoleMode(handle, ctypes.byref(mode)):
+        return False  # no console (started without a window)
+    # Drop ENABLE_QUICK_EDIT_MODE (0x40); ENABLE_EXTENDED_FLAGS (0x80) makes the change take effect.
+    return bool(kernel32.SetConsoleMode(handle, (mode.value & ~0x40) | 0x80))
+
+
 if __name__ == "__main__":
+    disable_quick_edit()
     raise SystemExit(run())
