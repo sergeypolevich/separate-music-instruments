@@ -24,10 +24,13 @@ the equivalent manual command is `py run.py --app`.
 
 ## How `Start.command` works (macOS)
 
-Double-click `Start.command` (Apple Silicon; Intel Macs are not supported yet: PyTorch, NumPy 2 and onnxruntime no longer ship current Intel builds, see `app/DEVELOPMENT_STATUS.md`). macOS blocks scripts
-downloaded from the internet the first time: right-click `Start.command`, choose
-**Open** and confirm once (or run `xattr -dr com.apple.quarantine .` in the
-folder). If Python 3.12 is missing, the launcher installs it for your user only,
+Double-click `Start.command` (Apple Silicon; Intel Macs are not supported yet: PyTorch, NumPy 2 and onnxruntime no longer ship current Intel builds, see `app/DEVELOPMENT_STATUS.md`). macOS (Gatekeeper) blocks
+unsigned scripts downloaded from the internet the first time with "Apple could not
+verify … is free of malware": allow it once in System Settings → Privacy & Security →
+Open Anyway (before macOS 15: right-click → Open), or run
+`xattr -dr com.apple.quarantine .` in the folder. A `git clone` is not quarantined.
+Removing the prompt for everyone needs an Apple Developer ID signature and
+notarization (paid), which the project does not have. If Python 3.12 is missing, the launcher installs it for your user only,
 without an administrator password, using a pinned and checksum-verified `uv`
 release; then it prepares `app/.venv` and starts the app exactly like `Start.bat`,
 including the fast start on later launches. Chrome and Safari 16.4 or newer are

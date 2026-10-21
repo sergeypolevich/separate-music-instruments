@@ -36,14 +36,19 @@ Alles läuft auf Ihrem Computer, nichts wird hochgeladen. Die Oberfläche ist au
    zum Beispiel in Ihren Benutzerordner.
 2. Starten:
    - **Windows**: Doppelklick auf `Start.bat`.
-   - **macOS**: Beim ersten Mal mit der rechten Maustaste auf `Start.command` klicken, **Öffnen** wählen und
-     bestätigen (macOS fragt das einmal bei Dateien aus dem Internet). Danach genügt ein Doppelklick.
+   - **macOS**: Doppelklick auf `Start.command`. Beim ersten Mal meldet macOS *„Apple konnte nicht überprüfen,
+     ob "Start.command" frei von Schadsoftware ist“*. Das heißt nicht, dass Schadsoftware gefunden wurde: Die App
+     ist nicht mit einem kostenpflichtigen Apple-Entwicklerzertifikat signiert, und macOS meldet das bei jeder
+     unsignierten Datei aus dem Internet. Einmal erlauben: **Fertig** klicken, **Systemeinstellungen →
+     Datenschutz & Sicherheit** öffnen, unten bei *„"Start.command" wurde blockiert“* auf **Trotzdem öffnen**
+     klicken und mit dem Passwort bestätigen. (Vor macOS 15: Rechtsklick auf `Start.command` → **Öffnen** →
+     **Öffnen**.) Danach genügt ein Doppelklick.
 3. Die App öffnet sich im Browser unter `http://127.0.0.1:8000`. Ein Konsolenfenster zeigt, was sie tut;
    schließen Sie dieses Fenster, um die App zu beenden.
 
 **Der erste Start dauert 5–15 Minuten**: Bei Bedarf wird Python installiert (ohne Administratorpasswort) und die
 Komponenten werden heruntergeladen (etwa 1,5 GB). Jedes Trennungsmodell lädt seine Gewichte bei der ersten
-Verwendung (das schnelle etwa 130 MB, das beste etwa 650 MB, die Schlagerkennung etwa 80 MB). Spätere Starts
+Verwendung (das schnelle etwa 160 MB, das beste etwa 650 MB, die Schlagerkennung etwa 80 MB). Spätere Starts
 dauern wenige Sekunden.
 
 ## Wo Ihre Dateien liegen
