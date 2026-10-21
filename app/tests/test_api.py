@@ -115,7 +115,7 @@ def test_api_reads_batches_projects_and_models_with_stable_not_found(tmp_path):
     assert batch.status_code == 200 and batch.json()["jobs"][0]["status"] == "downloading"
     assert batch.json()["jobs"][0]["current_stage"] == "download"
     assert projects.json()[0]["input_value"] == "Track"
-    assert "htdemucs_6s" in [model["name"] for model in models.json()]
+    assert [model["name"] for model in models.json() if model["default"]] == ["hdemucs_mmi"]
     assert hidden.status_code == 404 and hidden.json()["error"]["code"] == "not_found"
     assert client.get("/api/v1/batches").status_code == 404  # list endpoint removed; only POST remains
     assert client.get(f"/api/v1/jobs/{job_id}").status_code == 404

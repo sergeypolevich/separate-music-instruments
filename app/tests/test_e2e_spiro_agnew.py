@@ -25,7 +25,7 @@ pytestmark = pytest.mark.e2e
 ROOT = Path(__file__).parents[1]
 QUERY = "John Denver - The Ballad of Spiro Agnew"
 EXPECTED_VIDEO_ID = "GDXxm2gu-_E"
-EXPECTED_STEMS = ("vocals", "drums", "bass", "guitar", "piano", "other")
+EXPECTED_STEMS = ("vocals", "drums", "bass", "other")  # the default fast model, hdemucs_mmi
 
 
 def _free_local_port() -> int:
@@ -189,10 +189,10 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     project.click()
 
                 tracks = page.locator("#playback-panel audio")
-                tracks.nth(5).wait_for(state="attached", timeout=60_000)
+                tracks.nth(len(EXPECTED_STEMS) - 1).wait_for(state="attached", timeout=60_000)
                 try:
                     page.wait_for_function(
-                        "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
+                        "Array.from(document.querySelectorAll('#playback-panel audio')).length === 4 "
                         "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
                         "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
                         timeout=60_000,
@@ -206,8 +206,8 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                     print("Asset responses:", asset_responses)
                     print("Asset request failures:", asset_request_failures)
                     raise
-                assert [tracks.nth(index).get_attribute("data-stem") for index in range(6)] == list(EXPECTED_STEMS)
-                assert page.locator(".mixer-row").count() == 6
+                assert [tracks.nth(index).get_attribute("data-stem") for index in range(len(EXPECTED_STEMS))] == list(EXPECTED_STEMS)
+                assert page.locator(".mixer-row").count() == len(EXPECTED_STEMS)
                 assert not page.locator("#project-empty").is_visible()
 
                 page.locator('[data-action="toggle"]').click()
@@ -238,8 +238,8 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                 gains = page.locator('[data-control="gain"]')
                 mutes = page.locator('[data-control="mute"]')
                 solos = page.locator('[data-control="solo"]')
-                assert gains.count() == mutes.count() == solos.count() == 6
-                for index in range(6):
+                assert gains.count() == mutes.count() == solos.count() == len(EXPECTED_STEMS)
+                for index in range(len(EXPECTED_STEMS)):
                     gain = gains.nth(index)
                     # Volume is mouse-only: click the ends of the slider.
                     gain_box = gain.bounding_box()
@@ -309,7 +309,7 @@ def test_spiro_agnew_full_desktop_browser_flow(tmp_path):
                 # Reopen the saved project from the library and play it again.
                 page.locator(".project-tab").first.click()
                 page.wait_for_function(
-                    "Array.from(document.querySelectorAll('#playback-panel audio')).length === 6 "
+                    "Array.from(document.querySelectorAll('#playback-panel audio')).length === 4 "
                     "&& Array.from(document.querySelectorAll('#playback-panel audio')).every("
                     "audio => Number.isFinite(audio.duration) && audio.duration > 0)",
                     timeout=60_000,

@@ -208,10 +208,12 @@ to 30 minutes); after success, restart both the API and worker. If installation
 fails, the API reports the failure and you can retry after reviewing the local
 pip output. The updater does not replace application source files.
 
-The separator exposes two local models: `htdemucs_6s` (default, fast) and
-`bs_roformer_sw` (through audio-separator, overlap 2, much slower but clearly
-better); the measurements and listening tests behind the choice are in
-`app/DEVELOPMENT_STATUS.md` (versions 10 and 11).
+The separator offers two local models: `hdemucs_mmi` with shifts 2 (default, fast,
+four stems) and `bs_roformer_sw` (through audio-separator, overlap 1, six stems,
+much slower but clearly better; «Улучшить качество» uses it). `htdemucs_6s`, the
+fast model before version 13, is no longer offered but stays registered so earlier
+projects can be separated again. The listening studies behind the choice are in
+[separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 Settings stores the chosen model in the browser and each job sends it; the device
 comes from `AUDIO_STEMS_MODEL_DEVICE`
 (default `auto`: CUDA, then Apple MPS, then CPU, whichever the installed PyTorch

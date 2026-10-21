@@ -39,19 +39,26 @@ class _Model:
     passes: int = 1  # tqdm bars per run: a bag of models draws one per model
     checkpoint: str | None = None
     overlap: int | None = None
+    shifts: int | None = None  # Demucs: passes over randomly shifted input, averaged
     seconds_per_audio_second: float = 1.0  # CPU time per second of music on the test laptop
+    offered: bool = True  # False: kept only so earlier projects can be separated again
 
 
-# Chosen by SDR/SAR on MUSDB18 previews, CPU time on a 4-core laptop and the user's listening test
-# (DEVELOPMENT_STATUS, versions 10 and 11).
+# Chosen in the listening studies (repository separate-music-instruments-research): the best of the fast
+# models and the best model at an acceptable speed (overlap 1 sounds like overlap 2, 1.6-2.5x faster).
 _MODELS = {
-    "htdemucs_6s": _Model("Demucs, быстрая", "Быстрое разделение на шесть дорожек.", _SIX, "demucs",
-                          seconds_per_audio_second=0.9),
+    "hdemucs_mmi": _Model(
+        "Demucs, быстрая",
+        "Быстрое разделение на четыре дорожки: гитара и клавишные — в «прочем».",
+        _FOUR, "demucs", passes=2, shifts=2, seconds_per_audio_second=1.2,
+    ),
     "bs_roformer_sw": _Model(
         "BS-RoFormer SW",
-        "Заметно лучше по звучанию всех шести дорожек и меньше всего артефактов, но во много раз медленнее.",
-        _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=2, seconds_per_audio_second=15.6,
+        "Заметно лучше по звучанию, шесть дорожек с отдельными гитарой и пианино, но во много раз медленнее.",
+        _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=1, seconds_per_audio_second=7.1,
     ),
+    "htdemucs_6s": _Model("Demucs htdemucs_6s", "Прежняя быстрая модель на шесть дорожек.", _SIX, "demucs",
+                          seconds_per_audio_second=0.9, offered=False),
 }
 # «Улучшить качество» re-separates a project with this model.
 BEST_MODEL = "bs_roformer_sw"
@@ -165,7 +172,8 @@ class StemSeparator:
 
     def available_models(self) -> tuple[SeparatorModel, ...]:
         # The capability endpoint is intentionally independent of loading weights.
-        return tuple(SeparatorModel(name, m.stems, m.label, m.description, m.seconds_per_audio_second) for name, m in _MODELS.items())
+        return tuple(SeparatorModel(name, m.stems, m.label, m.description, m.seconds_per_audio_second)
+                     for name, m in _MODELS.items() if m.offered)
 
     def model_stems(self, model_name: str) -> tuple[str, ...]:
         if model_name not in _MODELS:
@@ -199,7 +207,8 @@ class StemSeparator:
         if model.engine == "demucs":
             command = [
                 sys.executable, "-m", "demucs", "-n", options.model_name,
-                "-d", options.device, "-o", str(output_dir), "--float32", "--clip-mode", "none", str(decoded),
+                "-d", options.device, "-o", str(output_dir), "--float32", "--clip-mode", "none",
+                *(["--shifts", str(model.shifts)] if model.shifts else []), str(decoded),
             ]
         else:
             arguments = {"out": str(output_dir / options.model_name), "models": str(self.model_dir),

@@ -321,7 +321,7 @@ def test_projects_estimate_the_separation_time_from_this_machines_history(tmp_pa
     repository.set_audio_seconds(job_id, 240)
 
     waiting = request("GET", "/api/v1/projects").json()[-1]
-    assert waiting["eta_seconds"] == round(0.9 * 240)  # no history yet: the test laptop's speed
+    assert waiting["eta_seconds"] == round(1.2 * 240)  # no history yet: the test laptop's speed
 
     repository.transition_job(job_id, JobStatus.DOWNLOADED)
     repository.transition_job(job_id, JobStatus.SEPARATING)
@@ -333,16 +333,16 @@ def test_projects_estimate_the_separation_time_from_this_machines_history(tmp_pa
     running = request("GET", "/api/v1/projects").json()[-1]
     assert 95 <= running["eta_seconds"] <= 105
     models = {m["name"]: (m["seconds_per_audio_second"], m["measured"]) for m in request("GET", "/api/v1/models").json()}
-    assert models == {"htdemucs_6s": (0.9, False), "bs_roformer_sw": (15.6, False)}  # defaults until measured
+    assert models == {"hdemucs_mmi": (1.2, False), "bs_roformer_sw": (7.1, False)}  # defaults until measured
     # After separations the median of this machine's runs replaces the default and is marked measured.
     for seconds in (60, 70, 80):
         done = repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, f"Song {seconds}")]).job_ids[0]
         repository.set_audio_seconds(done, 100)
         with sqlite3.connect(tmp_path / "delete.db") as connection:
             connection.execute("UPDATE jobs SET separation_seconds = ?, separation_options_json = ? WHERE id = ?",
-                               (seconds, '{"model_name": "htdemucs_6s", "device": "cpu"}', str(done)))
+                               (seconds, '{"model_name": "hdemucs_mmi", "device": "cpu"}', str(done)))
     models = {m["name"]: (m["seconds_per_audio_second"], m["measured"]) for m in request("GET", "/api/v1/models").json()}
-    assert models["htdemucs_6s"] == (0.7, True) and models["bs_roformer_sw"] == (15.6, False)
+    assert models["hdemucs_mmi"] == (0.7, True) and models["bs_roformer_sw"] == (7.1, False)
 
 
 def test_upgrade_route_queues_once_reports_state_and_blocks_deletion(tmp_path):
@@ -352,11 +352,11 @@ def test_upgrade_route_queues_once_reports_state_and_blocks_deletion(tmp_path):
 
     detail = request("GET", f"/api/v1/projects/{project.project_id}").json()
     assert detail["upgrade"] == {"status": "none", "progress": 0.0, "error": None, "best": False,
-                                 "estimate_seconds": round(15.6 * 120), "eta_seconds": None}
+                                 "estimate_seconds": round(7.1 * 120), "eta_seconds": None}
     queued = request("POST", f"/api/v1/projects/{project.project_id}/upgrade")
     again = request("POST", f"/api/v1/projects/{project.project_id}/upgrade")
     assert queued.status_code == again.status_code == 202 and queued.json()["status"] == "queued"
-    assert queued.json()["eta_seconds"] == round(15.6 * 120)
+    assert queued.json()["eta_seconds"] == round(7.1 * 120)
     assert request("GET", f"/api/v1/projects/{project.project_id}/upgrade").json()["status"] == "queued"
     # While it waits or runs, the project stays (its files are in use) and the disk card is busy.
     assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 409

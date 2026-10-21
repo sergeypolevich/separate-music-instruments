@@ -8,9 +8,9 @@ Suchen Sie auf YouTube oder fügen Sie einen Link ein und üben Sie mit den sync
 ## Was es kann
 
 - **Findet den Song** auf YouTube über den Namen oder nimmt einen YouTube-Link und lädt den Ton herunter.
-- **Trennt ihn in sechs Spuren**: Gesang, Schlagzeug, Bass, Gitarre, Klavier und alles Übrige. Das schnelle
-  Modell braucht etwa eine Minute pro Minute Musik; „Qualität verbessern“ trennt einen Song mit einem deutlich
-  besseren, aber langsameren Modell noch einmal.
+- **Trennt ihn in Spuren.** Das schnelle Modell liefert vier (Gesang, Schlagzeug, Bass und alles Übrige) in etwa
+  einer Minute pro Minute Musik; „Qualität verbessern“ trennt einen Song mit einem deutlich besseren, aber
+  langsameren Modell noch einmal in sechs Spuren: Gesang, Schlagzeug, Bass, Gitarre, Klavier und alles Übrige.
 - **Spielt alle Spuren synchron**, jede mit Lautstärkeregler, Solo und Mute, und mit einer Wellenform, in die
   Sie zum Springen klicken.
 - **Zum Üben**:
@@ -56,6 +56,8 @@ usw., Sie können sie also in jedem anderen Programm verwenden.
 
 Verwenden Sie die App nur für Musik, die Sie herunterladen und bearbeiten dürfen. Sie umgeht keine
 Zugriffsbeschränkungen.
+
+Wie die beiden Modelle ausgewählt wurden (Hörtests, Methodik, Gesamtbericht, auf Russisch): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 
 ---
 
