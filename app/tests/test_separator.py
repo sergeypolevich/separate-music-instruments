@@ -12,8 +12,17 @@ import numpy as np
 import pytest
 import soundfile
 
+import audio_stems.separator as separator_module
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
 from audio_stems.separator import StemSeparator, audio_duration, decode_to_wav, detect_compute_devices, run_with_progress
+
+_REAL_VERIFY = StemSeparator.verify_weights
+
+
+@pytest.fixture(autouse=True)
+def _no_weights_download(monkeypatch):
+    # Unit tests never fetch model weights; verify_weights has its own tests below.
+    monkeypatch.setattr(StemSeparator, "verify_weights", lambda self, model_name, hub=None: None)
 
 
 def test_separator_reports_model_names_and_supported_options():
@@ -323,3 +332,54 @@ def test_the_song_length_is_read_from_the_header(tmp_path):
 
     assert abs(audio_duration(path) - 5.0) < 0.05
     assert audio_duration(broken) is None
+
+
+def test_every_model_has_pinned_weights():
+    assert set(separator_module._WEIGHTS) == set(separator_module._MODELS)
+
+
+def test_demucs_weights_are_fetched_when_missing_and_must_match_their_hash(monkeypatch, tmp_path):
+    good, bad = tmp_path / "good.safetensors", tmp_path / "bad.safetensors"
+    good.write_bytes(b"weights")
+    bad.write_bytes(b"swapped")
+    monkeypatch.setitem(separator_module._WEIGHTS, "hdemucs_mmi",
+                        ("someone/model", {"m.safetensors": separator_module.sha256_file(good)}))
+    downloads = []
+
+    class Hub:
+        def __init__(self, cached, file):
+            self.cached, self.file = cached, file
+
+        def try_to_load_from_cache(self, repository, name):
+            return self.cached
+
+        def hf_hub_download(self, repository, name):
+            downloads.append((repository, name))
+            if self.file is None:
+                raise OSError("offline")
+            return str(self.file)
+
+    separator = StemSeparator(tmp_path)
+    _REAL_VERIFY(separator, "hdemucs_mmi", Hub(None, good))  # not cached yet: downloaded, then checked
+    assert downloads == [("someone/model", "m.safetensors")]
+    _REAL_VERIFY(separator, "hdemucs_mmi", Hub(str(good), None))  # cached: no network
+    assert len(downloads) == 1
+    with pytest.raises(AdapterError) as swapped:
+        _REAL_VERIFY(separator, "hdemucs_mmi", Hub(str(bad), None))
+    assert swapped.value.category is FailureCategory.PERMANENT
+    with pytest.raises(AdapterError) as offline:
+        _REAL_VERIFY(separator, "hdemucs_mmi", Hub(None, None))
+    assert offline.value.category is FailureCategory.TRANSIENT
+
+
+def test_audio_separator_weights_are_checked_once_present(monkeypatch, tmp_path):
+    monkeypatch.setitem(separator_module._WEIGHTS, "bs_roformer_sw", (None, {"m.ckpt": "0" * 64}))
+    separator = StemSeparator(tmp_path)
+    _REAL_VERIFY(separator, "bs_roformer_sw")  # not downloaded yet: audio-separator fetches it, checked after the run
+    (tmp_path / "m.ckpt").write_bytes(b"swapped")
+    with pytest.raises(AdapterError):
+        _REAL_VERIFY(separator, "bs_roformer_sw")
+
+
+def test_separator_children_run_with_the_hub_offline():
+    run_with_progress([sys.executable, "-c", "import os, sys; sys.exit(os.environ.get('HF_HUB_OFFLINE') != '1')"], 1, None)

@@ -150,6 +150,7 @@ def test_detected_beats_are_shifted_to_song_time(monkeypatch, tmp_path):
     import beat_this.inference
     monkeypatch.setattr(beat_this.inference, "Audio2Beats", FakeTracker)
     monkeypatch.setattr(analysis, "decode_mono", lambda path: np.zeros(10, np.float32))
+    monkeypatch.setattr(analysis, "beat_checkpoint", lambda: tmp_path / "final0.ckpt")
 
     result = analysis.detect_beats(tmp_path / "song.webm", 1.5)
 
@@ -157,6 +158,31 @@ def test_detected_beats_are_shifted_to_song_time(monkeypatch, tmp_path):
 
 
 _CHECKPOINT = Path.home() / ".cache" / "torch" / "hub" / "checkpoints" / "beat_this-final0.ckpt"
+
+
+def test_beat_checkpoint_is_downloaded_once_and_must_match_its_hash(monkeypatch, tmp_path):
+    import hashlib
+    import torch
+    monkeypatch.setattr(torch.hub, "get_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(analysis, "BEAT_CHECKPOINT_SHA256", hashlib.sha256(b"weights").hexdigest())
+    downloads = []
+
+    def download(url, target, content=b"weights"):
+        downloads.append(url)
+        Path(target).write_bytes(content)
+
+    path = analysis.beat_checkpoint(download)
+    assert path == tmp_path / "checkpoints" / "beat_this-final0.ckpt" and downloads == [analysis.BEAT_CHECKPOINT_URL]
+    assert analysis.beat_checkpoint(download) == path and len(downloads) == 1  # cached: no second download
+    path.write_bytes(b"swapped")
+    with pytest.raises(RuntimeError):
+        analysis.beat_checkpoint(download)
+    assert not path.exists()  # fetched again on the next use
+
+
+@pytest.mark.skipif(not _CHECKPOINT.is_file(), reason="beat_this weights are not downloaded yet")
+def test_the_downloaded_beat_checkpoint_matches_the_pinned_hash():
+    assert analysis.beat_checkpoint() == _CHECKPOINT
 
 
 @pytest.mark.skipif(not _CHECKPOINT.is_file(), reason="beat_this weights are not downloaded yet (no network in unit tests)")
