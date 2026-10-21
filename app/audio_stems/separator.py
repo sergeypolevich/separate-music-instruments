@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 import json
 import logging
 import os
@@ -62,6 +63,25 @@ _MODELS = {
 }
 # «Улучшить качество» re-separates a project with this model.
 BEST_MODEL = "bs_roformer_sw"
+# SHA-256 of every weights file a model runs, checked before use (Hugging Face's LFS hashes confirm the Demucs
+# ones). Demucs 4.1 builds the model class named in the file's own metadata, so a swapped file could run any code;
+# its child runs offline, on exactly the files checked here. Repository None: files in model_dir (audio-separator).
+_WEIGHTS = {
+    "hdemucs_mmi": ("adefossez/Demucs-hdemucs_mmi", {
+        "hdemucs_mmi.yaml": "be8b1c6ef2ca406c620917f3d94c15a0d240718604ce89bfa6765bcc52631f05",
+        "75fc33f5.safetensors": "c6e881004aca0f7572a50fda722620d98ea331ecc6c18abd0214e67fcca3c4ba"}),
+    "htdemucs_6s": ("adefossez/HTDemucs-6s", {
+        "htdemucs_6s.yaml": "207405151270af8fd81c2373c25d27950916682ac91dca7884a11ce13dad6f58",
+        "5c90dfd2.safetensors": "d2a1745f0744721f6b8ca5bf469b67c651ea5ed1b52998cab033b2158609d411"}),
+    "bs_roformer_sw": (None, {
+        "BS-Roformer-SW.ckpt": "24e7d35ee9c64415673d3fd33e06a67cac2c103c5df6267ba1576459c775916e",
+        "BS-Roformer-SW.yaml": "b558996f1e25eb48798bd6502505a5de94c4f966d6edfb1a0420f06cc40b501a"}),
+}
+
+
+def sha256_file(path: Path) -> str:
+    with path.open("rb") as file:
+        return hashlib.file_digest(file, "sha256").hexdigest()
 # Runs audio-separator in its own process so its memory is freed after every song.
 _AUDIO_SEPARATOR = (
     "import json, sys\n"
@@ -104,8 +124,10 @@ _BLOCK_FRAMES = 1 << 20
 def run_with_progress(command: list[str], passes: int, progress: Callable[[float], None] | None) -> None:
     """Run a separator CLI and turn its tqdm bars, one per model pass, into 0..1 progress."""
     # Unbuffered: tqdm redraws with a carriage return and no newline, which a buffered child would hold back until exit.
+    # Offline hub: Demucs must not fetch a newer model than the one verify_weights checked.
     process = subprocess.Popen(
-        command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, env={**os.environ, "PYTHONUNBUFFERED": "1"}
+        command, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        env={**os.environ, "PYTHONUNBUFFERED": "1", "HF_HUB_OFFLINE": "1"},
     )
     done, last, reported, pending, tail = 0, 0.0, None, b"", b""
     assert process.stderr is not None
@@ -180,6 +202,27 @@ class StemSeparator:
             raise AdapterError("Unsupported separation model", FailureCategory.INVALID_INPUT)
         return _MODELS[model_name].stems
 
+    def verify_weights(self, model_name: str, hub=None) -> None:
+        """Fail unless the model's weights files match their pinned SHA-256. Demucs files are fetched from the
+        hub first when missing; audio-separator downloads its own, so an absent one is checked after the run."""
+        repository, files = _WEIGHTS[model_name]
+        for name, expected in files.items():
+            if repository is None:
+                path = self.model_dir / name
+                if not path.is_file():
+                    continue
+            else:
+                if hub is None:
+                    import huggingface_hub as hub
+                cached = hub.try_to_load_from_cache(repository, name)
+                try:
+                    path = Path(cached if isinstance(cached, str) else hub.hf_hub_download(repository, name))
+                except Exception as exc:  # no network on the first use: try again later
+                    raise AdapterError("Model weights could not be downloaded", FailureCategory.TRANSIENT) from exc
+            if sha256_file(path) != expected:
+                logger.error("Weights file %s does not match its pinned hash", path, extra={"event": "separation_failed"})
+                raise AdapterError("Model weights failed the integrity check", FailureCategory.PERMANENT)
+
     def resolve_device(self, configured: str) -> str:
         return detect_compute_devices()[0] if configured == "auto" else configured
 
@@ -191,6 +234,7 @@ class StemSeparator:
         progress: Callable[[float], None] | None = None,
     ) -> SeparationResult:
         self.validate_options(options)
+        self.verify_weights(options.model_name)
         output_dir.mkdir(parents=True, exist_ok=True)
         decoded = output_dir / f"{audio_path.stem}.wav"
         level = decode_to_wav(audio_path, decoded)
@@ -227,6 +271,8 @@ class StemSeparator:
         finally:
             decoded.unlink(missing_ok=True)
 
+        if model.engine != "demucs":
+            self.verify_weights(options.model_name)  # weights audio-separator downloaded during this run
         model_output = output_dir / options.model_name
         if model.engine == "demucs":
             # Demucs writes <model>/<track>/<stem>.wav

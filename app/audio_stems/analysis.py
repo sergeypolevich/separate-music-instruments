@@ -15,6 +15,7 @@ import numpy as np
 
 from audio_stems.config import Settings, configure_logging
 from audio_stems.db import SqliteMetadataStore
+from audio_stems.separator import sha256_file
 
 
 logger = logging.getLogger("audio_stems.analysis")
@@ -22,6 +23,8 @@ logger = logging.getLogger("audio_stems.analysis")
 # and load torch and the model (DEVELOPMENT_STATUS, version 11).
 SECONDS_PER_MINUTE = 6.5
 STARTUP_SECONDS = 12.0
+BEAT_CHECKPOINT_URL = "https://cloud.cp.jku.at/public.php/dav/files/7ik4RrBKTS273gp/final0.ckpt"
+BEAT_CHECKPOINT_SHA256 = "8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331"
 
 
 def decode_mono(audio_path: Path, rate: int = 44100) -> np.ndarray:
@@ -29,11 +32,27 @@ def decode_mono(audio_path: Path, rate: int = 44100) -> np.ndarray:
     return np.frombuffer(subprocess.run(command, capture_output=True, check=True).stdout, np.float32)
 
 
+def beat_checkpoint(download: Callable[[str, str], None] | None = None) -> Path:
+    """beat_this "final0", downloaded once and checked against its pinned SHA-256. Given by its name, beat_this
+    itself would fetch it unchecked and unpickle it in full; given a local file, it loads with weights_only."""
+    import torch
+
+    path = Path(torch.hub.get_dir()) / "checkpoints" / "beat_this-final0.ckpt"
+    if not path.is_file():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        (download or torch.hub.download_url_to_file)(BEAT_CHECKPOINT_URL, str(path))
+    if sha256_file(path) != BEAT_CHECKPOINT_SHA256:
+        path.unlink()  # a broken download is fetched again next time
+        raise RuntimeError("beat_this weights failed the integrity check")
+    return path
+
+
 def detect_beats(audio_path: Path, start_seconds: float) -> dict[str, object]:
     """Beat and downbeat times in song time (0 = where the music starts) and the median tempo."""
     from beat_this.inference import Audio2Beats  # heavy (torch); imported only in this process
 
-    beats, downbeats = Audio2Beats(checkpoint_path="final0", device="cpu", dbn=False)(decode_mono(audio_path), 44100)
+    tracker = Audio2Beats(checkpoint_path=str(beat_checkpoint()), device="cpu", dbn=False)
+    beats, downbeats = tracker(decode_mono(audio_path), 44100)
     shift = lambda times: [round(float(t) - start_seconds, 4) for t in times if t >= start_seconds - 0.05]
     beats, downbeats = shift(beats), shift(downbeats)
     bpm = round(60 / float(np.median(np.diff(beats))), 1) if len(beats) > 2 else None
