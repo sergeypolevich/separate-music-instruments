@@ -1,7 +1,7 @@
 #!/bin/sh
-# macOS: double-click in Finder. Starts at once while the app's environment matches requirements.txt.
+# macOS: double-click in Finder. Starts at once while the app's environment matches requirements-macos.lock.
 APP="$(cd "$(dirname "$0")/app" && pwd)"
-if [ -x "$APP/.venv/bin/python" ] && cmp -s "$APP/requirements.txt" "$APP/.venv/requirements.installed"; then
+if [ -x "$APP/.venv/bin/python" ] && cmp -s "$APP/requirements-macos.lock" "$APP/.venv/requirements.installed"; then
   cd "$APP" && "$APP/.venv/bin/python" -m audio_stems.desktop
   code=$?
   # Exit code 3 means a dependency is missing: run the full setup, which reinstalls it.

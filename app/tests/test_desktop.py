@@ -92,7 +92,7 @@ def test_windows_one_click_launcher_uses_pinned_official_python_installer():
 def test_launcher_fast_path_skips_setup_only_while_installed_requirements_match():
     button = (Path(__file__).parents[2] / "Start.bat").read_text(encoding="utf-8")
 
-    fast_check = button.index(r'fc /b "%APP%\requirements.txt" "%APP%\.venv\requirements.installed"')
+    fast_check = button.index(r'fc /b "%APP%\requirements-windows.lock" "%APP%\.venv\requirements.installed"')
     assert fast_check < button.index("-m audio_stems.desktop") < button.index(":setup")
     assert "|| goto setup" in button
     # Exit code 3 (a dependency is missing) drops the marker and falls back to the full setup.
@@ -156,7 +156,7 @@ def _mac_tree(tmp_path, desktop_exit, *, marker=True):
     (app / ".venv" / "bin").mkdir(parents=True)
     # Git may check scripts out with CRLF on Windows; macOS gets LF from the repository.
     (root / "Start.command").write_bytes((repo / "Start.command").read_bytes().replace(b"\r\n", b"\n"))
-    (app / "requirements.txt").write_text("demucs==4.1.0\n", encoding="utf-8")
+    (app / "requirements-macos.lock").write_text("demucs==4.1.0\n", encoding="utf-8")
     if marker:
         (app / ".venv" / "requirements.installed").write_text("demucs==4.1.0\n", encoding="utf-8")
     python = app / ".venv" / "bin" / "python"

@@ -12,9 +12,10 @@ and opens the app in your default browser. The first launch needs internet to
 install Python (if missing) and the runtime dependencies, including ffmpeg (from
 the `imageio-ffmpeg` package, so no system ffmpeg is needed); model weights are
 downloaded when a model separates its first song. Later launches skip every setup
-check while `app/requirements.txt` matches the installed copy in
+check while the platform's lock file (`app/requirements-windows.lock` or
+`app/requirements-macos.lock`) matches the installed copy in
 `app/.venv/requirements.installed`, and rerun the setup by themselves when a
-dependency is missing or the requirements changed. The automatically opened window
+dependency is missing or the lock changed. The automatically opened window
 shows service logs; close it to stop both services. The app address is
 `http://127.0.0.1:8000`.
 
@@ -69,7 +70,8 @@ The launcher creates and uses `.venv` automatically, so activation is optional
 when starting the app. Edit `.env` only for local settings; keep it out of Git.
 
 The Python launcher creates a project-local `.venv` on first run, checks for the runtime
-libraries listed in `requirements.txt`, installs them when needed, and starts
+libraries, installs them when needed with `pip install --require-hashes` from the
+platform's lock file, and starts
 the app (API, worker, and browser — the same as `--app`). Demucs and its machine-learning dependencies can take a
 while and use substantial disk space on the first installation. If installation
 fails, the application is not started and the pip error is shown.
@@ -204,7 +206,9 @@ only when you click **Проверить**. It displays the release notes and a 
 release page. Applying an update requires a second confirmation and reads the
 exact `requirements.txt` at that release's fixed GitHub tag. The updater rejects
 manifests unless each approved runtime package has one exact `==` version pin,
-then runs pip with the current project interpreter; no client-supplied command
+then runs pip with the current project interpreter (shortcut: the updater installs
+the release's direct pins without hashes; the hash-checked lock files apply to
+setup and first start); no client-supplied command
 or path is accepted. Stop the worker before applying an update. The API request
 waits for pip to finish (up
 to 30 minutes); after success, restart both the API and worker. If installation
@@ -231,3 +235,21 @@ can process every file. Invalid cached files are preserved under
 passes the header check but Demucs rejects it, move that source audio out of the
 `Music` folder and rerun the track; the original is not deleted by this
 fallback.
+
+### Dependencies and model weights
+
+`requirements.txt` lists the direct dependencies with exact versions (the updater's
+manifest). `requirements-windows.lock` and `requirements-macos.lock` pin every package,
+transitive ones included, with SHA-256 hashes; setup installs them with
+`pip install --require-hashes`, so a new install gets exactly the versions tested
+together and pip refuses a file whose hash differs. After changing `requirements.txt`,
+regenerate both lock files with the `uv pip compile` command written at their top,
+from a `pip freeze` of the tested `.venv`; `tests/test_run.py` fails while a direct
+pin is missing from them. Check known vulnerabilities with
+`pip-audit -r requirements-windows.lock --no-deps --disable-pip`.
+
+Every model weights file has a pinned SHA-256 (`_WEIGHTS` in `audio_stems/separator.py`,
+`BEAT_CHECKPOINT_SHA256` in `audio_stems/analysis.py`) checked before use; Demucs
+runs with `HF_HUB_OFFLINE=1` on exactly the checked files. If a model is changed upstream,
+a new install fails with «Model weights failed the integrity check» (files already
+downloaded keep working) until the pins are updated on purpose.

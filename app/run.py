@@ -12,8 +12,9 @@ from audio_stems.desktop import missing_runtime_modules
 
 ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
-REQUIREMENTS = ROOT / "requirements.txt"
-# A copy of the requirements.txt last installed; Start.bat skips all setup while it matches.
+# Every package with its exact version and hash, per platform; generated from requirements.txt.
+REQUIREMENTS = ROOT / ("requirements-windows.lock" if os.name == "nt" else "requirements-macos.lock")
+# A copy of the lock file last installed; Start.bat and Start.command skip all setup while it matches.
 INSTALLED_MARKER = VENV_DIR / "requirements.installed"
 WORKER = ("-m", "audio_stems.pipeline")
 API = ("-m", "audio_stems.api")
@@ -55,9 +56,9 @@ def install_runtime_dependencies() -> None:
         print("Runtime dependencies are already installed.")
         return
 
-    print("Installing runtime dependencies" + (": " + ", ".join(missing) if missing else " from requirements.txt"))
+    print("Installing runtime dependencies" + (": " + ", ".join(missing) if missing else f" from {REQUIREMENTS.name}"))
     subprocess.run(
-        [sys.executable, "-m", "pip", "install", "-r", str(REQUIREMENTS)],
+        [sys.executable, "-m", "pip", "install", "--require-hashes", "-r", str(REQUIREMENTS)],
         check=True,
         cwd=ROOT,
     )

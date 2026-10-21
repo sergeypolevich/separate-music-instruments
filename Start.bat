@@ -1,9 +1,9 @@
 @echo off
 setlocal
 set "APP=%~dp0app"
-rem Fast path: the venv already holds exactly this requirements.txt, so every setup check is skipped.
+rem Fast path: the venv already holds exactly this lock file, so every setup check is skipped.
 if not exist "%APP%\.venv\Scripts\python.exe" goto setup
-fc /b "%APP%\requirements.txt" "%APP%\.venv\requirements.installed" >nul 2>&1 || goto setup
+fc /b "%APP%\requirements-windows.lock" "%APP%\.venv\requirements.installed" >nul 2>&1 || goto setup
 pushd "%APP%"
 "%APP%\.venv\Scripts\python.exe" -m audio_stems.desktop
 set "CODE=%errorlevel%"
