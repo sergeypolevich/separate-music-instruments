@@ -191,3 +191,28 @@ def test_mac_setup_pins_uv_and_checks_its_checksum_for_both_mac_architectures():
     assert "x86_64) ARCH=x86_64; SUM=1b8a5b316883df2daf20fb9a446e5b230e01d947d57aba2694977c5ac5a7e98c" in setup
     assert 'exec "$PYTHON" run.py --app' in setup and "sudo" not in setup
     assert "export UV_PYTHON_PREFERENCE=only-managed" in setup  # uv installs its own 3.12
+
+
+def test_launcher_console_turns_off_quick_edit_so_a_click_cannot_freeze_the_app():
+    class Kernel32:
+        def __init__(self, has_console=True):
+            self.has_console, self.set_to = has_console, None
+
+        def GetStdHandle(self, which):
+            assert which == -10  # the console input buffer holds the mode
+            return 7
+
+        def GetConsoleMode(self, handle, mode_ref):
+            mode_ref._obj.value = 0x1F7  # Windows default: QuickEdit (0x40) on
+            return self.has_console
+
+        def SetConsoleMode(self, handle, mode):
+            self.set_to = mode
+            return 1
+
+    kernel32 = Kernel32()
+    assert desktop.disable_quick_edit(kernel32) is True
+    assert kernel32.set_to & 0x40 == 0 and kernel32.set_to & 0x80  # QuickEdit off, extended flags on
+    assert kernel32.set_to & ~0xC0 == 0x1F7 & ~0xC0  # the other input modes are kept
+    no_console = Kernel32(has_console=False)
+    assert desktop.disable_quick_edit(no_console) is False and no_console.set_to is None
