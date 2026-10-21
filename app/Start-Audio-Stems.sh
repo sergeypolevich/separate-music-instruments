@@ -1,6 +1,6 @@
 #!/bin/sh
 # macOS setup: find Python 3.12 or install it for this user without admin rights (uv, pinned and
-# checksum-verified), then run.py creates .venv, installs requirements.txt and starts the app.
+# checksum-verified), then run.py creates .venv, installs requirements-macos.lock (hash-checked) and starts the app.
 set -eu
 APP="$(cd "$(dirname "$0")" && pwd)"
 UV_VERSION=0.12.22

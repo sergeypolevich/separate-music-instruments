@@ -15,7 +15,7 @@ def test_installs_requirements_when_runtime_module_is_missing(monkeypatch, tmp_p
 
     assert len(calls) == 1
     args, kwargs = calls[0]
-    assert args[0] == [run.sys.executable, "-m", "pip", "install", "-r", str(run.REQUIREMENTS)]
+    assert args[0] == [run.sys.executable, "-m", "pip", "install", "--require-hashes", "-r", str(run.REQUIREMENTS)]
     assert kwargs["check"] is True
     assert kwargs["cwd"] == run.ROOT
 
@@ -124,7 +124,8 @@ def test_project_paths_are_next_to_the_launcher():
     root = Path(run.__file__).resolve().parent
     assert run.ROOT == root
     assert run.VENV_DIR == root / ".venv"
-    assert run.REQUIREMENTS == root / "requirements.txt" and run.REQUIREMENTS.is_file()
+    lock = "requirements-windows.lock" if run.os.name == "nt" else "requirements-macos.lock"
+    assert run.REQUIREMENTS == root / lock and run.REQUIREMENTS.is_file()
 
 
 def test_failed_dependency_install_stops_before_starting_the_app(monkeypatch):
@@ -138,3 +139,14 @@ def test_failed_dependency_install_stops_before_starting_the_app(monkeypatch):
 
     assert run.main(["--app"]) == 7
     assert started == []
+
+
+@pytest.mark.parametrize("lock", ["requirements-windows.lock", "requirements-macos.lock"])
+def test_lock_files_pin_every_direct_requirement_and_hash_every_package(lock):
+    root = Path(run.__file__).resolve().parent
+    direct = {line for line in (root / "requirements.txt").read_text(encoding="utf-8").split() if "==" in line}
+    lines = (root / lock).read_text(encoding="utf-8").replace("\\\n", " ").splitlines()
+    entries = [line for line in lines if line and not line.startswith("#")]
+    assert direct <= {entry.split()[0] for entry in entries}  # regenerate the lock files after changing requirements.txt
+    for entry in entries:
+        assert "==" in entry.split()[0] and "--hash=sha256:" in entry, entry
