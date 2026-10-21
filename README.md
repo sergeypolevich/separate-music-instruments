@@ -34,14 +34,18 @@ Everything runs on your computer; nothing is uploaded. The interface is in Russi
 1. On this page click **Code → Download ZIP** and unpack the archive anywhere, for example into your user folder.
 2. Start it:
    - **Windows**: double-click `Start.bat`.
-   - **macOS**: the first time, right-click `Start.command`, choose **Open** and confirm (macOS asks this once
-     for files downloaded from the internet). Afterwards a double-click is enough.
+   - **macOS**: double-click `Start.command`. The first time macOS says *“Apple could not verify "Start.command"
+     is free of malware”*. This does not mean malware was found: the app is not signed with a paid Apple developer
+     certificate, and macOS shows this for every unsigned file downloaded from the internet. To allow it once:
+     click **Done**, open **System Settings → Privacy & Security**, scroll down to *“Start.command was blocked”*,
+     click **Open Anyway** and confirm with your password. (Before macOS 15: right-click `Start.command` →
+     **Open** → **Open**.) Afterwards a double-click is enough.
 3. The app opens in your browser at `http://127.0.0.1:8000`. A console window shows what it is doing;
    close that window to stop the app.
 
 **The first start takes 5–15 minutes**: it installs Python if needed (without an administrator password) and
 downloads the components (about 1.5 GB). Each separation model downloads its weights the first time it is used
-(the fast one about 130 MB, the best one about 650 MB, the beat detector about 80 MB). Later starts take a few
+(the fast one about 160 MB, the best one about 650 MB, the beat detector about 80 MB). Later starts take a few
 seconds.
 
 ## Where your files are
