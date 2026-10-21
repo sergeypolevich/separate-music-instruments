@@ -12,7 +12,7 @@ def test_settings_defaults_preserve_current_cli_behavior(tmp_path):
     assert settings.temp_root == settings.storage_root / "_demucs_temp"
     assert settings.retry_count == 3
     assert settings.retry_delays == (3.0, 6.0)
-    assert settings.model_name == "htdemucs_6s"
+    assert settings.model_name == "hdemucs_mmi"
     assert settings.model_device == "auto"
     assert settings.log_level == "INFO"
     assert settings.log_max_bytes == 10 * 1024 * 1024

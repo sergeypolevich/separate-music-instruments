@@ -22,12 +22,16 @@ def test_separator_reports_model_names_and_supported_options():
     models = separator.available_models()
 
     stems = {model.name: model.stems for model in models}
-    assert set(stems) == {"htdemucs_6s", "bs_roformer_sw"}  # the user kept the fast model and the best one
-    assert stems["htdemucs_6s"] == stems["bs_roformer_sw"] == ("vocals", "drums", "bass", "guitar", "piano", "other")
+    # The fast and the quality model chosen in the listening studies; htdemucs_6s is no longer offered.
+    assert set(stems) == {"hdemucs_mmi", "bs_roformer_sw"}
+    assert stems["hdemucs_mmi"] == ("vocals", "drums", "bass", "other")
+    assert stems["bs_roformer_sw"] == ("vocals", "drums", "bass", "guitar", "piano", "other")
     assert all(model.label and model.description for model in models)
     speed = {model.name: model.seconds_per_audio_second for model in models}
-    assert speed == {"htdemucs_6s": 0.9, "bs_roformer_sw": 15.6}  # measured on the test laptop
+    assert speed == {"hdemucs_mmi": 1.2, "bs_roformer_sw": 7.1}  # estimates for the test laptop
     assert separator.model_stems("bs_roformer_sw") == stems["bs_roformer_sw"]
+    # Earlier projects keep their model for «Разделить заново».
+    assert separator.model_stems("htdemucs_6s") == stems["bs_roformer_sw"]
     with pytest.raises(AdapterError):
         separator.model_stems("made-up-model")
 
@@ -120,6 +124,36 @@ def test_separator_passes_selected_model_and_device(monkeypatch, tmp_path):
     assert "--float32" in command and command[command.index("--clip-mode") + 1] == "none"
     assert not Path(command[-1]).exists() and not Path(decode[-1]).exists()  # decoded copies are removed
     assert len(result.stems) == 6
+
+
+def test_fast_model_runs_hdemucs_mmi_with_two_shifts(monkeypatch, tmp_path):
+    commands = []
+
+    def fake_run(command, *, check, **_kwargs):
+        if "-m" not in command:
+            _decode_only(command)
+            return
+        commands.append(command)
+        result = tmp_path / "output" / "hdemucs_mmi" / "source"
+        result.mkdir(parents=True)
+        for name in ("vocals", "drums", "bass", "other"):
+            (result / f"{name}.wav").write_bytes(b"wav")
+
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", fake_run)
+    passes = []
+    monkeypatch.setattr("audio_stems.separator.run_with_progress",
+                        lambda command, n, _progress: (passes.append(n), fake_run(command, check=True)))
+    source = tmp_path / "source.wav"
+    source.write_bytes(b"RIFF0000WAVE")
+
+    result = StemSeparator().separate(source, tmp_path / "output", SeparationOptions("hdemucs_mmi", "cpu"))
+
+    command = commands[0]
+    assert command[command.index("-n") + 1] == "hdemucs_mmi"
+    assert command[command.index("--shifts") + 1] == "2"
+    assert command[-1] == str(tmp_path / "output" / "source.wav")
+    assert passes == [2]  # one progress bar per shift
+    assert [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "other"]
 
 
 @pytest.mark.parametrize("options", [SeparationOptions("made-up-model", "cpu")])
@@ -258,7 +292,7 @@ def test_roformer_runs_audio_separator_in_its_own_process_and_maps_its_file_name
     arguments = json.loads(command[-1])
     assert command[:2] == [sys.executable, "-c"] and "audio_separator.separator" in command[2]
     assert arguments["checkpoint"] == "BS-Roformer-SW.ckpt" and arguments["models"] == str(tmp_path / "models")
-    assert arguments["overlap"] == 2  # the quality the user chose after listening
+    assert arguments["overlap"] == 1  # sounds like overlap 2 in the listening study, 1.6-2.5x faster
     assert arguments["input"] == str(tmp_path / "out" / "source.wav") and passes == 1
     assert [stem.name for stem in result.stems] == ["vocals", "drums", "bass", "guitar", "piano", "other"]
     assert result.stems[0].path.name == "source_(Vocals)_BS-Roformer-SW.wav"

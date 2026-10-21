@@ -8,8 +8,9 @@ or paste a link, and play the separated tracks in sync to practise with them.
 ## What it does
 
 - **Finds the song** on YouTube by name or takes a YouTube link, and downloads its audio.
-- **Separates it into six tracks**: vocals, drums, bass, guitar, piano and everything else. A fast model takes
-  about a minute per minute of music; «improve quality» re-separates a song with a much better, slower model.
+- **Separates it into tracks.** A fast model gives four (vocals, drums, bass and everything else) in about
+  a minute per minute of music; «improve quality» re-separates a song into six — vocals, drums, bass, guitar,
+  piano and everything else — with a much better, slower model.
 - **Plays all tracks in sync**, with a volume fader, solo and mute for each, and a waveform you click to seek.
 - **For practising**:
   - a metronome on the song's own beats;
@@ -52,6 +53,8 @@ so on, so you can use them in any other program.
 ## Please note
 
 Use it only for music you have the right to download and process. The app does not bypass any access restrictions.
+
+How the two models were chosen (listening tests, methodology, a summary report): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 
 ---
 
