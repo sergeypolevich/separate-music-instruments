@@ -40,6 +40,9 @@ logger = logging.getLogger("audio_stems.storage")
 _STEM_FORMATS = ("flac", "wav")
 _BLOCK_FRAMES = 1 << 20
 _MIN_FREE_BYTES = 64 * 2**20  # a write that fails with less than this left is treated as a full disk
+# Files a user may open as a new project: whatever the bundled ffmpeg decodes and validate_audio_file recognizes.
+UPLOAD_FORMATS = ("mp3", "wav", "flac", "m4a", "mp4", "aac", "ogg", "opus", "webm", "aiff", "aif", "wma")
+_UPLOAD_TOKEN = re.compile(r"^[0-9a-f]{16}\.[a-z0-9]{1,10}$")
 
 
 def _file_peak(path: Path) -> float:
@@ -186,7 +189,7 @@ class LocalMediaStorage:
                 if known_source is not None and known_source != source.source_id
                 else safe_title
             )
-        allowed_extensions = ("webm", "m4a", "opus", "mp3", "ogg", "flac", "aac", "wma", "aiff", "aif")
+        allowed_extensions = ("webm", "m4a", "opus", "mp3", "ogg", "flac", "aac", "wma", "aiff", "aif", "wav", "mp4")
         try:
             matches = {
                 path.suffix[1:].lower(): path
@@ -309,6 +312,50 @@ class LocalMediaStorage:
 
     def remove_temporary_directory(self, title: str, source_id: str | None = None) -> None:
         shutil.rmtree(self.temporary_directory(title, source_id), ignore_errors=True)
+
+    @property
+    def _uploads(self) -> Path:
+        return self.temp_root / "uploads"
+
+    def new_upload_path(self) -> Path:
+        """A fresh temporary file for an incoming upload; `finish_upload` checks and names it."""
+        try:
+            self._uploads.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise AdapterError("Upload folder could not be created", FailureCategory.TRANSIENT) from exc
+        return self._uploads / f"{uuid4().hex}.part"
+
+    def finish_upload(self, partial: Path, filename: str) -> str:
+        """Check an uploaded file's type and header and name it by its content: returns the token
+        `<sha256[:16]>.<extension>`. The same file uploaded twice gets the same token, so its audio is reused."""
+        extension = PurePosixPath(filename.lower()).suffix.lstrip(".")
+        try:
+            if extension not in UPLOAD_FORMATS or not self.validate_audio_file(partial, extension):
+                raise AdapterError("Unsupported or damaged audio file", FailureCategory.INVALID_INPUT)
+            with partial.open("rb") as upload:
+                digest = hashlib.file_digest(upload, "sha256").hexdigest()[:16]
+            token = f"{digest}.{extension}"
+            partial.replace(self._uploads / token)
+            return token
+        except OSError as exc:
+            raise AdapterError("Upload could not be saved", FailureCategory.TRANSIENT) from exc
+        finally:
+            partial.unlink(missing_ok=True)
+
+    def upload_path(self, token: str) -> Path:
+        if not _UPLOAD_TOKEN.fullmatch(token):
+            raise AdapterError("Invalid upload reference", FailureCategory.INVALID_INPUT)
+        return self._uploads / token
+
+    def upload_audio(self, token: str, source: VideoCandidate) -> DownloadedAudio:
+        path = self.upload_path(token)
+        try:
+            return DownloadedAudio(path, source, path.suffix.lstrip("."), path.stat().st_size)
+        except OSError as exc:
+            raise AdapterError("The uploaded file is no longer there", FailureCategory.NOT_FOUND) from exc
+
+    def remove_upload(self, token: str) -> None:
+        self.upload_path(token).unlink(missing_ok=True)
 
     def save_audio(self, job_id: UUID, audio: DownloadedAudio) -> MediaAsset:
         target = self.audio_target(audio.source.title, audio.media_format, audio.source.source_id)

@@ -239,3 +239,53 @@ def test_music_start_is_the_first_loud_sample_of_any_stem_minus_a_short_preroll(
     silent = tmp_path / "silent.wav"
     soundfile.write(silent, np.zeros((800, 2), np.float32), 8000)
     assert LocalMediaStorage.music_start([silent]) == 0.0
+
+
+def test_an_upload_is_checked_named_by_its_content_and_handed_over_as_source_audio(tmp_path):
+    storage = LocalMediaStorage(tmp_path / "Music")
+    flac = b"fLaC" + b"\x00" * 60
+
+    def upload(data, name):
+        partial = storage.new_upload_path()
+        partial.write_bytes(data)
+        try:
+            return storage.finish_upload(partial, name)
+        finally:
+            assert not partial.exists()  # never left behind, accepted or not
+
+    token = upload(flac, "My Song.FLAC")
+    assert token.endswith(".flac") and len(token) == 16 + len(".flac")
+    assert upload(flac, "the same file.flac") == token  # same content, same token: the audio is reused
+    source = VideoCandidate(token[:16], "My Song", f"file:{token}")
+    audio = storage.upload_audio(token, source)
+    assert audio.path.read_bytes() == flac and audio.media_format == "flac" and audio.byte_size == len(flac)
+
+    asset = storage.save_audio(uuid4(), audio)
+    assert asset.storage_key == "My Song.flac"
+    storage.remove_upload(token)
+    assert not audio.path.exists() and (tmp_path / "Music" / "My Song.flac").read_bytes() == flac
+    with pytest.raises(AdapterError) as missing:
+        storage.upload_audio(token, source)
+    assert missing.value.category is FailureCategory.NOT_FOUND
+
+
+@pytest.mark.parametrize(("data", "name"), [
+    (b"fLaC" + b"\x00" * 12, "song.exe"),         # not an audio type
+    (b"MZ" + b"\x00" * 30, "song.mp3"),            # an audio name on something else
+    (b"fLaC" + b"\x00" * 12, "no extension"),
+])
+def test_an_upload_that_is_not_recognizable_audio_is_refused(tmp_path, data, name):
+    storage = LocalMediaStorage(tmp_path / "Music")
+    partial = storage.new_upload_path()
+    partial.write_bytes(data)
+
+    with pytest.raises(AdapterError) as refused:
+        storage.finish_upload(partial, name)
+    assert refused.value.category is FailureCategory.INVALID_INPUT
+    assert list((storage.temp_root / "uploads").iterdir()) == []
+
+
+@pytest.mark.parametrize("token", ["../audio_stems.db", "0123456789abcdef.flac/../x", "0123.flac", "0123456789ABCDEF.flac"])
+def test_an_upload_reference_from_the_database_cannot_point_outside_the_upload_folder(tmp_path, token):
+    with pytest.raises(AdapterError):
+        LocalMediaStorage(tmp_path / "Music").upload_path(token)
