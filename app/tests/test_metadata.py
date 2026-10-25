@@ -105,7 +105,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 8
+    assert version == 9
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
 
@@ -180,7 +180,7 @@ def test_two_processes_migrating_a_new_database_at_once_both_succeed(tmp_path):
 
     assert all(code == 0 for code, _ in results), results
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 8
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 9
 
 
 def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):
@@ -222,3 +222,39 @@ def test_separation_time_is_recorded_and_the_usual_speed_is_the_median_of_the_la
     separated("htdemucs_6s", 200, 180)
     rates = SqliteMetadataStore(tmp_path / "audio_stems.db").separation_rates()
     assert rates["bs_roformer_sw"] == 3.0 and rates["htdemucs_6s"] == 0.9
+
+
+def test_migration_9_accepts_local_files_and_keeps_every_row_and_cascade(tmp_path, monkeypatch):
+    import shutil
+
+    old = tmp_path / "migrations"
+    old.mkdir()
+    for script in sorted((Path(__file__).parents[1] / "audio_stems" / "migrations").glob("00[1-8]_*.sql")):
+        shutil.copy(script, old / script.name)
+    database = tmp_path / "audio_stems.db"
+    with monkeypatch.context() as patch:  # a version-8 database with a finished project in it
+        patch.setattr("audio_stems.db.Path.with_name", lambda self, name: old)
+        store = SqliteMetadataStore(database)
+        receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Song")],
+                                     separation_options=SeparationOptions("hdemucs_mmi", "cpu"))
+        job_id = receipt.job_ids[0]
+        store.add_asset(MediaAsset(uuid4(), job_id, MediaAssetType.STEM, "Stems/Song/vocals.flac", 3, stem_name="vocals"))
+        store.transition_job(job_id, JobStatus.SEARCHING)
+        project_id = store.list_projects("client-1")[0].project_id
+        store.queue_analysis(project_id, "beats", {})
+
+    def counts():
+        with sqlite3.connect(database) as connection:
+            return {table: connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+                    for table in ("projects", "jobs", "media_assets", "job_events", "analyses")}
+
+    before = counts()
+    store = SqliteMetadataStore(database)  # applies 009
+    assert counts() == before and before["media_assets"] == 1 and before["job_events"] >= 1
+
+    local = store.create_batch("client-1", [SourceRequest(SourceKind.LOCAL_FILE, "0123456789abcdef.mp3/My song.mp3")])
+    assert store.get_job(local.job_ids[0], "client-1").input_value == "0123456789abcdef.mp3/My song.mp3"
+    with store._connection() as connection:
+        assert connection.execute("PRAGMA foreign_key_check").fetchall() == []
+        connection.execute("DELETE FROM projects WHERE id = ?", (str(project_id),))  # the cascade still works
+    assert counts() == {"projects": 1, "jobs": 1, "media_assets": 0, "job_events": 1, "analyses": 0}  # job_created of the new one

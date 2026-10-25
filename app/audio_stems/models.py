@@ -48,6 +48,7 @@ def disk_full_error(needed_bytes: int | None = None, free_bytes: int | None = No
 class SourceKind(Enum):
     SEARCH_QUERY = "search_query"
     VIDEO_URL = "video_url"
+    LOCAL_FILE = "local_file"  # value: "<sha256[:16]>.<extension>/<original file name>"
 
 
 @dataclass(frozen=True)
