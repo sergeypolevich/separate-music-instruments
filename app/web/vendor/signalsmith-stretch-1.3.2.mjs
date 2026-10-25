@@ -1,5 +1,6 @@
 // Signalsmith Stretch Web 1.3.2 (MIT, Geraint Luff), unmodified from npm "signalsmith-stretch":
 // https://registry.npmjs.org/signalsmith-stretch/-/signalsmith-stretch-1.3.2.tgz
+// License text: LICENSE-signalsmith-stretch.txt next to this file (from github.com/Signalsmith-Audio/signalsmith-stretch).
 let module = {}, exports = {};
 
 var SignalsmithStretch = (() => {

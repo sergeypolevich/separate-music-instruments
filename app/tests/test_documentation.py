@@ -56,3 +56,13 @@ def test_project_skill_requires_visible_playwright_browser_gate():
     assert "visible window" in skill
     assert "playwright" in requirements.lower()
     assert "numpy==2.5.4" in runtime_requirements
+
+
+def test_vendored_web_code_ships_with_its_license_text():
+    vendor = Path(__file__).parents[1] / "web" / "vendor"
+    stretch = (vendor / "signalsmith-stretch-1.3.2.mjs").read_text(encoding="utf-8")
+    license_text = (vendor / "LICENSE-signalsmith-stretch.txt").read_text(encoding="utf-8")
+
+    assert "LICENSE-signalsmith-stretch.txt" in stretch.splitlines()[2]
+    assert license_text.startswith("MIT License") and "Geraint Luff" in license_text
+    assert "The above copyright notice and this permission notice shall be included" in license_text
