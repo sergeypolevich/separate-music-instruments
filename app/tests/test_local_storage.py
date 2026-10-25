@@ -141,7 +141,7 @@ def test_storing_undoes_the_separator_level_unless_that_would_clip(tmp_path):
     assert abs(abs(soundfile.read(storage.resolve_path(asset.storage_key))[0]).max() - 0.4) < 1e-3
 
     loud = StemArtifact("vocals", _float_stem(tmp_path / "loud.wav", 0.8))
-    asset, = storage.save_stems(uuid4(), "Rock Song", "video-2", [loud], level=0.5)
+    asset, = storage.save_stems(uuid4(), "Song title", "video-2", [loud], level=0.5)
     assert abs(abs(soundfile.read(storage.resolve_path(asset.storage_key))[0]).max() - 0.999) < 1e-3
 
 
