@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 
@@ -66,3 +67,16 @@ def test_vendored_web_code_ships_with_its_license_text():
     assert "LICENSE-signalsmith-stretch.txt" in stretch.splitlines()[2]
     assert license_text.startswith("MIT License") and "Geraint Luff" in license_text
     assert "The above copyright notice and this permission notice shall be included" in license_text
+
+
+def test_third_party_list_names_every_model_and_direct_dependency():
+    from audio_stems.separator import _WEIGHTS
+
+    root = Path(__file__).parents[2]
+    listed = (root / "THIRD_PARTY.md").read_text(encoding="utf-8")
+    direct = [line.split("==")[0] for line in (root / "app" / "requirements.txt").read_text(encoding="utf-8").splitlines()
+              if "==" in line and not line.startswith("#")]
+
+    assert direct and all(name in listed for name in direct)
+    assert all(model in re.sub(r"[ -]", "_", listed.lower()) for model in _WEIGHTS)
+    assert "beat_this `final0`" in listed and "CC BY-NC 4.0" in listed

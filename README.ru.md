@@ -62,7 +62,7 @@
 Как выбирались обе модели (слуховые тесты, методика, сводный отчёт): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 
 Код свободный, по [лицензии MIT](LICENSE). У моделей разделения, пакетов Python и ffmpeg, которые
-приложение скачивает, свои лицензии.
+приложение скачивает, свои лицензии — они перечислены в [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ---
 

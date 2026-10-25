@@ -2,7 +2,7 @@
 
 Before starting each implementation stage, read [`app/skills/audio-stems-development.md`](app/skills/audio-stems-development.md), [`app/DEVELOPMENT_PLAN.md`](app/DEVELOPMENT_PLAN.md), and the current checkpoint in [`app/DEVELOPMENT_STATUS.md`](app/DEVELOPMENT_STATUS.md).
 
-Repository layout: the root holds only what a user or an agent needs first — `Start.bat` and `Start.command` (the Windows and macOS launchers), the user guides `README.md`, `README.ru.md` and `README.de.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/`. Everything else (code, tests, web UI, docs, requirements, the `.venv`) lives in `app/`; run Python and test commands from `app/`. User data stays outside the code at `~/Audio Stems` (`Music/`, `audio_stems.db`, `logs/`).
+Repository layout: the root holds only what a user or an agent needs first — `Start.bat` and `Start.command` (the Windows and macOS launchers), the user guides `README.md`, `README.ru.md` and `README.de.md`, `LICENSE` and `THIRD_PARTY.md` (licenses of the models and packages the app downloads; update it when a model or dependency changes), `AGENTS.md`, `CLAUDE.md` and `.claude/`. Everything else (code, tests, web UI, docs, requirements, the `.venv`) lives in `app/`; run Python and test commands from `app/`. User data stays outside the code at `~/Audio Stems` (`Music/`, `audio_stems.db`, `logs/`).
 
 ## 1. Purpose
 

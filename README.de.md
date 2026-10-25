@@ -65,7 +65,8 @@ Zugriffsbeschränkungen.
 Wie die beiden Modelle ausgewählt wurden (Hörtests, Methodik, Gesamtbericht, auf Russisch): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 
 Der Code ist frei unter der [MIT-Lizenz](LICENSE). Die Trennmodelle, Python-Pakete und ffmpeg, die die App
-herunterlädt, haben eigene Lizenzen.
+herunterlädt, haben eigene Lizenzen, aufgeführt in
+[THIRD_PARTY.md](THIRD_PARTY.md).
 
 ---
 

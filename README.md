@@ -61,7 +61,8 @@ Use it only for music you have the right to download and process. The app does n
 How the two models were chosen (listening tests, methodology, a summary report): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 
 The code is free under the [MIT License](LICENSE). The separation models, Python packages and ffmpeg it
-downloads have their own licenses.
+downloads have their own licenses, listed in
+[THIRD_PARTY.md](THIRD_PARTY.md).
 
 ---
 
