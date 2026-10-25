@@ -6,15 +6,17 @@ import logging
 import mimetypes
 import os
 import re
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
 from typing import Annotated, Callable
+from urllib.parse import unquote
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from fastapi.staticfiles import StaticFiles
@@ -25,6 +27,10 @@ from audio_stems.models import (
     JobStatus,
     MediaAssetType,
     SeparationOptions,
+    SourceKind,
+    SourceRequest,
+    disk_full_error,
+    is_disk_full,
 )
 from audio_stems.separator import BEST_MODEL, StemSeparator
 from audio_stems.storage import LocalMediaStorage
@@ -442,10 +448,10 @@ def create_app(
                 detail={"code": "batch_limit_exceeded", "message": "Batch exceeds the configured item limit"},
             )
         sources = [source_adapter.normalize(value) for value in body.inputs]
-        options = SeparationOptions(
-            body.model_name or settings.model_name,
-            separator.resolve_device(settings.model_device),
-        )
+        return queue_batch(sources, body.model_name)
+
+    def separation_options(model_name: str | None) -> SeparationOptions:
+        options = SeparationOptions(model_name or settings.model_name, separator.resolve_device(settings.model_device))
         try:
             separator.validate_options(options)
         except AdapterError as exc:
@@ -453,9 +459,15 @@ def create_app(
                 status_code=422,
                 detail={"code": "invalid_model_options", "message": str(exc)},
             ) from exc
+        return options
+
+    def queue_batch(sources: list[SourceRequest], model_name: str | None, title: str | None = None) -> dict[str, object]:
+        options = separation_options(model_name)
         receipt = repository.create_batch(
             _OWNER_ID, sources, separation_options=options,
         )
+        if title is not None:  # a local file is named at once; the worker finds nothing to look up
+            repository.update_project_source(receipt.job_ids[0], sources[0].value[:16], title)
         stored_batch = repository.get_batch(receipt.batch_id, _OWNER_ID)
         stored_jobs = repository.list_jobs_for_batch(receipt.batch_id, _OWNER_ID)
         logger.info(
@@ -474,6 +486,41 @@ def create_app(
             "job_ids": [str(job_id) for job_id in receipt.job_ids],
             "jobs": [_job_payload(job) for job in stored_jobs],
         }
+
+    @app.post("/api/v1/uploads", status_code=status.HTTP_202_ACCEPTED)
+    async def upload_file(request: Request, model_name: str | None = None) -> dict[str, object]:
+        """The request body is the audio file itself; its name comes URL-encoded in X-Filename."""
+        name = PureWindowsPath(unquote(request.headers.get("x-filename", ""))).name.strip()  # no folders
+        if not name or len(name) > 255:
+            raise HTTPException(status_code=400, detail={"code": "missing_filename", "message": "File name is required"})
+        separation_options(model_name)  # refuse a bad model before receiving the whole file
+        limit = settings.upload_limit_mb * 2**20
+        too_large = HTTPException(status_code=413, detail={
+            "code": "file_too_large", "message": f"Файл больше {settings.upload_limit_mb} МБ"})
+        if int(request.headers.get("content-length") or 0) > limit:
+            raise too_large
+        partial = storage.new_upload_path()
+        try:
+            received = 0
+            with partial.open("wb") as upload:
+                async for chunk in request.stream():
+                    received += len(chunk)
+                    if received > limit:
+                        raise too_large
+                    upload.write(chunk)
+            token = await run_in_threadpool(storage.finish_upload, partial, name)  # hashing takes a moment
+        except AdapterError as exc:
+            if exc.category is not FailureCategory.INVALID_INPUT:
+                raise
+            raise HTTPException(status_code=415, detail={
+                "code": "unsupported_file", "message": "Это не похоже на аудиофайл, который можно разделить"}) from exc
+        except OSError as exc:
+            raise (disk_full_error() if is_disk_full(exc) else
+                   AdapterError("Upload could not be saved", FailureCategory.TRANSIENT)) from exc
+        finally:
+            partial.unlink(missing_ok=True)
+        return queue_batch([SourceRequest(SourceKind.LOCAL_FILE, f"{token}/{name}")], model_name,
+                           title=PureWindowsPath(name).stem or name)
 
     @app.get("/api/v1/batches/{batch_id}")
     def get_batch(batch_id: UUID) -> dict[str, object]:

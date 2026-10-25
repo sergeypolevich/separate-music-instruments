@@ -16,7 +16,7 @@ _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 
 
 _DOTENV = Path(__file__).resolve().parents[1] / ".env"
-_LEGACY_FOLDER = "Music"  # the media folder's name before version 15
+_LEGACY_FOLDER = "YouTube Audio"  # the media folder's name before version 15
 
 
 def default_storage_root(home: Path | None = None) -> Path:
@@ -28,7 +28,7 @@ def default_storage_root(home: Path | None = None) -> Path:
 
 def move_legacy_storage(*, home: Path | None = None, environ: dict[str, str] | None = None,
                         dotenv_path: Path | None = None) -> bool:
-    """Rename `~/Audio Stems/Music` to `Music` unless a storage root is configured or `Music` exists.
+    """Rename `~/Audio Stems/YouTube Audio` to `Music` unless a storage root is configured or `Music` exists.
     Storage keys are relative to the folder, so the database stays valid. A folder in use (a file open in
     another program) keeps its old name and is used from there; the next start tries again."""
     configured = {**_read_dotenv(dotenv_path or _DOTENV), **(os.environ if environ is None else environ)}
@@ -104,6 +104,7 @@ class Settings:
     retry_delays: tuple[float, ...]
     allowed_source_hosts: tuple[str, ...]
     batch_limit: int
+    upload_limit_mb: int
     model_name: str
     model_device: str
     api_port: int
@@ -160,6 +161,7 @@ class Settings:
             retry_delays=retry_delays,
             allowed_source_hosts=_parse_hosts(value("ALLOWED_SOURCE_HOSTS", "youtube.com,www.youtube.com,m.youtube.com,youtu.be")),
             batch_limit=_positive_int("AUDIO_STEMS_BATCH_LIMIT", value("BATCH_LIMIT", "25")),
+            upload_limit_mb=_positive_int("AUDIO_STEMS_UPLOAD_LIMIT_MB", value("UPLOAD_LIMIT_MB", "500")),
             model_name=model_name,
             model_device=model_device,
             api_port=_port(value("API_PORT", "8000")),
