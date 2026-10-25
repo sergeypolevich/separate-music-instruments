@@ -27,7 +27,7 @@ This file is the shared project specification. Read it before making changes. Im
 The application's current behavior is considered working and is captured in tests. (The original standalone script `download_tracks.py` was retired in version 4; its behaviors are tested at the service level.)
 
 - Primary operating system: Windows. Use `pathlib.Path`; avoid hard-coded Windows path separators.
-- Current output root: `Path.home() / "Audio Stems" / "Music"`.
+- Current output root: `Path.home() / "Audio Stems" / "Music"` (named `Music` before version 15; the launcher renames it on the first start unless a storage root is configured; storage keys are relative, so the database is unchanged).
 - Audio files are saved directly under the output root, using a sanitized YouTube video title plus the selected stream extension.
 - Stem files are saved as 16-bit FLAC in a flat per-track directory: `Stems/<safe YouTube title>/vocals.flac`, `drums.flac`, `bass.flac`, `guitar.flac`, `piano.flac`, and `other.flac` for the original model `htdemucs_6s`, and `Stems/<safe YouTube title> (<model>)/` for any other model (four-stem models write `vocals`, `drums`, `bass`, `other`). All stems of one set share one gain so nothing clips and the balance is unchanged. Sets stored as WAV before version 10 stay valid. Do **not** create one subdirectory per stem.
 - A batch is processed in two phases: (1) attempt to download all requested tracks; (2) after the download phase ends, run separation for each successfully available audio file. A failed item must not stop processing the remaining items.

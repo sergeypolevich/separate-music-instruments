@@ -12,8 +12,37 @@ from logging.handlers import RotatingFileHandler
 
 
 _PREFIX = "AUDIO_STEMS_"
-_DEFAULT_STORAGE_ROOT = Path.home() / "Audio Stems" / "Music"
 _HOST_LABEL = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
+
+
+_DOTENV = Path(__file__).resolve().parents[1] / ".env"
+_LEGACY_FOLDER = "Music"  # the media folder's name before version 15
+
+
+def default_storage_root(home: Path | None = None) -> Path:
+    """`~/Audio Stems/Music`, or the pre-version-15 folder while the launcher has not moved it yet."""
+    base = (home or Path.home()) / "Audio Stems"
+    legacy, music = base / _LEGACY_FOLDER, base / "Music"
+    return legacy if legacy.is_dir() and not music.exists() else music
+
+
+def move_legacy_storage(*, home: Path | None = None, environ: dict[str, str] | None = None,
+                        dotenv_path: Path | None = None) -> bool:
+    """Rename `~/Audio Stems/Music` to `Music` unless a storage root is configured or `Music` exists.
+    Storage keys are relative to the folder, so the database stays valid. A folder in use (a file open in
+    another program) keeps its old name and is used from there; the next start tries again."""
+    configured = {**_read_dotenv(dotenv_path or _DOTENV), **(os.environ if environ is None else environ)}
+    base = (home or Path.home()) / "Audio Stems"
+    legacy, music = base / _LEGACY_FOLDER, base / "Music"
+    if _PREFIX + "STORAGE_ROOT" in configured or not legacy.is_dir() or music.exists():
+        return False
+    try:
+        os.replace(legacy, music)
+    except OSError as exc:
+        print(f"Could not rename {legacy} to {music} ({exc}); using the old folder.", flush=True)
+        return False
+    print(f"Moved your songs and tracks to {music}.", flush=True)
+    return True
 
 
 def _read_dotenv(path: Path) -> dict[str, str]:
@@ -86,14 +115,14 @@ class Settings:
         environ: dict[str, str] | None = None,
         dotenv_path: Path | None = None,
     ) -> "Settings":
-        file_values = _read_dotenv(dotenv_path or Path(__file__).resolve().parents[1] / ".env")
+        file_values = _read_dotenv(dotenv_path or _DOTENV)
         process_values = dict(os.environ if environ is None else environ)
         file_values.update(process_values)
 
         def value(key: str, default: str) -> str:
             return file_values.get(_PREFIX + key, default).strip()
 
-        storage_root = Path(value("STORAGE_ROOT", str(_DEFAULT_STORAGE_ROOT))).expanduser()
+        storage_root = Path(value("STORAGE_ROOT", str(default_storage_root()))).expanduser()
         temp_root = Path(value("TEMP_ROOT", str(storage_root / "_demucs_temp"))).expanduser()
         default_database = "sqlite:///" + (Path.home() / "Audio Stems" / "audio_stems.db").as_posix()
 

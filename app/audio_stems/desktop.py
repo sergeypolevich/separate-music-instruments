@@ -12,7 +12,7 @@ from urllib.error import URLError
 from urllib.request import urlopen
 import webbrowser
 
-from audio_stems.config import Settings
+from audio_stems.config import Settings, move_legacy_storage
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -71,6 +71,7 @@ def run(
     if missing:
         print("Missing dependencies: " + ", ".join(missing), flush=True)
         return MISSING_DEPENDENCIES
+    move_legacy_storage()  # before the services open any file in it
     settings = Settings.load()
     url = f"http://127.0.0.1:{settings.api_port}"
     if stop_file is None:

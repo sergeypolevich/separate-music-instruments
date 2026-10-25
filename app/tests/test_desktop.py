@@ -5,6 +5,15 @@ import subprocess
 import pytest
 
 import audio_stems.desktop as desktop
+
+
+@pytest.fixture(autouse=True)
+def no_real_media_move(monkeypatch):
+    """`run` renames the user's media folder; the tests must never touch the real one."""
+    moves = []
+    monkeypatch.setattr(desktop, "move_legacy_storage", lambda: moves.append("moved"))
+    return moves
+
 class FakeProcess:
     def __init__(self, args, **_kwargs):
         self.args = args
@@ -25,13 +34,14 @@ class FakeProcess:
         self.returncode = -9
 
 
-def test_supervisor_starts_api_and_worker_then_opens_local_browser(tmp_path, monkeypatch):
+def test_supervisor_starts_api_and_worker_then_opens_local_browser(tmp_path, monkeypatch, no_real_media_move):
     stop_file = tmp_path / "stop"
     stop_file.touch()
     processes = []
     opened = []
 
     def popen(args, **kwargs):
+        assert no_real_media_move == ["moved"]  # the folder is renamed before any service opens it
         process = FakeProcess(args, **kwargs)
         processes.append(process)
         return process
