@@ -25,7 +25,7 @@
         </a>
         <button id="search-trigger" class="search-trigger" type="button" aria-haspopup="dialog" aria-controls="search-overlay">
           <svg class="icon search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
-          <span id="search-preview">Найти песню или вставить YouTube-ссылку…</span>
+          <span id="search-preview">Открыть аудиофайл или найти песню…</span>
         </button>
         <nav class="top-nav" aria-label="Навигация">
           <a href="#settings" data-screen="settings" class="settings-link" aria-label="Настройки" title="Настройки"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></a>
@@ -43,7 +43,7 @@
         <section id="project-workspace" class="project-workspace" aria-live="polite">
           <div id="project-empty" class="workspace-empty">
             <span class="empty-mark"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></span>
-            <p>Найдите песню или вставьте ссылку на YouTube, чтобы начать.</p>
+            <p>Откройте аудиофайл или перетащите его в окно, чтобы начать. Можно и найти песню на YouTube.</p>
           </div>
           <article id="project-detail" class="project-detail" hidden>
             <div id="detail-controls" class="detail-controls"></div>
@@ -67,10 +67,17 @@
           <div><p class="eyebrow">НОВАЯ ЗАДАЧА</p><h1 id="search-title">Что будем разделять?</h1></div>
           <button id="close-search" class="icon-button" type="button" aria-label="Закрыть поиск" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
+        <div class="file-choice">
+          <button id="open-file" class="primary-button" type="button">Открыть аудиофайл</button>
+          <input id="file-input" type="file" multiple hidden
+            accept="audio/*,.mp3,.wav,.flac,.m4a,.mp4,.aac,.ogg,.opus,.webm,.aiff,.aif,.wma">
+          <p class="field-hint">Или перетащите файлы в окно: MP3, WAV, FLAC, M4A, OGG и другие.</p>
+        </div>
+        <p class="or-divider">или найдите на YouTube</p>
         <form id="submit-form">
           <label for="inputs">Название песни или YouTube-ссылка</label>
           <textarea id="inputs" name="inputs" rows="2" maxlength="2048" required
-            placeholder="Например: Исполнитель — Название песни&#10;Можно добавить несколько строк"></textarea>
+            placeholder="Например: Исполнитель — Песня&#10;Можно добавить несколько строк"></textarea>
           <p class="field-hint">Каждая строка — отдельная задача. Поддерживаются YouTube и youtu.be.</p>
           <div class="form-footer">
             <span id="form-message" class="form-message" role="status" aria-live="polite"></span>
@@ -79,6 +86,8 @@
         </form>
       </section>
     </div>
+
+    <div id="drop-overlay" class="drop-overlay" hidden><p>Отпустите, чтобы разделить</p></div>
 
     <div id="settings-overlay" class="search-overlay" hidden>
       <section id="screen-settings" class="search-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">

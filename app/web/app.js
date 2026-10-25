@@ -16,6 +16,9 @@ const modelOptions = document.querySelector("#model-options");
 let selectedModel = "";
 const formMessage = document.querySelector("#form-message");
 const submitButton = document.querySelector("#submit-button");
+const openFileButton = document.querySelector("#open-file");
+const fileInput = document.querySelector("#file-input");
+const dropOverlay = document.querySelector("#drop-overlay");
 const searchOverlay = document.querySelector("#search-overlay");
 const searchTrigger = document.querySelector("#search-trigger");
 const projectTabs = document.querySelector("#project-tabs");
@@ -425,6 +428,12 @@ function renderMissingFiles(project, missing) {
   message.className = "playback-message";
   const names = missing.map((asset) => (asset.asset_type === "stem" ? STEM_LABELS[asset.stem_name] || asset.stem_name : "исходное аудио"));
   message.textContent = `С диска удалены файлы проекта: ${names.join(", ")}.`;
+  if (project.input_type === "local_file") {  // nothing to download again: the user has the file
+    message.textContent += " Удалите проект и откройте файл заново.";
+    playbackPanel.replaceChildren(message);
+    playbackPanel.hidden = false;
+    return;
+  }
   const retry = document.createElement("button");
   retry.type = "button";
   retry.className = "primary-button";
@@ -1257,6 +1266,38 @@ async function submitSearch(event) {
   }
 }
 
+async function uploadFiles(files) {
+  if (files.length === 0) return;
+  openSearch();
+  if (pollingTimer !== null) window.clearTimeout(pollingTimer);
+  submitButton.disabled = openFileButton.disabled = true;
+  let created = null;
+  try {
+    for (const file of files) {
+      setFormMessage(`Загружаем «${file.name}»…`);
+      const query = selectedModel ? `?model_name=${encodeURIComponent(selectedModel)}` : "";
+      // The body is the file itself (no form encoding); the server reads its name from X-Filename.
+      const response = await fetch(`/api/v1/uploads${query}`, {
+        method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(`«${file.name}»: ${body.error?.message || "не удалось загрузить"}`);
+      created = body;
+    }
+    setFormMessage("");
+    closeSearch({ restoreFocus: false });
+  } catch (error) {
+    setFormMessage(error.message, true);
+  } finally {
+    submitButton.disabled = openFileButton.disabled = false;
+    fileInput.value = "";
+  }
+  if (created) {
+    await loadProjects(created.job_ids[0]);
+    pollingTimer = window.setTimeout(() => refreshBatch(created.batch_id, created.job_ids[0]), 1200);
+  }
+}
+
 function formatBytes(bytes) {
   if (bytes >= 2 ** 30) return `${(bytes / 2 ** 30).toFixed(1).replace(".", ",")} ГБ`;
   return `${Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20))} МБ`;
@@ -1385,6 +1426,31 @@ document.querySelectorAll("[data-screen]").forEach((link) => {
   });
 });
 form.addEventListener("submit", submitSearch);
+openFileButton.addEventListener("click", () => fileInput.click());
+fileInput.addEventListener("change", () => uploadFiles(Array.from(fileInput.files)));
+let dragDepth = 0;  // dragenter/dragleave fire for every child element crossed
+const draggingFiles = (event) => Array.from(event.dataTransfer?.types || []).includes("Files");
+window.addEventListener("dragenter", (event) => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();
+  dragDepth += 1;
+  dropOverlay.hidden = false;
+});
+window.addEventListener("dragover", (event) => {
+  if (draggingFiles(event)) event.preventDefault();  // allows the drop
+});
+window.addEventListener("dragleave", (event) => {
+  if (!draggingFiles(event)) return;
+  dragDepth = Math.max(0, dragDepth - 1);
+  if (dragDepth === 0) dropOverlay.hidden = true;
+});
+window.addEventListener("drop", (event) => {
+  if (!draggingFiles(event)) return;
+  event.preventDefault();  // otherwise the browser opens the file itself
+  dragDepth = 0;
+  dropOverlay.hidden = true;
+  uploadFiles(Array.from(event.dataTransfer.files));
+});
 inputField.addEventListener("input", () => {
   inputField.style.height = "auto";
   inputField.style.height = `${Math.min(inputField.scrollHeight, window.innerHeight * 0.4)}px`;

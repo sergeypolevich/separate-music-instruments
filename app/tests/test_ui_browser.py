@@ -132,6 +132,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     batch_id = "batch-created"
     new_job_id = "job-created"
     submitted = []
+    uploaded = []
     deleted = []
     running_detail = {}
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
@@ -209,6 +210,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
 
         def do_POST(self):
             length = int(self.headers.get("Content-Length", "0"))
+            if self.path.startswith("/api/v1/uploads"):  # the body is the file itself
+                from urllib.parse import unquote
+                uploaded.append((unquote(self.headers.get("X-Filename", "")), self.rfile.read(length), self.path))
+                name = uploaded[-1][0].rsplit(".", 1)[0]
+                projects.append({
+                    "project_id": f"project-upload-{len(uploaded)}", "input_type": "local_file",
+                    "input_value": f"0123456789abcdef.wav/{uploaded[-1][0]}", "source_id": "0123456789abcdef",
+                    "title": name, "created_at": "2026-10-14T10:00:00+00:00", "job_id": f"job-upload-{len(uploaded)}",
+                    "job_status": "queued", "progress": 0.0,
+                })
+                self._json({"batch_id": batch_id, "status": "queued", "job_ids": [f"job-upload-{len(uploaded)}"], "jobs": []}, 202)
+                return
             body = json.loads(self.rfile.read(length) or b"{}")
             if self.path.endswith("/upgrade"):
                 upgrade_polls.append(self.path)
@@ -854,6 +867,30 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('#search-overlay').hidden")
             page.locator('.project-tab[data-project-id="project-created"]').wait_for(state="visible")
             assert submitted[-1] == {"inputs": ["New track"], "model_name": "htdemucs_ft"}
+
+            # Your own file: «Открыть аудиофайл» comes first in the dialog, above the YouTube search.
+            page.locator("#search-trigger").click()
+            assert page.evaluate("""() => document.querySelector('#open-file').getBoundingClientRect().bottom
+                < document.querySelector('#inputs').getBoundingClientRect().top""")
+            assert "Открыть аудиофайл" in page.locator("#search-preview").inner_text()
+            page.locator("#file-input").set_input_files({"name": "Моя запись.wav", "mimeType": "audio/wav", "buffer": wav_bytes})
+            page.wait_for_function("document.querySelector('#search-overlay').hidden")
+            page.locator('.project-tab[data-project-id="project-upload-1"]').wait_for(state="visible")
+            assert uploaded[-1][:2] == ("Моя запись.wav", wav_bytes)
+            assert uploaded[-1][2] == "/api/v1/uploads?model_name=htdemucs_ft"
+            # Dragging files over the window shows the drop zone; dropping one starts it like the button.
+            drag = """([name, kind]) => { const data = new DataTransfer();
+                data.items.add(new File([new Uint8Array([102, 76, 97, 67])], name, { type: 'audio/flac' }));
+                document.body.dispatchEvent(new DragEvent(kind, { bubbles: true, cancelable: true, dataTransfer: data })); }"""
+            page.evaluate(drag, ["dropped.flac", "dragenter"])
+            assert page.locator("#drop-overlay").is_visible()
+            page.evaluate(drag, ["dropped.flac", "dragleave"])
+            assert not page.locator("#drop-overlay").is_visible()
+            page.evaluate(drag, ["dropped.flac", "dragenter"])
+            page.evaluate(drag, ["dropped.flac", "drop"])
+            assert not page.locator("#drop-overlay").is_visible()
+            page.locator('.project-tab[data-project-id="project-upload-2"]').wait_for(state="visible")
+            assert uploaded[-1][:2] == ("dropped.flac", b"fLaC")
             assert not errors, f"Browser errors: {errors}"
     finally:
         server.shutdown()
