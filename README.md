@@ -54,9 +54,24 @@ Songs, tracks, the project database and logs are kept in the `Audio Stems` folde
 from the program. The tracks are ordinary FLAC files: `Audio Stems/Music/Stems/<song>/vocals.flac` and
 so on, so you can use them in any other program.
 
+## What it connects to
+
+Everything runs on your computer; the app sends nothing about you or your music anywhere and has no analytics.
+It connects only to:
+
+- **YouTube** (youtube.com and its media servers): when you search for a song or paste a link;
+- **PyPI** (pypi.org) and **python.org** or **GitHub** (uv, on macOS): on the first start, to install Python and
+  the libraries;
+- **Hugging Face** (huggingface.co), **GitHub** (the releases that audio-separator uses) and
+  **cloud.cp.jku.at**: once, to download a separation model or the beat model the first time you use it;
+- **GitHub API** (api.github.com): to check for a new version of Audio Stems.
+
 ## Please note
 
 Use it only for music you have the right to download and process. The app does not bypass any access restrictions.
+
+Audio Stems is a free hobby project, provided as is, without any warranty (see [LICENSE](LICENSE)). You are
+responsible for what you download, separate and share.
 
 How the two models were chosen (listening tests, methodology, a summary report): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 

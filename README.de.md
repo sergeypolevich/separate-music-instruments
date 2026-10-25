@@ -57,10 +57,25 @@ Songs, Spuren, die Projektdatenbank und Protokolle liegen im Ordner `Audio Stems
 getrennt vom Programm. Die Spuren sind gewöhnliche FLAC-Dateien: `Audio Stems/Music/Stems/<Song>/vocals.flac`
 usw., Sie können sie also in jedem anderen Programm verwenden.
 
+## Womit sich die App verbindet
+
+Alles läuft auf Ihrem Computer; die App sendet keine Daten über Sie oder Ihre Musik und hat keine Analyse.
+Verbindungen gibt es nur zu:
+
+- **YouTube** (youtube.com und seine Medienserver): wenn Sie einen Song suchen oder einen Link einfügen;
+- **PyPI** (pypi.org) und **python.org** oder **GitHub** (uv, unter macOS): beim ersten Start, um Python und die
+  Bibliotheken zu installieren;
+- **Hugging Face** (huggingface.co), **GitHub** (die Releases, die audio-separator nutzt) und
+  **cloud.cp.jku.at**: einmal, um ein Trennmodell oder das Beat-Modell bei der ersten Nutzung herunterzuladen;
+- **GitHub API** (api.github.com): um nach einer neuen Version von Audio Stems zu suchen.
+
 ## Bitte beachten
 
 Verwenden Sie die App nur für Musik, die Sie herunterladen und bearbeiten dürfen. Sie umgeht keine
 Zugriffsbeschränkungen.
+
+Audio Stems ist ein kostenloses Hobbyprojekt und wird ohne jede Gewährleistung bereitgestellt, so wie es ist
+(siehe [LICENSE](LICENSE)). Für das, was Sie herunterladen, trennen und weitergeben, sind Sie selbst verantwortlich.
 
 Wie die beiden Modelle ausgewählt wurden (Hörtests, Methodik, Gesamtbericht, auf Russisch): [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
 

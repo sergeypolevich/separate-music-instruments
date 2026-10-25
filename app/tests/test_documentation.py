@@ -43,6 +43,8 @@ def test_user_readmes_explain_download_and_start_in_three_languages():
         for required in ("Start.bat", "Start.command", "app/README.md", "(LICENSE)", *others, *words):
             assert required in text, (name, required)
         assert "py run.py" not in text  # developer commands live in app/README.md
+        for server in ("youtube.com", "pypi.org", "huggingface.co", "cloud.cp.jku.at", "api.github.com"):
+            assert server in text, (name, server)  # every host the app or its launcher contacts
     assert (root / "LICENSE").read_text(encoding="utf-8").startswith("MIT License\n\nCopyright (c) 2026 Sergey Polevich")
 
 
