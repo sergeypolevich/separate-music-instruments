@@ -480,3 +480,45 @@ def test_queued_batches_go_before_upgrades(tmp_path):
     worker.run_once()
     assert store.get_analysis(project.project_id, "upgrade")["status"] == "done"
 
+
+
+def _uploaded(storage, data=b"fLaC" + b"\x01" * 60, name="My Song.flac"):
+    partial = storage.new_upload_path()
+    partial.write_bytes(data)
+    return SourceRequest(SourceKind.LOCAL_FILE, f"{storage.finish_upload(partial, name)}/{name}")
+
+
+def test_an_uploaded_file_is_separated_without_search_or_download_in_the_batch_order(tmp_path):
+    orchestrator, store, storage, events, downloader, _ = build_orchestrator(tmp_path)
+    local = _uploaded(storage)
+    requests = [local, SourceRequest(SourceKind.SEARCH_QUERY, "second")]
+    receipt = store.create_batch("client-1", requests)
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert [job.status for job in result.jobs] == [JobStatus.COMPLETED, JobStatus.COMPLETED]
+    assert [event for event in events if event[0] in {"search", "download"}] == [("search", "second"), ("download", "id-second")]
+    assert [event[0] for event in events].index("separate") > [event[0] for event in events].index("download")
+    assert (tmp_path / "media" / "My Song.flac").read_bytes() == b"fLaC" + b"\x01" * 60
+    assert not storage.upload_path(local.value.split("/")[0]).exists()  # moved into the media folder
+    project = next(p for p in store.list_projects("client-1") if p.input_type is SourceKind.LOCAL_FILE)
+    assert project.title == "My Song" and project.source_id == local.value[:16]
+    assert ("separate", "My Song") in events  # the stored copy, not the removed upload
+
+
+def test_the_same_file_opened_again_reuses_its_stored_audio_and_a_lost_upload_fails_only_its_job(tmp_path):
+    orchestrator, store, storage, events, _, _ = build_orchestrator(tmp_path)
+    first = _uploaded(storage)
+    orchestrator.process_batch(store.create_batch("client-1", [first]), [first])
+
+    again = _uploaded(storage)  # same content, same token
+    lost = _uploaded(storage, b"ID3" + b"\x02" * 40, "Other.mp3")
+    storage.remove_upload(again.value.split("/")[0])
+    storage.remove_upload(lost.value.split("/")[0])
+    requests = [again, lost]
+    result = orchestrator.process_batch(store.create_batch("client-1", requests), requests)
+
+    assert again.value == first.value
+    assert [job.status for job in result.jobs] == [JobStatus.COMPLETED, JobStatus.FAILED]
+    assert result.jobs[1].error_summary == "Source was not found"
+    assert sorted(path.name for path in (tmp_path / "media").glob("*.flac")) == ["My Song.flac"]

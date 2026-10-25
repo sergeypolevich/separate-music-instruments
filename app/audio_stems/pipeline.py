@@ -1,7 +1,8 @@
 """Batch orchestration (download-first phases, persisted states) and the database-backed worker loop."""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import PureWindowsPath
 import hashlib
 import json
 import logging
@@ -63,6 +64,10 @@ def _video_id(url: str) -> str:
 
 
 _ORIGINAL_MODEL = "htdemucs_6s"
+
+
+def _upload_token(request: SourceRequest) -> str:
+    return request.value.split("/", 1)[0]  # LOCAL_FILE value: "<token>/<original file name>"
 
 
 def _safe_error_summary(error: AdapterError) -> str:
@@ -127,7 +132,9 @@ class BatchOrchestrator:
                     self.repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
 
                 audio = self._retry(job_id, lambda: self.storage.find_existing_audio(candidate), owner_id, receipt.batch_id)
-                if audio is None:
+                if audio is None and request.kind is SourceKind.LOCAL_FILE:
+                    audio = self.storage.upload_audio(_upload_token(request), candidate)
+                elif audio is None:
                     audio = self._retry(
                         job_id,
                         lambda: self.downloader.download(candidate, progress=self._progress_reporter(job_id, 0.02, 0.10)),
@@ -146,6 +153,9 @@ class BatchOrchestrator:
                     job_id, lambda: self.storage.save_audio(job_id, audio), owner_id, receipt.batch_id
                 )
                 self.repository.add_asset(asset)
+                if request.kind is SourceKind.LOCAL_FILE:  # separate the stored copy; the upload is no longer needed
+                    audio = replace(audio, path=self.storage.resolve_path(asset.storage_key))
+                    self.storage.remove_upload(_upload_token(request))
                 seconds = audio_duration(audio.path)  # the length tells how long the separation will take
                 if seconds:
                     self.repository.set_audio_seconds(job_id, seconds)
@@ -235,6 +245,9 @@ class BatchOrchestrator:
                 raise AdapterError("No source candidates found", FailureCategory.NOT_FOUND)
             return candidates[0]
 
+        if request.kind is SourceKind.LOCAL_FILE:
+            name = request.value.split("/", 1)[1]
+            return VideoCandidate(_upload_token(request)[:16], PureWindowsPath(name).stem or name, f"file:{name}")
         video_id = _video_id(request.value)
         return VideoCandidate(video_id, video_id, request.value)
 
