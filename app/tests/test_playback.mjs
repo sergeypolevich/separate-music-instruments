@@ -320,7 +320,7 @@ test("no rhythm below 40 or above 240 BPM or with too few beats", () => {
   assert.equal(rhythmFound({ bpm: 120, beats: beats(20, 0.5) }), true);
   assert.equal(rhythmFound({ bpm: 40, beats: beats(20, 1.5) }), true);
   assert.equal(rhythmFound({ bpm: 240, beats: beats(20, 0.25) }), true);
-  assert.equal(rhythmFound({ bpm: 20.7, beats: beats(6, 2.9) }), false);  // the spoken Short Spoken Clip clip
+  assert.equal(rhythmFound({ bpm: 20.7, beats: beats(6, 2.9) }), false);  // a spoken 16-second clip
   assert.equal(rhythmFound({ bpm: 260, beats: beats(40, 0.23) }), false);
   assert.equal(rhythmFound({ bpm: 120, beats: beats(7, 0.5) }), false);
   assert.equal(rhythmFound({ bpm: null, beats: [] }), false);
