@@ -39,9 +39,10 @@ def test_user_readmes_explain_download_and_start_in_three_languages():
                         ("README.de.md", ("Download ZIP", "Smartphones und Tablets werden nicht unterstützt"))):
         text = (root / name).read_text(encoding="utf-8")
         others = {"README.md", "README.ru.md", "README.de.md"} - {name}  # links to the other languages
-        for required in ("Start.bat", "Start.command", "app/README.md", *others, *words):
+        for required in ("Start.bat", "Start.command", "app/README.md", "(LICENSE)", *others, *words):
             assert required in text, (name, required)
         assert "py run.py" not in text  # developer commands live in app/README.md
+    assert (root / "LICENSE").read_text(encoding="utf-8").startswith("MIT License\n\nCopyright (c) 2026 Sergey Polevich")
 
 
 def test_project_skill_requires_visible_playwright_browser_gate():
