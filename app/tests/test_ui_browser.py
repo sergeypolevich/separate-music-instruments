@@ -545,6 +545,17 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 page.keyboard.press("Minus")
             assert vocal_gain.input_value() == "100"
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1
+            # «Общая» under the stems: 0-100 % for the whole mix, remembered for the project; not a stem row.
+            master_row = page.locator(".mixer-master")
+            assert master_row.locator(".mixer-name").text_content() == "Общая"
+            assert master_row.bounding_box()["y"] >= page.locator(".mixer-row").last.bounding_box()["y"] + 20
+            master = page.locator('[data-control="master-volume"]')
+            assert master.input_value() == "100" and page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "1"
+            master.evaluate("el => { el.value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            assert page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "0.4"
+            assert page.evaluate("localStorage.getItem('audio-stems-master-volume:project-0')") == "40"
+            assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1  # stems untouched
+            master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             # A clicked control keeps focus, but the next key never draws a focus ring around it.
             ring = "() => getComputedStyle(document.activeElement).outlineStyle"
             paused = "document.querySelector('#playback-panel audio').paused"

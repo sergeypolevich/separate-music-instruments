@@ -209,6 +209,8 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader input::-moz-range-track, .accent-slider input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
 .mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 .mixer-fader input::-moz-range-thumb, .accent-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
+.mixer-master { grid-column: 1 / -1; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid var(--line); }
+.mixer-fader.master-fader::before { display: none; }  /* no 100 % mark: 100 is the end of this fader */
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
 /* 1px line from the top of the first waveform to the bottom of the last; no translate, so it stays crisp. */
@@ -313,7 +315,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .project-tabs-shell { padding: 7px 9px 0; }
   .project-workspace { padding: 4px 0 0; }
   .project-detail { --columns: minmax(112px, 34%) minmax(0, 1fr); --column-gap: 7px; padding: 6px 9px 52px; }
-  .mixer-row { min-height: 57px; }
+  .mixer-row, .mixer-master { min-height: 57px; }
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
   .playback-buttons { grid-template-columns: repeat(3, minmax(0, 50px)); gap: 5px; }

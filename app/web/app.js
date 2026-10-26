@@ -535,11 +535,14 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // every <audio> stem on its own and the six no longer add up cleanly: crackle on bright sounds. At 44.1 kHz
     // the mix reaches the output unchanged and is resampled once, as a whole, by the audio output.
     const audioContext = new AudioContextClass({ sampleRate: 44100 });
+    // «Общая»: every stem (streamed or stretched, both end in its gain node) passes it; the metronome does not.
+    const masterGain = audioContext.createGain();
+    masterGain.connect(audioContext.destination);
     const gainNodes = tracks.map((audio) => {
       const source = audioContext.createMediaElementSource(audio);
       const gain = audioContext.createGain();
       source.connect(gain);
-      gain.connect(audioContext.destination);
+      gain.connect(masterGain);
       audio.volume = 1;
       audio.dataset.effectiveGain = "1";
       return gain;
@@ -748,6 +751,47 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       row.append(left, wave);
       mixerRows.append(row);
     });
+
+    // The master row under the stems: 0-100 % for the whole mix, remembered for this project.
+    const masterRow = document.createElement("div");
+    masterRow.className = "mixer-master";  // not a .mixer-row: the stem rows are counted and selected by that class
+    masterRow.style.gridRow = String(stems.length + 1);
+    const masterLeft = document.createElement("div");
+    masterLeft.className = "mixer-left";
+    const masterHeading = document.createElement("div");
+    masterHeading.className = "mixer-heading";
+    const masterName = document.createElement("span");
+    masterName.className = "mixer-name";
+    masterName.textContent = "Общая";
+    masterHeading.append(masterName);
+    const masterFader = document.createElement("div");
+    masterFader.className = "mixer-fader master-fader";
+    const master = document.createElement("input");
+    master.type = "range";
+    master.min = "0";
+    master.max = "100";
+    master.step = "1";
+    master.dataset.control = "master-volume";
+    master.tabIndex = -1;
+    master.setAttribute("aria-label", "Общая громкость");
+    const masterKey = `audio-stems-master-volume:${projectId}`;
+    let savedMaster = "100";
+    try { savedMaster = localStorage.getItem(masterKey) || "100"; } catch (_error) { /* storage blocked */ }
+    master.value = savedMaster;
+    const applyMaster = () => {
+      masterGain.gain.value = Number(master.value) / 100;
+      master.style.setProperty("--fill", `${master.value}%`);
+      playbackPanel.dataset.masterGain = String(Number(master.value) / 100);  // the AudioParam is float32
+    };
+    applyMaster();
+    master.addEventListener("input", () => {
+      applyMaster();
+      storeSetting(masterKey, master.value);
+    });
+    masterFader.append(master);
+    masterLeft.append(masterHeading, masterFader);
+    masterRow.append(masterLeft, document.createElement("div"));
+    mixerRows.append(masterRow);
 
     let countInTimer = null;
     const cancelCountIn = () => {
