@@ -762,7 +762,7 @@ def main() -> None:
             asyncio.get_running_loop().set_exception_handler(quiet_connection_resets)
             await super().serve(sockets)
 
-    Server(uvicorn.Config(app, host="127.0.0.1", port=settings.api_port, log_config=None)).run()
+    Server(uvicorn.Config(app, host=settings.api_host, port=settings.api_port, log_config=None)).run()
 
 
 if __name__ == "__main__":

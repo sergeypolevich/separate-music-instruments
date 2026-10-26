@@ -88,6 +88,9 @@ def run(
         processes.append(worker_process)
         wait_for_api(settings.api_port, api_process=api_process)
         print(f"Audio Stems is ready at {url}", flush=True)
+        if settings.api_host == "0.0.0.0":  # AUDIO_STEMS_API_HOST: the network can open it too
+            for address in network_addresses():
+                print(f"On your network: http://{address}:{settings.api_port} (no login: anyone there can use it)", flush=True)
         if os.environ.get("AUDIO_STEMS_OPEN_BROWSER", "1").lower() not in {"0", "false", "no"}:
             try:
                 if not browser_opener(url, new=2):
@@ -108,6 +111,17 @@ def run(
         for process in reversed(processes):
             _stop_process(process)
         print("Audio Stems services stopped.", flush=True)
+
+
+def network_addresses() -> list[str]:
+    """This computer's IPv4 addresses other than loopback, for the phone link printed in the launcher window."""
+    import socket
+
+    try:
+        addresses = socket.gethostbyname_ex(socket.gethostname())[2]
+    except OSError:
+        return []
+    return [address for address in addresses if not address.startswith(("127.", "169.254."))]
 
 
 def disable_quick_edit(kernel32=None) -> bool:

@@ -3,7 +3,7 @@
 Required before each commit:
     $env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s
 
-The test searches YouTube, downloads real audio, runs Demucs on CPU, and
+The test submits a YouTube link, downloads real audio, runs Demucs on CPU, and
 exercises the application through the actual browser UI. App data is isolated
 under pytest's temporary directory.
 """
@@ -24,8 +24,9 @@ import pytest
 pytestmark = pytest.mark.e2e
 ROOT = Path(__file__).parents[1]
 # 26 s of guitar and singing from Freestocks, "Creative Commons Attribution license (reuse allowed)" on YouTube.
-QUERY = "Guitarist Singing - Free Stock Creative Commons Video"
-EXPECTED_VIDEO_ID = "HqusQ6PwiaA"
+# The direct link, not a title search: YouTube's first result for the title changed now and then, and the app once
+# downloaded another video (LonePeakMusic, licence unknown). A direct link processes exactly this video.
+VIDEO_URL = "https://www.youtube.com/watch?v=HqusQ6PwiaA"
 EXPECTED_STEMS = ("vocals", "drums", "bass", "other")  # the default fast model, hdemucs_mmi
 
 
@@ -71,20 +72,6 @@ def test_live_full_desktop_browser_flow(tmp_path):
 
     reuse_root_value = os.getenv("AUDIO_STEMS_E2E_REUSE_DIR")
     reuse_root = Path(reuse_root_value) if reuse_root_value else None
-    if reuse_root is None:
-        from pytubefix import Search
-
-        # Do not process a substitute if YouTube's first search result changes. Now and then YouTube answers
-        # one search with an unrelated list, so a mismatch is asked again before giving up.
-        for _attempt in range(3):
-            results = Search(QUERY).videos
-            first_id = str(getattr(results[0], "video_id", "")) if results else ""
-            if first_id == EXPECTED_VIDEO_ID:
-                break
-        assert results, "YouTube search returned no candidates"
-        assert first_id == EXPECTED_VIDEO_ID, (
-            f"First YouTube result changed to {first_id!r}; refusing to download a different video"
-        )
 
     port = _free_local_port()
     base_url = f"http://127.0.0.1:{port}"
@@ -165,7 +152,7 @@ def test_live_full_desktop_browser_flow(tmp_path):
                 page.locator("#close-settings").click()  # settings are a popup over the project
                 if reuse_root is None:
                     page.locator("#search-trigger").click()
-                    page.locator("#inputs").fill(QUERY)
+                    page.locator("#inputs").fill(VIDEO_URL)
                     page.locator("#submit-button").click()
                     page.wait_for_function("document.querySelector('#search-overlay').hidden")
                     # The running job fills its tab: some value strictly between 0 and 100 % shows up.

@@ -19,6 +19,7 @@ def test_settings_defaults_preserve_current_cli_behavior(tmp_path, monkeypatch):
     assert settings.log_max_bytes == 10 * 1024 * 1024
     assert settings.log_backup_count == 5
     assert settings.api_port == 8000
+    assert settings.api_host == "127.0.0.1"  # this computer only
 
 
 def test_dotenv_values_load_and_process_environment_takes_precedence(tmp_path):
@@ -98,3 +99,11 @@ def test_media_folder_in_use_keeps_its_old_name(tmp_path, monkeypatch, capsys):
     assert move_legacy_storage(home=tmp_path, environ={}, dotenv_path=tmp_path / "missing.env") is False
     assert legacy.is_dir() and default_storage_root(tmp_path) == legacy
     assert "using the old folder" in capsys.readouterr().out
+
+
+def test_the_app_can_listen_on_the_network_only_when_asked(tmp_path):
+    load = lambda value: Settings.load(environ={"AUDIO_STEMS_API_HOST": value}, dotenv_path=tmp_path / "missing.env")
+    assert load("0.0.0.0").api_host == "0.0.0.0"
+    for wrong in ("192.168.1.14", "everywhere"):  # the launcher checks and opens 127.0.0.1, which 0.0.0.0 includes
+        with pytest.raises(ValueError):
+            load(wrong)

@@ -108,6 +108,7 @@ class Settings:
     model_name: str
     model_device: str
     api_port: int
+    api_host: str
 
     @classmethod
     def load(
@@ -165,6 +166,7 @@ class Settings:
             model_name=model_name,
             model_device=model_device,
             api_port=_port(value("API_PORT", "8000")),
+            api_host=_host(value("API_HOST", "127.0.0.1")),
         )
 
 
@@ -245,3 +247,11 @@ def configure_logging(settings: Settings, *, logger_name: str = "audio_stems") -
     json_handler.setFormatter(JsonLineFormatter())
     logger.addHandler(json_handler)
     return logger
+
+
+def _host(raw: str) -> str:
+    """127.0.0.1: this computer only (the default). 0.0.0.0: also every network the computer is on — then anyone
+    there can open the app, which has no login. (The launcher checks and opens 127.0.0.1, which both include.)"""
+    if raw not in ("127.0.0.1", "0.0.0.0"):
+        raise ValueError("AUDIO_STEMS_API_HOST must be 127.0.0.1 (this computer) or 0.0.0.0 (also the network)")
+    return raw
