@@ -55,12 +55,13 @@ class PytubeDownloader:
 
     def download(self, source: VideoCandidate, progress: Callable[[float], None] | None = None) -> DownloadedAudio:
         try:
-            # Use pytubefix's default client and fallback chain. Pinning WEB can
-            # require a generated PoToken and brittle player-JS decryption.
+            # pytubefix's default client (VISION_OS) and only IOS as the fallback: neither needs YouTube's player
+            # JS, so the app never decrypts a stream signature. The default fallback TV does (version 15).
             on_progress = None
             if progress is not None:
                 on_progress = lambda stream, _chunk, remaining: progress(1 - remaining / max(1, stream.filesize))
             video = YouTube(source.url, on_progress_callback=on_progress)
+            video.fallback_clients = ["IOS"]
             stream = (
                 video.streams.filter(only_audio=True, mime_type="audio/webm", is_drc=False)
                 .order_by("abr").desc().first()

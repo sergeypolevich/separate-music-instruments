@@ -68,11 +68,11 @@ def test_search_adapter_returns_candidates_without_downloading(monkeypatch, tmp_
 
 def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_path):
     selected = FakeStream("webm")
-    observed = {}
+    observed, downloaded_video = {}, {}
     monkeypatch.setattr(
         "audio_stems.youtube.YouTube",
-        lambda url, client=None, **_kwargs: observed.update(url=url, client=client) or FakeYoutube(
-            url, client, streams=FakeStreams(selected)
+        lambda url, client=None, **_kwargs: observed.update(url=url, client=client) or downloaded_video.setdefault(
+            "video", FakeYoutube(url, client, streams=FakeStreams(selected))
         ),
     )
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
@@ -83,7 +83,8 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     downloaded = downloader.download(VideoCandidate("direct-id", "direct-id", exact))
 
     assert observed["url"] == exact
-    assert observed["client"] is None  # Let pytubefix use its current default/fallback policy.
+    assert observed["client"] is None  # pytubefix's default client (VISION_OS)
+    assert downloaded_video["video"].fallback_clients == ["IOS"]  # never TV, which decrypts signatures
     assert downloaded.source.url == exact
     assert downloaded.media_format == "webm"
     assert storage.validate_audio_file(downloaded.path, "webm")
@@ -159,3 +160,12 @@ def test_download_reports_byte_progress(monkeypatch, tmp_path):
 
     observed["callback"](type("Stream", (), {"filesize": 400})(), b"", 100)
     assert seen == [0.75]
+
+
+def test_pytubefix_still_has_the_fallback_list_the_adapter_narrows():
+    import inspect
+    from pytubefix import YouTube, innertube
+
+    assert "self.fallback_clients" in inspect.getsource(YouTube.__init__)  # renamed on an update → this fails
+    clients = innertube._default_clients
+    assert not clients["IOS"]["require_js_player"] and not clients["VISION_OS"]["require_js_player"]
