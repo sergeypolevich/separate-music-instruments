@@ -1426,6 +1426,13 @@ document.querySelectorAll("[data-screen]").forEach((link) => {
   });
 });
 form.addEventListener("submit", submitSearch);
+inputField.addEventListener("keydown", (event) => {
+  // Enter starts the search, Shift+Enter adds a line; Enter that confirms an IME composition is left alone.
+  if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    form.requestSubmit();
+  }
+});
 openFileButton.addEventListener("click", () => fileInput.click());
 fileInput.addEventListener("change", () => uploadFiles(Array.from(fileInput.files)));
 let dragDepth = 0;  // dragenter/dragleave fire for every child element crossed

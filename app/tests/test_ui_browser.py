@@ -862,11 +862,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Escape")
             assert not overlay.is_visible()
             page.locator("#search-trigger").click()
-            page.locator("#inputs").fill("New track")
-            page.locator("#submit-button").click()
+            page.wait_for_function("document.activeElement.id === 'inputs'")
+            page.locator("#inputs").fill("")  # the text typed earlier is still there
+            page.keyboard.type("New track")
+            page.keyboard.press("Shift+Enter")  # a new line, not a submission
+            assert page.locator("#search-overlay").is_visible()
+            page.keyboard.type("Second track")
+            page.keyboard.press("Enter")  # starts the search
             page.wait_for_function("document.querySelector('#search-overlay').hidden")
             page.locator('.project-tab[data-project-id="project-created"]').wait_for(state="visible")
-            assert submitted[-1] == {"inputs": ["New track"], "model_name": "htdemucs_ft"}
+            assert submitted[-1] == {"inputs": ["New track", "Second track"], "model_name": "htdemucs_ft"}
 
             # Your own file: «Открыть аудиофайл» comes first in the dialog, above the YouTube search.
             page.locator("#search-trigger").click()
