@@ -733,7 +733,18 @@ def create_app(
     return app
 
 
+def quiet_connection_resets(loop, context) -> None:
+    """Loop exception handler: drops the one known-harmless case and passes everything else on. On Windows the
+    Proactor loop raises ConnectionResetError (WinError 10054) while closing a connection the browser has already
+    reset — Chrome does that whenever the app abandons a stem (switching projects, seeking) — and asyncio printed
+    it as «Exception in callback _ProactorBasePipeTransport._call_connection_lost» in the launcher's window."""
+    if isinstance(context.get("exception"), ConnectionResetError) and "_call_connection_lost" in repr(context.get("handle")):
+        return
+    loop.default_exception_handler(context)
+
+
 def main() -> None:
+    import asyncio
     import uvicorn
 
     from audio_stems.config import configure_logging
@@ -745,7 +756,13 @@ def main() -> None:
     repository = SqliteMetadataStore(Path(database_path))
     configure_logging(settings)
     app = create_app(repository=repository, settings=settings)
-    uvicorn.run(app, host="127.0.0.1", port=settings.api_port, log_config=None)
+
+    class Server(uvicorn.Server):
+        async def serve(self, sockets=None):
+            asyncio.get_running_loop().set_exception_handler(quiet_connection_resets)
+            await super().serve(sockets)
+
+    Server(uvicorn.Config(app, host="127.0.0.1", port=settings.api_port, log_config=None)).run()
 
 
 if __name__ == "__main__":

@@ -198,3 +198,23 @@ def test_an_upload_that_is_not_audio_too_large_or_unnamed_is_refused_and_leaves_
 
     assert repository.list_projects("local") == []
     assert not uploads.exists() or list(uploads.iterdir()) == []
+
+
+def test_only_the_harmless_connection_reset_on_close_is_silenced():
+    from audio_stems.api import quiet_connection_resets
+
+    passed_on = []
+
+    class Loop:
+        def default_exception_handler(self, context):
+            passed_on.append(context["message"])
+
+    class Handle:
+        def __repr__(self):
+            return "<Handle _ProactorBasePipeTransport._call_connection_lost(None)>"
+
+    quiet_connection_resets(Loop(), {"message": "reset on close", "exception": ConnectionResetError(10054), "handle": Handle()})
+    quiet_connection_resets(Loop(), {"message": "another reset", "exception": ConnectionResetError(10054), "handle": "other"})
+    quiet_connection_resets(Loop(), {"message": "a real error", "exception": ValueError("x"), "handle": Handle()})
+
+    assert passed_on == ["another reset", "a real error"]
