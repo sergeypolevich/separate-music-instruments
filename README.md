@@ -2,12 +2,14 @@
 
 **English** · [Русский](README.ru.md) · [Deutsch](README.de.md)
 
-Split songs into vocals, drums, bass, guitar, piano and other — locally, on your own computer. Search YouTube
-or paste a link, and play the separated tracks in sync to practise with them.
+A practice tool for musicians: split a recording into vocals, drums, bass, guitar, piano and other, and play
+along with the tracks in sync — locally, on your own computer. Open your own audio file or drag it onto the
+window; you can also find a song on YouTube.
 
 ## What it does
 
-- **Finds the song** on YouTube by name or takes a YouTube link, and downloads its audio.
+- **Opens your own audio file** — MP3, WAV, FLAC, M4A, OGG and others — with a button or dragged onto the
+  window. You can also find a song on YouTube by name or paste a YouTube link.
 - **Separates it into tracks.** A fast model gives four (vocals, drums, bass and everything else) in about
   a minute per minute of music; «improve quality» re-separates a song into six — vocals, drums, bass, guitar,
   piano and everything else — with a much better, slower model.
@@ -20,7 +22,7 @@ or paste a link, and play the separated tracks in sync to practise with them.
 - **Keeps your projects**: songs and tracks stay on your disk, and the settings show how much space they take,
   with buttons to free it.
 
-Everything runs on your computer; nothing is uploaded. The interface is in Russian.
+Everything runs on your computer; your music never leaves it. The interface is in Russian.
 
 ## Requirements
 

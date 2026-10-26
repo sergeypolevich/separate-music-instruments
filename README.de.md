@@ -2,12 +2,14 @@
 
 [English](README.md) · [Русский](README.ru.md) · **Deutsch**
 
-Zerlegt Songs in Gesang, Schlagzeug, Bass, Gitarre, Klavier und den Rest — lokal auf Ihrem eigenen Computer.
-Suchen Sie auf YouTube oder fügen Sie einen Link ein und üben Sie mit den synchron laufenden Spuren.
+Ein Übungswerkzeug für Musiker: zerlegt eine Aufnahme in Gesang, Schlagzeug, Bass, Gitarre, Klavier und den
+Rest, damit Sie zu den synchron laufenden Spuren spielen können — lokal auf Ihrem eigenen Computer. Öffnen Sie
+Ihre eigene Audiodatei oder ziehen Sie sie ins Fenster; einen Song können Sie auch auf YouTube finden.
 
 ## Was es kann
 
-- **Findet den Song** auf YouTube über den Namen oder nimmt einen YouTube-Link und lädt den Ton herunter.
+- **Öffnet Ihre eigene Audiodatei** — MP3, WAV, FLAC, M4A, OGG und andere — per Knopf oder durch Ziehen ins
+  Fenster. Einen Song können Sie auch auf YouTube über den Namen finden oder einen YouTube-Link einfügen.
 - **Trennt ihn in Spuren.** Das schnelle Modell liefert vier (Gesang, Schlagzeug, Bass und alles Übrige) in etwa
   einer Minute pro Minute Musik; „Qualität verbessern“ trennt einen Song mit einem deutlich besseren, aber
   langsameren Modell noch einmal in sechs Spuren: Gesang, Schlagzeug, Bass, Gitarre, Klavier und alles Übrige.
@@ -21,7 +23,7 @@ Suchen Sie auf YouTube oder fügen Sie einen Link ein und üben Sie mit den sync
 - **Bewahrt Ihre Projekte auf**: Songs und Spuren bleiben auf der Festplatte; die Einstellungen zeigen, wie viel
   Platz sie belegen, und haben Knöpfe, um ihn freizugeben.
 
-Alles läuft auf Ihrem Computer, nichts wird hochgeladen. Die Oberfläche ist auf Russisch.
+Alles läuft auf Ihrem Computer; Ihre Musik verlässt ihn nicht. Die Oberfläche ist auf Russisch.
 
 ## Voraussetzungen
 

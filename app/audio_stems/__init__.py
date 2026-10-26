@@ -1,1 +1,1 @@
-"""Audio Stems: YouTube audio download and Demucs stem separation."""
+"""Audio Stems: split your own audio files (or a song found on YouTube) into stems to practise with."""
