@@ -36,8 +36,8 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --accent: hsl(var(--accent-h) 70% 34%);
-  --accent-hover: hsl(var(--accent-h) 72% 28%);
+  --accent: hsl(var(--accent-h) 60% 50%);  /* chosen by the user with sliders over a real project (version 16) */
+  --accent-hover: hsl(var(--accent-h) 88% 53%);
   --accent-ink: #fff;
   --bg: #f3f5f1;
   --panel: #ffffff;
