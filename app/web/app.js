@@ -509,7 +509,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, metronomeGain, rhythmFound, snapFaderPercent } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -629,9 +629,17 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     limiter.connect(audioContext.destination);
     const metronome = new Metronome(audioContext, metronomeBus);
     let metronomeOn = false;
+    let songTempo = null;  // [[time, bpm], ...] from the analysis, shown next to the metronome
+    const bpmLabel = document.createElement("span");
+    bpmLabel.className = "metronome-bpm";
+    const showTempo = (seconds) => {
+      const text = formatBpm(tempoAt(songTempo, seconds), metronome.rate);
+      if (bpmLabel.textContent !== text) bpmLabel.textContent = text;  // changes at most every four beats
+    };
     const transport = new SynchronizedTransport(tracks, {
       onTimeUpdate: (seconds) => {
         updateTime(seconds);
+        showTempo(seconds);
         if (metronomeOn && transport.playing) metronome.update(seconds);
         else metronome.reset();
         metronomeButton.dataset.clicks = String(metronome.clicks);
@@ -884,6 +892,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       const target = Number(speed.value) / 100;  // the fader may have moved while loading
       metronome.reset();  // clicks already scheduled were timed for the old speed
       metronome.rate = target;
+      showTempo(transport.currentTime);  // the tempo heard at the new speed
       await transport.setPlaybackRate(target);
       speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
       showSpeed();
@@ -945,7 +954,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     showUpgrade(upgrade);
     if (upgrade.status === "queued" || upgrade.status === "running") followSafely(upgrade);
 
-    footer.append(metronomeButton, volumeWrap, upgradeButton, speedWrap);
+    footer.append(metronomeButton, bpmLabel, volumeWrap, upgradeButton, speedWrap);
 
     const setMetronome = (on) => {
       metronomeOn = on;
@@ -976,6 +985,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           return null;
         }
         metronome.setBeats(state.result.beats);
+        songTempo = state.result.tempo && state.result.tempo.length ? state.result.tempo : [[0, state.result.bpm]];
+        showTempo(transport.currentTime);
         return state.result.beats;
       })().catch((reason) => {
         beatsRequest = null;

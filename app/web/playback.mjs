@@ -276,6 +276,24 @@ export function metronomeGain(percent) {
 
 // Index of the first beat at or after a song time (beats are sorted).
 // Speech or free-time music gives beats no metronome can follow (20 BPM on a spoken clip): show "no rhythm".
+// The song's tempo at songTime from the analysis' [[time, bpm], ...] (every four beats; one entry when steady).
+export function tempoAt(tempo, songTime) {
+  if (!tempo || !tempo.length) return null;
+  let low = 0;
+  let high = tempo.length - 1;
+  while (low < high) {  // the last entry at or before songTime
+    const middle = (low + high + 1) >> 1;
+    if (tempo[middle][0] <= songTime) low = middle;
+    else high = middle - 1;
+  }
+  return tempo[low][1];
+}
+
+// "150 BPM", "151.1 BPM": the tempo heard at this playback speed, to one decimal without a trailing ".0".
+export function formatBpm(bpm, rate = 1) {
+  return bpm ? `${Math.round(bpm * rate * 10) / 10} BPM` : "";
+}
+
 export function rhythmFound(result) {
   return Boolean(result) && result.bpm >= 40 && result.bpm <= 240 && result.beats.length >= 8;
 }

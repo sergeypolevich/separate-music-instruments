@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, metronomeGain, rhythmFound, snapFaderPercent } from "../web/playback.mjs";
+import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -324,4 +324,19 @@ test("no rhythm below 40 or above 240 BPM or with too few beats", () => {
   assert.equal(rhythmFound({ bpm: 260, beats: beats(40, 0.23) }), false);
   assert.equal(rhythmFound({ bpm: 120, beats: beats(7, 0.5) }), false);
   assert.equal(rhythmFound({ bpm: null, beats: [] }), false);
+});
+
+test("the tempo shown next to the metronome: the entry for the moment, at the playback speed, one decimal", () => {
+  const tempo = [[0.3, 150.0], [1.9, 151.1234], [3.5, 149.96]];
+  assert.equal(tempoAt(tempo, 0), 150.0);  // before the first entry: the first one
+  assert.equal(tempoAt(tempo, 1.9), 151.1234);
+  assert.equal(tempoAt(tempo, 3.4), 151.1234);
+  assert.equal(tempoAt(tempo, 99), 149.96);
+  assert.equal(tempoAt([], 1), null);
+  assert.equal(formatBpm(150.0), "150 BPM");  // no trailing ".0"
+  assert.equal(formatBpm(150.0123), "150 BPM");
+  assert.equal(formatBpm(151.1234), "151.1 BPM");
+  assert.equal(formatBpm(150, 0.5), "75 BPM");
+  assert.equal(formatBpm(151.1, 1.25), "188.9 BPM");
+  assert.equal(formatBpm(null), "");
 });

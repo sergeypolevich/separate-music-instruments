@@ -149,7 +149,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 beats_polls.append(path)
                 done = len(beats_polls) >= 3
                 self._json({"status": "done" if done else "running", "progress": 1.0 if done else 0.3 * len(beats_polls),
-                            "error": None, "result": {"beats": [i * 0.25 for i in range(20)], "downbeats": [], "bpm": 240} if done else None})
+                            "error": None, "result": {"beats": [i * 0.25 for i in range(20)], "downbeats": [], "bpm": 240,
+                                       "tempo": [[0.0, 240.0], [0.3, 238.44]]} if done else None})
             elif path.endswith("/upgrade"):
                 upgrade_polls.append(path)
                 step = len(upgrade_polls)
@@ -583,11 +584,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Метроном' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
             assert metronome.get_attribute("aria-pressed") == "true" and beats_polls[0].endswith("/project-0/beats")
             assert metronome.evaluate("el => el.style.getPropertyValue('--job-progress')") == ""  # no leftover fill
+            # The song's tempo next to the metronome, from the analysis (every four beats), one decimal, no ".0".
+            bpm = page.locator(".metronome-bpm")
+            assert bpm.text_content() == "240 BPM"
             page.keyboard.press("Space")
             page.wait_for_function("Number(document.querySelector('.footer-toggle').dataset.clicks) >= 2", timeout=10000)
+            page.wait_for_function("document.querySelector('.metronome-bpm').textContent === '238.4 BPM'")
             page.keyboard.press("Space")
             page.wait_for_function(paused)
             page.keyboard.press("Home")
+            page.wait_for_function("document.querySelector('.metronome-bpm').textContent === '240 BPM'")
             # ▶4: four clicks first, then the music; with the metronome off no more clicks follow.
             metronome.click()
             assert metronome.get_attribute("aria-pressed") == "false"
@@ -630,6 +636,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert any(fill not in ("", "0%", "100%") and text.startswith("подготовка ") for fill, text in fills), fills
             assert page.evaluate("getComputedStyle(document.querySelector('.footer-speed')).backgroundImage") == "none"
             assert page.locator(".footer-speed-value").text_content() == "50%"
+            page.wait_for_function("document.querySelector('.metronome-bpm').textContent === '120 BPM'")  # heard at 50 %
             position = "Number(document.querySelector('[data-control=\"seek\"]').getAttribute('aria-valuenow'))"
             page.keyboard.press("Space")
             page.wait_for_timeout(2000)
