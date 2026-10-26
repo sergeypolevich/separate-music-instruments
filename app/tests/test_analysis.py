@@ -58,7 +58,7 @@ def test_beats_are_detected_once_on_request_and_stored(tmp_path):
 
     def fake_detect(path, start):
         calls.append((path.name, start))
-        return {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0}
+        return {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": 2}
 
     request, repository, storage, runs = make_client(tmp_path, fake_detect)
     project_id = add_song(repository, storage)
@@ -69,7 +69,7 @@ def test_beats_are_detected_once_on_request_and_stored(tmp_path):
 
     assert first.status_code == 202 and again.status_code == 200
     assert again.json() == {"status": "done", "progress": 1.0, "error": None,
-                            "result": {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0}}
+                            "result": {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": 2}}
     assert calls == [("Song.webm", 1.25)]  # the source audio, measured from the music start, once
     assert runs == [1]
 
@@ -140,21 +140,36 @@ def test_an_analysis_interrupted_by_closing_the_app_starts_again_with_the_api(tm
 
 
 def test_detected_beats_are_shifted_to_song_time(monkeypatch, tmp_path):
-    class FakeTracker:
+    import torch
+    import beat_this.inference
+
+    class FakeFrames:  # beat_this's frame logits; the chain logic itself is tested in test_beats.py
         def __init__(self, **_kwargs):
             pass
 
         def __call__(self, samples, rate):
+            return torch.zeros(200), torch.zeros(200)
+
+    class FakePeaks:
+        def __init__(self, **_kwargs):
+            pass
+
+        def __call__(self, beat_logits, downbeat_logits):
             return np.array([0.9, 1.5, 2.0, 2.5, 3.0]), np.array([1.5, 3.0])
 
-    import beat_this.inference
-    monkeypatch.setattr(beat_this.inference, "Audio2Beats", FakeTracker)
+    seen = {}
+    monkeypatch.setattr(beat_this.inference, "Audio2Frames", FakeFrames)
+    monkeypatch.setattr(beat_this.inference, "Postprocessor", FakePeaks)
+    monkeypatch.setattr(analysis.beats, "track", lambda logits, peaks: seen.setdefault("peaks", list(peaks)) and
+                        (np.array([1.4, 1.5, 2.0, 2.5, 3.0]), "steady"))
     monkeypatch.setattr(analysis, "decode_mono", lambda path: np.zeros(10, np.float32))
     monkeypatch.setattr(analysis, "beat_checkpoint", lambda: tmp_path / "final0.ckpt")
 
     result = analysis.detect_beats(tmp_path / "song.webm", 1.5)
 
-    assert result == {"beats": [0.0, 0.5, 1.0, 1.5], "downbeats": [0.0, 1.5], "bpm": 120.0}
+    assert seen["peaks"] == [0.9, 1.5, 2.0, 2.5, 3.0]  # 1.4 s is before the music (start 1.5 s): dropped
+    assert result == {"beats": [0.0, 0.5, 1.0, 1.5], "downbeats": [0.0, 1.5], "bpm": 120.0,
+                      "tempo": [[0.0, 120.0]], "mode": "steady", "algorithm": analysis.beats.ALGORITHM}
 
 
 _CHECKPOINT = Path.home() / ".cache" / "torch" / "hub" / "checkpoints" / "beat_this-final0.ckpt"
@@ -198,3 +213,25 @@ def test_real_beat_tracking_finds_a_steady_120_bpm_click(tmp_path):
     result = analysis.detect_beats(path, 0.0)
 
     assert result["bpm"] == pytest.approx(120, abs=2)
+
+
+def test_beats_of_an_older_algorithm_are_analysed_again_once(tmp_path):
+    from audio_stems.beats import ALGORITHM
+
+    calls = []
+
+    def fake_detect(path, start):
+        calls.append(path.name)
+        return {"beats": [0.0, 0.4], "downbeats": [], "bpm": 150.0, "algorithm": ALGORITHM}
+
+    request, repository, storage, runs = make_client(tmp_path, fake_detect)
+    project_id = add_song(repository, storage)
+    repository.queue_analysis(project_id, "beats", {"audio_path": "old.webm", "start_seconds": 0})
+    repository.claim_analysis("beats")
+    repository.finish_analysis(str(project_id), "beats", {"beats": [0.0, 0.5], "downbeats": [], "bpm": 120.0})  # v15
+
+    assert request("POST", f"/api/v1/projects/{project_id}/beats").status_code == 202
+    again = request("POST", f"/api/v1/projects/{project_id}/beats")
+
+    assert again.status_code == 200 and again.json()["result"]["algorithm"] == ALGORITHM
+    assert calls == ["Song.webm"]  # analysed once more, then kept

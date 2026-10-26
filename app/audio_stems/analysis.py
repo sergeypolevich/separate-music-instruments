@@ -13,6 +13,7 @@ from typing import Callable
 import imageio_ffmpeg
 import numpy as np
 
+from audio_stems import beats
 from audio_stems.config import Settings, configure_logging
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.separator import sha256_file
@@ -48,15 +49,33 @@ def beat_checkpoint(download: Callable[[str, str], None] | None = None) -> Path:
 
 
 def detect_beats(audio_path: Path, start_seconds: float) -> dict[str, object]:
-    """Beat and downbeat times in song time (0 = where the music starts) and the median tempo."""
-    from beat_this.inference import Audio2Beats  # heavy (torch); imported only in this process
+    """Metronome beats in song time (0 = where the music starts): beat_this's frame activations, then the chain
+    and steady-grid logic of `beats.track`. Also the tempo every four beats (one value for a steady song)."""
+    from beat_this.inference import Audio2Frames, Postprocessor  # heavy (torch); imported only in this process
 
-    tracker = Audio2Beats(checkpoint_path=str(beat_checkpoint()), device="cpu", dbn=False)
-    beats, downbeats = tracker(decode_mono(audio_path), 44100)
-    shift = lambda times: [round(float(t) - start_seconds, 4) for t in times if t >= start_seconds - 0.05]
-    beats, downbeats = shift(beats), shift(downbeats)
-    bpm = round(60 / float(np.median(np.diff(beats))), 1) if len(beats) > 2 else None
-    return {"beats": beats, "downbeats": downbeats, "bpm": bpm}
+    beat_logits, downbeat_logits = Audio2Frames(checkpoint_path=str(beat_checkpoint()), device="cpu")(
+        decode_mono(audio_path), 44100)
+    peaks, downbeats = Postprocessor(type="minimal")(beat_logits, downbeat_logits)
+    found, mode = beats.track(beat_logits.cpu().numpy(), peaks)
+    return song_result(found, downbeats, mode, start_seconds)
+
+
+def song_result(found, downbeats, mode: str, start_seconds: float) -> dict[str, object]:
+    found = np.asarray(found, float) - start_seconds
+    found = found[found >= -0.05]
+    # A bar starts on the found beat nearest to each of beat_this's downbeats (the UI does not use them yet).
+    downbeats = sorted({float(found[np.argmin(np.abs(found - (d - start_seconds)))]) for d in downbeats} if len(found) else set())
+    if len(found) < 2:
+        return {"beats": found.round(4).tolist(), "downbeats": downbeats, "bpm": None, "tempo": [], "mode": mode,
+                "algorithm": beats.ALGORITHM}
+    if mode == "steady":
+        bpm = round(60 / float(np.median(np.diff(found))), 1)
+        tempo = [[round(float(found[0]), 3), bpm]]
+    else:
+        tempo = beats.tempo_every_four(found)
+        bpm = round(float(np.median([value for _, value in tempo])), 1) if tempo else None
+    return {"beats": found.round(4).tolist(), "downbeats": [round(d, 4) for d in downbeats], "bpm": bpm,
+            "tempo": tempo, "mode": mode, "algorithm": beats.ALGORITHM}
 
 
 def run_queue(

@@ -32,6 +32,7 @@ from audio_stems.models import (
     disk_full_error,
     is_disk_full,
 )
+from audio_stems.beats import ALGORITHM as BEATS_ALGORITHM
 from audio_stems.separator import BEST_MODEL, StemSeparator
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
@@ -306,7 +307,9 @@ def create_app(
         if job is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
         state = repository.get_analysis(project_id, "beats")
-        if state and state["status"] != "failed":
+        outdated = bool(state and state["status"] == "done"
+                        and (state["result"] or {}).get("algorithm") != BEATS_ALGORITHM)  # analysed again once
+        if state and state["status"] != "failed" and not outdated:
             return JSONResponse(beats_state(project_id), status_code=200 if state["status"] == "done" else 202)
         assets = repository.list_assets(job.job_id, _OWNER_ID)
         source = next((a for a in assets if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
@@ -326,7 +329,7 @@ def create_app(
             minutes = 4.0
         repository.queue_analysis(project_id, "beats", {
             "audio_path": str(audio_path), "start_seconds": job.start_seconds or 0.0, "minutes": minutes,
-        })
+        }, redo=outdated)
         start_analysis()
         return JSONResponse(beats_state(project_id), status_code=202)
 

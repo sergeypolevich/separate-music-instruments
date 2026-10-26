@@ -401,16 +401,17 @@ class SqliteMetadataStore:
                 "result": json.loads(row["result_json"]) if row["result_json"] else None, "error": row["error"],
                 "updated_at": row["updated_at"]}
 
-    def queue_analysis(self, project_id: UUID | str, kind: str, request: dict[str, object]) -> None:
-        """Queue (or re-queue after a failure) an analysis; a queued, running or done one is kept."""
+    def queue_analysis(self, project_id: UUID | str, kind: str, request: dict[str, object], *, redo: bool = False) -> None:
+        """Queue (or re-queue after a failure) an analysis; a queued or running one is kept, and a done one too
+        unless `redo` (it was made by an older algorithm)."""
         with self._connection() as connection:
             connection.execute(
                 """INSERT INTO analyses(project_id, kind, status, progress, request_json, updated_at)
                    VALUES (?, ?, 'queued', 0, ?, ?)
                    ON CONFLICT(project_id, kind) DO UPDATE SET status = 'queued', progress = 0, error = NULL,
                        request_json = excluded.request_json, updated_at = excluded.updated_at
-                   WHERE analyses.status = 'failed'""",
-                (str(project_id), kind, json.dumps(request), _utc_now()),
+                   WHERE analyses.status = 'failed' OR (? AND analyses.status = 'done')""",
+                (str(project_id), kind, json.dumps(request), _utc_now(), redo),
             )
 
     def claim_analysis(self, kind: str) -> tuple[str, dict[str, object]] | None:
