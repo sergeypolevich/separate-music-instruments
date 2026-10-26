@@ -2,7 +2,7 @@
    (--accent-h, set from Settings) with theme-specific saturation/lightness for contrast. */
 :root {
   color-scheme: dark;
-  --accent-h: 84;
+  --accent-h: 197;  /* the light blue the project's author uses (version 16); green 84 before */
   --accent: hsl(var(--accent-h) 81% 67%);
   --accent-hover: hsl(var(--accent-h) 86% 76%);
   --accent-ink: hsl(var(--accent-h) 45% 9%);
@@ -201,7 +201,7 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader, .accent-slider { position: relative; display: flex; align-items: center; }
 .mixer-fader::before, .accent-slider::before { position: absolute; top: 50%; left: calc(6px + (100% - 12px) * var(--mark)); width: 1px; height: 12px; background: var(--line); transform: translateY(-50%); pointer-events: none; content: ""; }
 .mixer-fader { --mark: 100 / 150; }
-.accent-slider { --mark: 84 / 360; width: min(320px, 100%); }
+.accent-slider { --mark: 197 / 360; width: min(320px, 100%); }
 .mixer-fader input, .accent-slider input { position: relative; z-index: 1; width: 100%; min-width: 0; height: 16px; margin: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
 .accent-slider input { --fill: 0%; }
 .mixer-fader input::-webkit-slider-runnable-track, .accent-slider input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 66.67%), var(--line) var(--fill, 66.67%)); }

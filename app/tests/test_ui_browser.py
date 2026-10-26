@@ -788,11 +788,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             body_bg = "getComputedStyle(document.body).backgroundColor"
             swatch = "getComputedStyle(document.querySelector('.accent-swatch')).backgroundColor"
             dark_bg, default_accent = page.evaluate(body_bg), page.evaluate(swatch)
-            # A 1px mark on the accent slider shows the default hue (84 of 360).
+            # A 1px mark on the accent slider shows the default hue (197 of 360).
             accent_mark = page.locator(".accent-slider").evaluate("""el => {
                 const r = el.querySelector('input').getBoundingClientRect(), f = el.getBoundingClientRect();
                 const mark = getComputedStyle(el, '::before');
-                return [r.left + 6 + (r.width - 12) * 84 / 360, f.left + parseFloat(mark.left) + 0.5, mark.height];
+                return [r.left + 6 + (r.width - 12) * 197 / 360, f.left + parseFloat(mark.left) + 0.5, mark.height];
             }""")
             assert abs(accent_mark[0] - accent_mark[1]) <= 1 and accent_mark[2] == "12px"
             # Disk space: sizes per kind and one button for unused and temporary files.
@@ -833,16 +833,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
             assert page.locator('[data-theme-choice="light"]').get_attribute("aria-pressed") == "true"
-            page.locator("#accent-hue").evaluate("el => { el.value = '200'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            blue_accent = page.evaluate(swatch)
-            assert blue_accent != default_accent
+            page.locator("#accent-hue").evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            other_accent = page.evaluate(swatch)
+            assert other_accent != default_accent
             page.reload(wait_until="load")
             assert page.evaluate("document.documentElement.dataset.theme") == "light"
-            assert page.evaluate(swatch) == blue_accent and page.locator("#accent-hue").input_value() == "200"
+            assert page.evaluate(swatch) == other_accent and page.locator("#accent-hue").input_value() == "100"
             page.wait_for_function("document.querySelectorAll('#model-options input').length === 2")
             assert page.locator('#model-options input[value="htdemucs_ft"]').is_checked()
             page.locator('[data-theme-choice="dark"]').click()
-            page.locator("#accent-hue").evaluate("el => { el.value = '84'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            page.locator("#accent-hue").evaluate("el => { el.value = '197'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             assert page.evaluate(body_bg) == dark_bg and page.evaluate(swatch) == default_accent
             assert page.locator("#settings-overlay").is_visible()  # the reload kept #settings
             page.locator("#close-settings").click()

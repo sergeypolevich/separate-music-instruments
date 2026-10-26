@@ -1405,7 +1405,7 @@ accentHueField.addEventListener("input", () => {
   document.documentElement.style.setProperty("--accent-h", accentHueField.value);
   storeSetting("audio-stems-accent-hue", accentHueField.value);
 });
-accentHueField.value = getComputedStyle(document.documentElement).getPropertyValue("--accent-h").trim() || "84";
+accentHueField.value = getComputedStyle(document.documentElement).getPropertyValue("--accent-h").trim() || "197";
 applyTheme(document.documentElement.dataset.theme === "light" ? "light" : "dark");
 
 searchTrigger.addEventListener("click", openSearch);
