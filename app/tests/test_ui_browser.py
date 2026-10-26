@@ -531,6 +531,19 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             for key, index in (("KeyD", 1), ("KeyB", 2), ("KeyG", 3), ("KeyP", 4), ("KeyO", 5), ("KeyV", 0)):
                 page.keyboard.press(key)
                 assert page.evaluate(selected)[index] == "true", key
+            # + and − (=/- and the numpad) change the selected track's volume by 10 %, within 0-150 %.
+            vocal_gain = page.locator('[data-control="gain"]').first
+            assert vocal_gain.input_value() == "100"
+            for key, expected in (("Equal", "110"), ("NumpadAdd", "120"), ("Equal", "130"), ("Equal", "140"),
+                                  ("Equal", "150"), ("NumpadAdd", "150"), ("Minus", "140"), ("NumpadSubtract", "130")):
+                page.keyboard.press(key)
+                assert vocal_gain.input_value() == expected, key
+            page.keyboard.press("Control+Equal")  # browser zoom: left alone
+            assert vocal_gain.input_value() == "130"
+            for _ in range(3):
+                page.keyboard.press("Minus")
+            assert vocal_gain.input_value() == "100"
+            assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1
             # A clicked control keeps focus, but the next key never draws a focus ring around it.
             ring = "() => getComputedStyle(document.activeElement).outlineStyle"
             paused = "document.querySelector('#playback-panel audio').paused"

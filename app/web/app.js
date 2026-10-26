@@ -1065,6 +1065,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         if (index >= 0) selectStem(index);
       },
       press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
+      nudgeGain: (step) => {  // through the slider's own input handler: the same 0-150 % range and 100 % snap
+        const gain = mixerRowElements[selectedStem].querySelector('[data-control="gain"]');
+        gain.value = String(Number(gain.value) + step);
+        gain.dispatchEvent(new Event("input"));
+      },
     };
     tracks.forEach((audio) => audio.load());
   } catch (reason) {
@@ -1408,6 +1413,11 @@ document.addEventListener("keydown", (event) => {
     KeyG: () => controls.selectStemByName("guitar"),
     KeyP: () => controls.selectStemByName("piano"),
     KeyO: () => controls.selectStemByName("other"),
+    // The «+» and «−» keys, by position, so any layout works: =/+ and -/_ on the main keys, and the numpad.
+    Equal: () => controls.nudgeGain(10),
+    NumpadAdd: () => controls.nudgeGain(10),
+    Minus: () => controls.nudgeGain(-10),
+    NumpadSubtract: () => controls.nudgeGain(-10),
   };
   const action = actions[event.code];
   if (action) {
