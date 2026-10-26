@@ -74,10 +74,14 @@ def test_live_full_desktop_browser_flow(tmp_path):
     if reuse_root is None:
         from pytubefix import Search
 
-        # Do not process a substitute if YouTube's first search result changes.
-        results = Search(QUERY).videos
+        # Do not process a substitute if YouTube's first search result changes. Now and then YouTube answers
+        # one search with an unrelated list, so a mismatch is asked again before giving up.
+        for _attempt in range(3):
+            results = Search(QUERY).videos
+            first_id = str(getattr(results[0], "video_id", "")) if results else ""
+            if first_id == EXPECTED_VIDEO_ID:
+                break
         assert results, "YouTube search returned no candidates"
-        first_id = str(getattr(results[0], "video_id", ""))
         assert first_id == EXPECTED_VIDEO_ID, (
             f"First YouTube result changed to {first_id!r}; refusing to download a different video"
         )

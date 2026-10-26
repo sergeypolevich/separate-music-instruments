@@ -90,12 +90,13 @@ py -m pytest -q
 ```
 
 By default, no live YouTube or Demucs smoke tests run. The separate opt-in
-command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It starts the
-API and worker, opens installed Edge or Chrome in a visible browser window, searches
-YouTube for «Guitarist Singing» (26 s, a Creative Commons Attribution video from Freestocks), downloads it, runs Demucs, and checks project reopen,
-playback, seek, per-track gain, and mute controls. It needs internet, the
-Playwright test dependency, installed Edge or Chrome, available disk space, and
-several minutes of CPU processing. Run it before every commit as required by
+command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It runs two tests, each
+starting the API and worker and opening installed Edge or Chrome in a visible browser window: one searches
+YouTube for «Guitarist Singing» (26 s, a Creative Commons Attribution video from Freestocks), downloads it,
+runs Demucs, and checks project reopen, playback, seek, per-track gain, and mute controls; the other opens a
+generated 10-second file through «Открыть аудиофайл» and separates and plays it the same way. They need
+internet, the Playwright test dependency, installed Edge or Chrome, available disk space, and several
+minutes of CPU processing. Run it before every commit as required by
 `skills/audio-stems-development.md`; it never installs an application update.
 
 Run the database-backed worker in a separate PowerShell window:
