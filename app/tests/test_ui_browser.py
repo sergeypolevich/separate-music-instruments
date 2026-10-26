@@ -502,6 +502,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
             page.keyboard.press("Enter")
             page.wait_for_function("document.querySelector('#playback-panel audio').paused")
+            # Backspace works like ⏮: back to the start and paused, also while playing.
+            page.keyboard.press("Space")
+            page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
+            page.keyboard.press("Backspace")
+            page.wait_for_function("document.querySelector('#playback-panel audio').paused")
+            assert page.evaluate(audio_state)["t"] == 0
+            assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Воспроизвести"
             page.keyboard.press("Home")
             selected = "() => [...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)"
             assert page.evaluate(selected) == ["true"] + ["false"] * 5
@@ -705,6 +712,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.type("s m ")
             page.keyboard.press("ArrowRight")
             assert page.locator("#inputs").input_value() == "s m "
+            page.keyboard.press("Backspace")  # erases in a text field, never moves the song
+            assert page.locator("#inputs").input_value() == "s m"
+            page.keyboard.type(" ")
             # Inside the search dialog Tab still moves the focus (Safari on macOS skips buttons on Tab, so Option+Tab).
             page.keyboard.press("Alt+Tab" if browser.browser_type.name == "webkit" else "Tab")
             assert page.evaluate("document.activeElement.id") == "submit-button"

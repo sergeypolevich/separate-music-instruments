@@ -1120,6 +1120,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         if (index >= 0) selectStem(index);
       },
       press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
+      toStartAndPause: () => reset.click(),
       nudgeGain: (step) => {  // through the slider's own input handler: the same 0-150 % range and 100 % snap
         const gain = mixerRowElements[selectedStem].querySelector('[data-control="gain"]');
         gain.value = String(Number(gain.value) + step);
@@ -1454,6 +1455,7 @@ document.addEventListener("keydown", (event) => {
     ArrowLeft: () => controls.seekBy(-5),
     ArrowRight: () => controls.seekBy(5),
     Home: () => controls.seekTo(0),
+    Backspace: () => controls.toStartAndPause(),  // the ⏮ button: back to the start, paused
     End: () => controls.seekTo(controls.duration()),
     ArrowUp: () => controls.moveSelection(-1),
     ArrowDown: () => controls.moveSelection(1),
