@@ -56,8 +56,10 @@ export function snapFaderPercent(percent) {
   return clamped >= 95 && clamped <= 105 ? 100 : clamped;
 }
 
-const HAVE_FUTURE_DATA = 3;  // HTMLMediaElement.readyState: enough data to play on
+const HAVE_CURRENT_DATA = 2;  // HTMLMediaElement.readyState: the frame at the position (a paused stem stops here)
+const HAVE_FUTURE_DATA = 3;  // enough data to play on
 const CORRECTION_GAP_MS = 1000;  // a stem is moved back in step at most this often
+const SEEK_WAIT_MS = 3000;  // after a seek while playing, all stems start together at most this late
 
 export class SynchronizedTransport {
   constructor(tracks, {
@@ -69,6 +71,8 @@ export class SynchronizedTransport {
     driftTolerance = 0.08,
     startOffset = 0,
     now = () => Date.now(),
+    setTimer = (callback, ms) => setTimeout(callback, ms),
+    clearTimer = (id) => clearTimeout(id),
   } = {}) {
     if (tracks.length < 1 || tracks.length > STEM_ORDER.length) {
       throw new Error(`Expected 1-${STEM_ORDER.length} synchronized tracks`);
@@ -82,6 +86,12 @@ export class SynchronizedTransport {
     this.driftTolerance = driftTolerance;
     this.now = now;
     this.corrected = new Map();  // track -> when it was last moved back in step
+    this.resumeAfterSeek = null;  // when a seek while playing paused the stems; they start together (resumeIfReady)
+    // A timer, not the animation frame: Chrome stops animation frames in a hidden or covered window, and the
+    // stems must start again even when the user seeks and switches to another window.
+    this.setTimer = setTimer;
+    this.clearTimer = clearTimer;
+    this.resumeTimer = null;
     // Positions are song time: 0 is where the music starts, startOffset seconds into the files.
     this.startOffset = Math.max(0, Number(startOffset) || 0);
     // Speeds other than 100 % play the same stems through Signalsmith Stretch (see StretchEngine).
@@ -106,8 +116,13 @@ export class SynchronizedTransport {
     return this.rate !== 1 && this.stretch !== null;
   }
 
+  // The position heard: the median of the stems that are actually playing, so one stem still loading (whose time
+  // stands still) neither freezes the shown time nor pulls the others back; the first stem when none plays.
   get mediaTime() {
-    return this.stretching ? this.stretch.position : this.tracks[0].currentTime;
+    if (this.stretching) return this.stretch.position;
+    const live = this.tracks.filter((track) => !track.paused && !track.seeking && track.readyState >= HAVE_FUTURE_DATA)
+      .map((track) => track.currentTime).sort((a, b) => a - b);
+    return live.length ? live[live.length >> 1] : this.tracks[0].currentTime;
   }
 
   get currentTime() {
@@ -117,6 +132,13 @@ export class SynchronizedTransport {
   seek(seconds) {
     const requested = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
     const position = Math.min(Math.max(0, requested), this.duration || Math.max(0, requested));
+    // While playing, the stems stop for the seek and start again together once each has data there (syncFrame);
+    // otherwise those already loaded ran ahead while the others loaded, and were pulled back afterwards.
+    if (this.playing && !this.stretching) {
+      this.tracks.forEach((track) => track.pause());
+      this.resumeAfterSeek = this.now();
+      this.waitToResume();
+    }
     // The stems keep the position in both engines, so a speed change never jumps.
     this.tracks.forEach((track) => { track.currentTime = position + this.startOffset; });
     if (this.stretching) this.stretch.seek(position + this.startOffset);
@@ -164,6 +186,11 @@ export class SynchronizedTransport {
 
   pause() {
     this.playing = false;
+    this.resumeAfterSeek = null;
+    if (this.resumeTimer !== null) {
+      this.clearTimer(this.resumeTimer);
+      this.resumeTimer = null;
+    }
     if (this.frameId !== null) {
       this.cancelFrame(this.frameId);
       this.frameId = null;
@@ -178,6 +205,25 @@ export class SynchronizedTransport {
   stop() {
     this.pause();
     this.seek(0);
+  }
+
+  waitToResume() {
+    if (this.resumeTimer !== null) this.clearTimer(this.resumeTimer);
+    this.resumeTimer = this.setTimer(() => {
+      this.resumeTimer = null;
+      if (!this.resumeIfReady()) this.waitToResume();
+    }, 50);
+  }
+
+  // After a seek while playing: start all stems together once each has data at the new position (a paused stem
+  // loads only up to that frame, HAVE_CURRENT_DATA), or after SEEK_WAIT_MS anyway. Returns true when done.
+  resumeIfReady() {
+    if (this.resumeAfterSeek === null || !this.playing) return true;
+    const ready = this.tracks.every((track) => !track.seeking && track.readyState >= HAVE_CURRENT_DATA);
+    if (!ready && this.now() - this.resumeAfterSeek < SEEK_WAIT_MS) return false;
+    this.resumeAfterSeek = null;  // once per seek: never paused again by the sync
+    this.tracks.forEach((track) => { const started = track.play(); if (started) started.catch(() => {}); });
+    return true;
   }
 
   scheduleFrame() {
@@ -205,11 +251,16 @@ export class SynchronizedTransport {
       this.onEnded();
       return;
     }
+    if (!this.resumeIfReady()) {  // still waiting after a seek (the timer also checks, see waitToResume)
+      this.onTimeUpdate(Math.max(0, this.tracks[0].currentTime - this.startOffset));
+      this.scheduleFrame();
+      return;
+    }
     // A stem still loading (a busy server answers its next chunk late, or a seek is under way) is left alone:
     // seeking it after the others aborted its pending load every frame and kept it silent for many seconds.
     // A stem that can play is moved back in step, but not more often than once a second.
     const now = this.now();
-    for (const track of this.tracks.slice(1)) {
+    for (const track of this.tracks) {
       if (track.seeking || track.readyState < HAVE_FUTURE_DATA) continue;
       if (Math.abs(track.currentTime - masterTime) > this.driftTolerance
           && now - (this.corrected.get(track) ?? -Infinity) >= CORRECTION_GAP_MS) {

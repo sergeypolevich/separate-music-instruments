@@ -374,3 +374,81 @@ test("a stem still loading is never seeked after the others, and a stem is moved
   assert.equal(tracks[2].currentTime, 35.5);
   assert.ok(tracks.every((track) => track.pauseCalls === 0));  // never paused and resumed by the sync
 });
+
+function clockedTransport() {
+  const clock = { now: 0 };
+  const frames = new Map();
+  let nextFrame = 1;
+  const tracks = [200, 200, 200, 200, 200, 200].map((duration) => new FakeAudio(duration));
+  const timers = new Map();
+  const transport = new SynchronizedTransport(tracks, {
+    requestFrame(callback) { const id = nextFrame++; frames.set(id, callback); return id; },
+    cancelFrame(id) { frames.delete(id); },
+    now: () => clock.now,
+    setTimer(callback) { const id = nextFrame++; timers.set(id, callback); return id; },
+    clearTimer(id) { timers.delete(id); },
+  });
+  const tick = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach((cb) => cb()); };
+  const timer = () => { const pending = [...timers.values()]; timers.clear(); pending.forEach((cb) => cb()); };
+  return { clock, tracks, transport, tick, timer };
+}
+
+test("a seek while playing stops all stems and starts them together once each has data there", async () => {
+  const { clock, tracks, transport, tick } = clockedTransport();
+  await transport.play();
+  transport.seek(100);
+  assert.ok(tracks.every((track) => track.paused) && transport.playing);  // still «playing» for the UI
+  tracks.forEach((track, i) => { track.readyState = i === 3 ? 1 : 2; });  // the guitar still loading
+  tick();
+  assert.ok(tracks.every((track) => track.paused));  // nobody runs ahead
+  tracks[3].readyState = 2;
+  tick();
+  assert.ok(tracks.every((track) => !track.paused));  // all start together
+  assert.ok(tracks.every((track) => track.currentTime === 100));
+  tracks[3].readyState = 1;
+  tick();
+  assert.ok(tracks.every((track) => !track.paused));  // once per seek: the sync never pauses them again
+  // A stem that never gets its data holds the others back at most 3 s.
+  transport.seek(50);
+  tracks[2].readyState = 1;
+  clock.now += 2900;
+  tick();
+  assert.ok(tracks.every((track) => track.paused));
+  clock.now += 100;
+  tick();
+  assert.ok(tracks.every((track) => !track.paused));
+});
+
+test("a stem still loading mid-song neither freezes the shown time nor pulls the others back", async () => {
+  const { tracks, transport, tick } = clockedTransport();
+  const shown = [];
+  transport.onTimeUpdate = (seconds) => shown.push(seconds);
+  await transport.play();
+  tracks.forEach((track) => { track.currentTime = 40; });
+  tracks[0].readyState = 2;  // the first stem (vocals) waits for data: its time stands still
+  tracks.slice(1).forEach((track) => { track.currentTime = 41.5; });
+  tick();
+  assert.equal(shown.at(-1), 41.5);  // the time follows the stems that play
+  assert.ok(tracks.slice(1).every((track) => track.currentTime === 41.5));  // not pulled back to 40
+  assert.equal(tracks[0].currentTime, 40);  // the loading one is left alone
+  tracks[0].readyState = 4;
+  tick();
+  assert.equal(tracks[0].currentTime, 41.5);  // and joins the others once it can play
+});
+
+test("after a seek the stems start again on a timer too: a covered window gets no animation frames", async () => {
+  const { tracks, transport, timer } = clockedTransport();
+  await transport.play();
+  transport.seek(80);
+  tracks.forEach((track) => { track.readyState = 1; });
+  timer();  // no animation frame at all from here on
+  assert.ok(tracks.every((track) => track.paused));
+  tracks.forEach((track) => { track.readyState = 2; });
+  timer();
+  assert.ok(tracks.every((track) => !track.paused && track.currentTime === 80));
+  transport.seek(20);
+  transport.pause();  // a pause while waiting cancels the restart
+  tracks.forEach((track) => { track.readyState = 4; });
+  timer();
+  assert.ok(tracks.every((track) => track.paused));
+});
