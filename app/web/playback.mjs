@@ -56,6 +56,9 @@ export function snapFaderPercent(percent) {
   return clamped >= 95 && clamped <= 105 ? 100 : clamped;
 }
 
+const HAVE_FUTURE_DATA = 3;  // HTMLMediaElement.readyState: enough data to play on
+const CORRECTION_GAP_MS = 1000;  // a stem is moved back in step at most this often
+
 export class SynchronizedTransport {
   constructor(tracks, {
     requestFrame = (callback) => requestAnimationFrame(callback),
@@ -65,6 +68,7 @@ export class SynchronizedTransport {
     beforePlay = () => Promise.resolve(),
     driftTolerance = 0.08,
     startOffset = 0,
+    now = () => Date.now(),
   } = {}) {
     if (tracks.length < 1 || tracks.length > STEM_ORDER.length) {
       throw new Error(`Expected 1-${STEM_ORDER.length} synchronized tracks`);
@@ -76,6 +80,8 @@ export class SynchronizedTransport {
     this.onEnded = onEnded;
     this.beforePlay = beforePlay;
     this.driftTolerance = driftTolerance;
+    this.now = now;
+    this.corrected = new Map();  // track -> when it was last moved back in step
     // Positions are song time: 0 is where the music starts, startOffset seconds into the files.
     this.startOffset = Math.max(0, Number(startOffset) || 0);
     // Speeds other than 100 % play the same stems through Signalsmith Stretch (see StretchEngine).
@@ -199,9 +205,16 @@ export class SynchronizedTransport {
       this.onEnded();
       return;
     }
+    // A stem still loading (a busy server answers its next chunk late, or a seek is under way) is left alone:
+    // seeking it after the others aborted its pending load every frame and kept it silent for many seconds.
+    // A stem that can play is moved back in step, but not more often than once a second.
+    const now = this.now();
     for (const track of this.tracks.slice(1)) {
-      if (Math.abs(track.currentTime - masterTime) > this.driftTolerance) {
+      if (track.seeking || track.readyState < HAVE_FUTURE_DATA) continue;
+      if (Math.abs(track.currentTime - masterTime) > this.driftTolerance
+          && now - (this.corrected.get(track) ?? -Infinity) >= CORRECTION_GAP_MS) {
         track.currentTime = masterTime;
+        this.corrected.set(track, now);
       }
     }
     this.onTimeUpdate(Math.max(0, masterTime - this.startOffset));

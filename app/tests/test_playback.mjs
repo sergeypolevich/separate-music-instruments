@@ -12,6 +12,8 @@ class FakeAudio {
     this.volume = 1;
     this.muted = false;
     this.rejectPlay = false;
+    this.readyState = 4;  // HAVE_ENOUGH_DATA
+    this.seeking = false;
   }
   play() {
     this.playCalls += 1;
@@ -339,4 +341,36 @@ test("the tempo shown next to the metronome: the entry for the moment, at the pl
   assert.equal(formatBpm(150, 0.5), "75 BPM");
   assert.equal(formatBpm(151.1, 1.25), "188.9 BPM");
   assert.equal(formatBpm(null), "");
+});
+
+test("a stem still loading is never seeked after the others, and a stem is moved back in step at most once a second", async () => {
+  let clock = 0;
+  const frames = new Map();
+  let nextFrame = 1;
+  const tracks = [200, 200, 200, 200, 200, 200].map((duration) => new FakeAudio(duration));
+  const transport = new SynchronizedTransport(tracks, {
+    requestFrame(callback) { const id = nextFrame++; frames.set(id, callback); return id; },
+    cancelFrame(id) { frames.delete(id); },
+    now: () => clock,
+  });
+  const tick = () => { const pending = [...frames.values()]; frames.clear(); pending.forEach((cb) => cb()); };
+  await transport.play();
+  tracks.forEach((track) => { track.currentTime = 35.5; });
+  tracks[2].currentTime = 35.3;
+  tracks[2].readyState = 2;  // bass: its next chunk is late
+  tick();
+  tick();
+  assert.equal(tracks[2].currentTime, 35.3);  // its pending load goes on
+  assert.ok(tracks.every((track) => !track.paused));  // nothing else stops
+  tracks[2].readyState = 4;  // the chunk arrived
+  tick();
+  assert.equal(tracks[2].currentTime, 35.5);  // back in step once it can play
+  tracks[2].currentTime = 35.2;
+  clock += 400;
+  tick();
+  assert.equal(tracks[2].currentTime, 35.2);  // not again within a second
+  clock += 600;
+  tick();
+  assert.equal(tracks[2].currentTime, 35.5);
+  assert.ok(tracks.every((track) => track.pauseCalls === 0));  // never paused and resumed by the sync
 });
