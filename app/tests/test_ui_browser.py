@@ -394,7 +394,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             ring.click()
             assert page.locator("#queue-popover").is_visible()
             assert page.evaluate("[...document.querySelectorAll('.queue-item')].map(r => [r.querySelector('.queue-title').textContent, r.querySelector('.queue-meta').textContent])") == [
-                ["Running song", "Разделяем дорожки · 40% · осталось ~5 мин"], ["Track 0", "Улучшение качества · в очереди · осталось ~23 мин"]]
+                ["Running song", "Разделяем дорожки · осталось ~5 мин"], ["Track 0", "Улучшение качества · в очереди · осталось ~23 мин"]]
+            # No heading; the running row's background is filled with its share (40 %), the waiting one is not.
+            assert page.locator("#queue-popover").inner_text().startswith("Running song")
+            assert page.evaluate("[...document.querySelectorAll('.queue-item')].map(r => r.style.getPropertyValue('--job-progress'))") == ["40%", ""]
             page.locator('.queue-item[data-kind="upgrade"] [data-action="cancel-task"]').click()  # waiting: no question
             _wait_until(lambda: deleted and deleted[-1] == "/api/v1/projects/project-0/upgrade")
             assert page.locator("#queue-popover").is_visible()  # the list stays open for the next one

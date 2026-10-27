@@ -251,11 +251,11 @@ function closeHelp() {
 const workingStates = new Set(["searching", "downloading", "separating", "running"]);
 let queueTimer = null;
 
+// The share done is the row's background fill, not a number.
 function queueText(item) {
-  const percent = workingStates.has(item.status) ? ` · ${Math.round((item.progress || 0) * 100)}%` : "";
   const left = item.eta_seconds !== null && item.eta_seconds !== undefined ? ` · осталось ${formatMinutes(item.eta_seconds)}` : "";
-  if (item.kind === "upgrade") return `Улучшение качества${item.status === "queued" ? " · в очереди" : percent}${left}`;
-  return `${stateDescriptions[item.status] || item.status}${percent}${left}`;
+  if (item.kind === "upgrade") return `Улучшение качества${item.status === "queued" ? " · в очереди" : ""}${left}`;
+  return `${stateDescriptions[item.status] || item.status}${left}`;
 }
 
 function renderQueue(items) {
@@ -276,6 +276,7 @@ function renderQueue(items) {
     const row = document.createElement("div");
     row.className = "queue-item";
     row.dataset.kind = item.kind;
+    if (workingStates.has(item.status)) row.style.setProperty("--job-progress", `${Math.round((item.progress || 0) * 100)}%`);
     const title = document.createElement("span");
     title.className = "queue-title";
     title.textContent = item.title;
