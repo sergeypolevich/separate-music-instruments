@@ -202,19 +202,22 @@ if you customized it.
 
 ### Updates
 
-The Updates panel checks the fixed public GitHub repository for stable releases
-only when you click **Проверить**. It displays the release notes and a link to the
-release page. Applying an update requires a second confirmation and reads the
-exact `requirements.txt` at that release's fixed GitHub tag. The updater rejects
-manifests unless each approved runtime package has one exact `==` version pin,
-then runs pip with the current project interpreter (shortcut: the updater installs
-the release's direct pins without hashes; the hash-checked lock files apply to
-setup and first start); no client-supplied command
-or path is accepted. Stop the worker before applying an update. The API request
-waits for pip to finish (up
-to 30 minutes); after success, restart both the API and worker. If installation
-fails, the API reports the failure and you can retry after reviewing the local
-pip output. The updater does not replace application source files.
+Settings → Обновления → **Проверить** reads the fixed public GitHub repository's stable releases (only on that
+click) and lists those newer than `app/VERSION` (tags `vNN`, newest first) with their notes. **Обновить до vNN**
+asks for confirmation and is refused while a job or an upgrade runs (409 `busy`):
+
+- a ZIP copy downloads the release's archive from GitHub (`api.github.com/.../zipball/<tag>`, redirected to
+  `codeload.github.com`; any other host is refused; at most 200 MB), unpacks it into `~/Audio Stems/update/<tag>/`
+  (paths that would leave it are refused; the archive must hold the app and its `app/VERSION` must match the tag)
+  and writes `ready` last. On the next start the launcher (`audio_stems.desktop`) copies it over the app before
+  the services start — `app/.venv`, `app/.env` and `.git` are never replaced — and removes the folder. Unchanged
+  lock file: it starts the new code; changed: it exits with code 3 so `Start.bat`/`Start.command` installs the new
+  libraries first;
+- a git clone fast-forwards to the tag (`git fetch --tags origin`, `git merge --ff-only refs/tags/<tag>`), only
+  with no local changes to tracked files and no local commits the release lacks; restart to use it.
+
+Releasing: when a version is pushed to main (with the user's consent), `app/VERSION` holds its number and a GitHub
+Release `vNN` is published with the version's notes.
 
 The separator offers two local models: `hdemucs_mmi` with shifts 2 (default, fast,
 four stems) and `bs_roformer_sw` (through audio-separator, overlap 1, six stems,
@@ -239,8 +242,7 @@ fallback.
 
 ### Dependencies and model weights
 
-`requirements.txt` lists the direct dependencies with exact versions (the updater's
-manifest). `requirements-windows.lock` and `requirements-macos.lock` pin every package,
+`requirements.txt` lists the direct dependencies with exact versions. `requirements-windows.lock` and `requirements-macos.lock` pin every package,
 transitive ones included, with SHA-256 hashes; setup installs them with
 `pip install --require-hashes`, so a new install gets exactly the versions tested
 together and pip refuses a file whose hash differs. After changing `requirements.txt`,

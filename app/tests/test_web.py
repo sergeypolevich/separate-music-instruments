@@ -77,11 +77,10 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert "/static/" not in page.text
     assert "class SynchronizedTransport" in playback.text
     assert 'data-screen="settings"' in page.text
-    assert "window.confirm" in script.text  # Dependency updates retain their existing confirmation.
+    assert "window.confirm" in script.text  # installing an update asks first
     assert "deleteDialog.showModal()" in script.text
     assert "/api/v1/updates/apply" in script.text
-    assert "release.updatable" in script.text
-    assert "requirements.txt" in script.text
+    assert "install-update" in script.text  # the newest release can be installed (version 17)
     assert "http://" not in styles.text and "https://" not in styles.text
 
 

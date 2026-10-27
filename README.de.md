@@ -53,6 +53,12 @@ Komponenten werden heruntergeladen (etwa 1,5 GB). Jedes Trennungsmodell lädt se
 Verwendung (das schnelle etwa 160 MB, das beste etwa 650 MB, die Schlagerkennung etwa 80 MB). Spätere Starts
 dauern wenige Sekunden.
 
+## Aktualisieren
+
+**Einstellungen → Обновления → Проверить** zeigt, was spätere Versionen Neues bringen. **Обновить до …** lädt die
+neueste herunter (wenn gerade nichts getrennt wird); schließen Sie das Audio-Stems-Fenster und starten Sie die App
+erneut – das Update wird vor dem Öffnen installiert. Ihre Songs, Spuren und Einstellungen bleiben, wie sie sind.
+
 ## Wo Ihre Dateien liegen
 
 Songs, Spuren, die Projektdatenbank und Protokolle liegen im Ordner `Audio Stems` in Ihrem Benutzerordner,
@@ -69,7 +75,8 @@ Verbindungen gibt es nur zu:
   Bibliotheken zu installieren;
 - **Hugging Face** (huggingface.co), **GitHub** (die Releases, die audio-separator nutzt) und
   **cloud.cp.jku.at**: einmal, um ein Trennmodell oder das Beat-Modell bei der ersten Nutzung herunterzuladen;
-- **GitHub API** (api.github.com): um nach einer neuen Version von Audio Stems zu suchen.
+- **GitHub** (api.github.com, codeload.github.com): um nach einer neuen Version von Audio Stems zu suchen und sie
+  herunterzuladen, wenn Sie sie installieren möchten.
 
 ## Bitte beachten
 

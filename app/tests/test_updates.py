@@ -1,22 +1,21 @@
-import json
-import subprocess
-from pathlib import Path
-
-import pytest
 import asyncio
 from dataclasses import replace
+import io
+import json
+import subprocess
+import zipfile
+
 import httpx
-from urllib.parse import quote
+import pytest
 
 from audio_stems.api import create_app
-from audio_stems.separator import StemSeparator
-from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
-from audio_stems.models import YouTubeSourceAdapter
-from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
-
-
-PINNED_REQUIREMENTS = "pytubefix==11.2.0\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==2.5.4\nimageio-ffmpeg==0.6.0\nsoundfile==0.14.0\naudio-separator==0.47.0\nonnxruntime==1.31.0\nlibrosa==0.11.0\nbeat-this==1.1.0\n"
+from audio_stems.db import SqliteMetadataStore
+from audio_stems.models import SourceKind, SourceRequest, YouTubeSourceAdapter
+from audio_stems.separator import StemSeparator
+from audio_stems.updates import (
+    GitHubReleaseClient, UpdateError, Updater, apply_staged_update, current_version, release_number, unpack_release,
+)
 
 
 class FakeResponse:
@@ -33,8 +32,6 @@ class FakeResponse:
     def read(self, _limit):
         if isinstance(self.data, bytes):
             return self.data
-        if isinstance(self.data, str):
-            return self.data.encode("utf-8")
         return json.dumps(self.data).encode("utf-8")
 
     def geturl(self):
@@ -53,13 +50,26 @@ def release(tag="v2.1.0", *, prerelease=False):
     }
 
 
-def release_client_with_manifest():
-    def open_url(request, timeout):
-        if request.full_url.startswith("https://api.github.com/"):
-            return FakeResponse([release()])
-        return FakeResponse(PINNED_REQUIREMENTS, request.full_url)
+def release_zip(version="18", extra=()):
+    """What GitHub's zipball looks like: one top folder with the repository inside."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        top = "sergeypolevich-separate-music-instruments-abc1234/"
+        archive.writestr(top + "Start.bat", "@echo new")
+        archive.writestr(top + "app/VERSION", f"{version}\n")
+        archive.writestr(top + "app/audio_stems/__init__.py", "")
+        archive.writestr(top + "app/audio_stems/api.py", "# new api")
+        for name, data in extra:
+            archive.writestr(name, data)
+    return buffer.getvalue()
 
-    return GitHubReleaseClient(open_url=open_url)
+
+def github(releases, archive=b"", archive_url="https://codeload.github.com/x/zip/refs/tags/v18"):
+    def open_url(request, timeout):
+        if "/zipball/" in request.full_url:
+            return FakeResponse(archive, archive_url)
+        return FakeResponse(releases)
+    return open_url
 
 
 def test_github_release_client_uses_fixed_project_and_filters_drafts_and_prereleases():
@@ -92,210 +102,131 @@ def test_release_client_rejects_untrusted_release_urls_and_invalid_payloads():
         invalid.fetch_releases()
 
 
-def test_release_client_fetches_pinned_manifest_from_exact_github_tag():
-    calls = []
-
-    def open_url(request, timeout):
-        calls.append(request.full_url)
-        if request.full_url.startswith("https://api.github.com/"):
-            return FakeResponse([release()])
-        return FakeResponse(PINNED_REQUIREMENTS, request.full_url)
-
-    client = GitHubReleaseClient(open_url=open_url)
-    selected = client.fetch_releases()[0]
-    manifest = client.fetch_requirements(selected.tag_name)
-
-    assert manifest == PINNED_REQUIREMENTS
-    assert calls[-1] == f"https://raw.githubusercontent.com/sergeypolevich/separate-music-instruments/{quote(selected.tag_name, safe='')}/requirements.txt"
+def test_this_copy_knows_its_version_and_release_tags_are_numbers():
+    assert current_version() >= 17
+    assert [release_number(tag) for tag in ("v17", "18", "v3.0.0", "v18-beta")] == [17, 18, None, None]
 
 
-def test_checked_in_runtime_requirements_are_the_exact_release_pins():
-    requirements = Path(__file__).parents[1] / "requirements.txt"
-    assert requirements.read_text(encoding="utf-8") == PINNED_REQUIREMENTS
+def test_check_lists_only_releases_newer_than_this_copy_newest_first(tmp_path):
+    open_url = github([release("v16"), release("v19"), release("v17"), release("v18")])
+    updater = Updater(tmp_path, tmp_path / "update", open_url=open_url, version=lambda: 17)
+
+    found = updater.check()
+
+    assert found["current"] == 17 and found["mode"] == "archive"
+    assert [r.tag_name for r in found["releases"]] == ["v19", "v18"]
+    with pytest.raises(UpdateError, match="newest"):
+        updater.apply("v18")
 
 
-def test_update_action_is_unavailable_for_unpinned_release_manifest():
-    def open_url(request, timeout):
-        if request.full_url.startswith("https://api.github.com/"):
-            return FakeResponse([release()])
-        return FakeResponse(
-            "pytubefix\ndemucs==4.1.0\nfastapi==0.139.2\nuvicorn==0.51.0\nnumpy==1.26.4\n", request.full_url
-        )
+def test_a_zip_copy_downloads_the_release_and_the_launcher_installs_it_on_the_next_start(tmp_path):
+    root, staging = tmp_path / "Audio Stems", tmp_path / "data" / "update"
+    (root / "app" / "audio_stems").mkdir(parents=True)
+    (root / "app" / "audio_stems" / "api.py").write_text("# old api")
+    (root / "app" / ".venv").mkdir()
+    (root / "app" / ".venv" / "python.exe").write_text("the environment")
+    (root / "app" / ".env").write_text("AUDIO_STEMS_API_HOST=0.0.0.0")
+    updater = Updater(root, staging, open_url=github([release("v18")], release_zip()), version=lambda: 17)
 
-    client = GitHubReleaseClient(open_url=open_url)
-    selected = client.fetch_releases()[0]
-    service = UpdateService(client, object())
+    assert updater.apply("v18") == "staged"
+    assert (root / "app" / "audio_stems" / "api.py").read_text() == "# old api"  # nothing replaced while running
 
-    assert service.can_update(selected) is False
-
-
-def test_release_manifest_redirect_is_rejected():
-    def open_url(request, timeout):
-        if request.full_url.startswith("https://api.github.com/"):
-            return FakeResponse([release()])
-        return FakeResponse(PINNED_REQUIREMENTS, "https://evil.example/requirements.txt")
-
-    client = GitHubReleaseClient(open_url=open_url)
-    with pytest.raises(ValueError, match="redirected"):
-        client.fetch_requirements("v2.1.0")
+    assert apply_staged_update(root, staging) == "v18"
+    assert (root / "app" / "audio_stems" / "api.py").read_text() == "# new api"
+    assert (root / "Start.bat").read_text() == "@echo new" and (root / "app" / "VERSION").read_text() == "18\n"
+    assert (root / "app" / ".venv" / "python.exe").read_text() == "the environment"
+    assert (root / "app" / ".env").read_text() == "AUDIO_STEMS_API_HOST=0.0.0.0"
+    assert not staging.exists() and apply_staged_update(root, staging) is None
 
 
-def test_update_requires_explicit_confirmation_before_contacting_github():
-    class NeverFetch:
-        def fetch_releases(self):
-            raise AssertionError("must not inspect releases without confirmation")
-
-        def fetch_requirements(self, _tag):
-            raise AssertionError("must not fetch a manifest without confirmation")
-
-    class NeverInstall:
-        def install(self, _manifest):
-            raise AssertionError("must not install without confirmation")
-
-    service = UpdateService(NeverFetch(), NeverInstall())
-    with pytest.raises(PermissionError, match="confirmation"):
-        service.apply("v2.1.0", confirmed=False)
-
-
-def test_update_service_wraps_github_network_failures_in_a_stable_error():
-    class Offline:
-        def fetch_releases(self):
-            raise OSError("network unavailable")
-
-    with pytest.raises(UpdateCheckError):
-        UpdateService(Offline(), object()).check()
+def test_a_bad_release_archive_is_refused_and_leaves_nothing_to_install(tmp_path):
+    staging = tmp_path / "update"
+    cases = [
+        (release_zip(extra=[("top/../../evil.txt", "x")]), "https://codeload.github.com/z", "could not be unpacked|unsafe"),
+        (release_zip(version="20"), "https://codeload.github.com/z", "another version"),
+        (release_zip(), "https://evil.example/z", "unexpected address"),
+        (b"not a zip", "https://codeload.github.com/z", "could not be unpacked"),
+    ]
+    for archive, url, message in cases:
+        updater = Updater(tmp_path, staging, open_url=github([release("v18")], archive, url), version=lambda: 17)
+        with pytest.raises(UpdateError, match=message):
+            updater.apply("v18")
+        assert not (staging / "ready").exists()
+    assert not (tmp_path / "evil.txt").exists()
 
 
-def test_update_installs_only_a_pinned_release_manifest(tmp_path):
-    root = tmp_path / "application"
-    root.mkdir()
+def test_unpacking_refuses_paths_that_leave_the_target(tmp_path):
+    with pytest.raises(UpdateError, match="unsafe"):
+        unpack_release(release_zip(extra=[("top/../../evil.txt", "x")]), tmp_path / "out")
+
+
+def test_a_git_clone_fast_forwards_to_the_tag_only_when_clean_and_behind(tmp_path):
+    (tmp_path / ".git").mkdir()
     commands = []
 
-    def capture_command(command, **kwargs):
-        commands.append((command, kwargs, Path(command[-1]).read_text(encoding="utf-8")))
+    def runner(command, **_kwargs):
+        commands.append(command[1:])
+        if command[1] == "status":
+            return subprocess.CompletedProcess(command, 0, stdout=status[0])
+        if command[1] == "merge" and not fast_forward[0]:
+            raise subprocess.CalledProcessError(1, command)
+        return subprocess.CompletedProcess(command, 0, stdout="")
 
-    updater = DependencyUpdater(
-        root, python="python-test",
-        runner=capture_command,
-    )
-
-    updater.install(PINNED_REQUIREMENTS)
-
-    command, kwargs, manifest_content = commands[0]
-    assert command[:6] == ["python-test", "-m", "pip", "install", "--upgrade", "-r"]
-    assert manifest_content == PINNED_REQUIREMENTS
-    assert kwargs["cwd"] == root
-    assert kwargs["check"] is True
-    assert kwargs["timeout"] == 1800
-    assert not Path(command[5]).exists()
-
-
-def test_updater_rejects_unpinned_or_external_requirement_lines(tmp_path):
-    root = tmp_path / "application"
-    root.mkdir()
-    updater = DependencyUpdater(root, python="python-test", runner=lambda *_args, **_kwargs: None)
-    with pytest.raises(ValueError, match="exact pinned"):
-        updater.install(PINNED_REQUIREMENTS.replace("demucs==4.1.0", "demucs>=4.1"))
-    with pytest.raises(ValueError, match="exact pinned"):
-        updater.install(PINNED_REQUIREMENTS + "--extra-index-url https://packages.example\n")
-    with pytest.raises(ValueError, match="only the approved runtime packages"):
-        updater.install(PINNED_REQUIREMENTS + "arbitrary-package==9.9\n")
+    status, fast_forward = [""], [True]
+    updater = Updater(tmp_path, tmp_path / "update", open_url=github([release("v18")]), runner=runner, version=lambda: 17)
+    assert updater.check()["mode"] == "git"
+    assert updater.apply("v18") == "applied"
+    assert commands == [["status", "--porcelain", "--untracked-files=no"], ["fetch", "--tags", "origin"],
+                        ["merge", "--ff-only", "refs/tags/v18"]]
+    status[0] = " M app/audio_stems/api.py\n"
+    with pytest.raises(UpdateError, match="local changes"):
+        updater.apply("v18")
+    status[0], fast_forward[0] = "", False
+    with pytest.raises(UpdateError, match="commits"):
+        updater.apply("v18")
 
 
-def test_update_only_accepts_latest_stable_release_and_propagates_install_failure():
-    class Installer:
-        def install(self, _manifest):
-            raise subprocess.CalledProcessError(1, "pip")
+def _api(tmp_path, updater):
+    settings = replace(Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
+                       database_url=f"sqlite:///{(tmp_path / 'u.db').as_posix()}")
+    repository = SqliteMetadataStore(tmp_path / "u.db")
+    app = create_app(repository=repository, settings=settings, source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
+                     separator=StemSeparator(), updater=updater)
 
-    class Source:
-        def fetch_releases(self):
-            return [GitHubReleaseClient(open_url=lambda *_args, **_kwargs: FakeResponse([release()])).fetch_releases()[0]]
+    async def send(method, path, body=None):
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
+            return await client.request(method, path, json=body)
 
-        def fetch_requirements(self, _tag):
-            return PINNED_REQUIREMENTS
-
-    service = UpdateService(
-        Source(), Installer(),
-    )
-
-    with pytest.raises(ValueError, match="latest stable"):
-        service.apply("v2.0.0", confirmed=True)
-    with pytest.raises(subprocess.CalledProcessError):
-        service.apply("v2.1.0", confirmed=True)
+    return (lambda method, path, body=None: asyncio.run(send(method, path, body))), repository
 
 
-def test_update_api_checks_release_notes_and_returns_restart_requirement(tmp_path):
-    settings = replace(
-        Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
-        database_url=f"sqlite:///{(tmp_path / 'audio_stems.updates.db').as_posix()}",
-    )
-    repository = SqliteMetadataStore(tmp_path / "audio_stems.updates.db")
+def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed_and_idle(tmp_path):
+    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: 17)
+    request, repository = _api(tmp_path, updater)
 
-    class Installer:
-        def __init__(self):
-            self.calls = 0
-
-        def install(self, _manifest):
-            self.calls += 1
-
-    installer = Installer()
-    service = UpdateService(release_client_with_manifest(), installer)
-    app = create_app(
-        repository=repository, settings=settings,
-        source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=StemSeparator(), update_service=service,
-    )
-
-    async def send(method, path, **kwargs):
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
-        ) as client:
-            return await client.request(method, path, **kwargs)
-
-    check = asyncio.run(send("GET", "/api/v1/updates"))
-    denied = asyncio.run(send("POST", "/api/v1/updates/apply", json={"tag_name": "v2.1.0", "confirmed": False}))
-    applied = asyncio.run(send("POST", "/api/v1/updates/apply", json={"tag_name": "v2.1.0", "confirmed": True}))
-
-    assert check.status_code == 200 and check.json()["releases"][0]["notes"] == "Bug fixes and improvements"
-    assert check.json()["releases"][0]["updatable"] is True
-    assert denied.status_code == 409 and denied.json()["error"]["code"] == "confirmation_required"
-    assert applied.status_code == 200 and applied.json()["restart_required"] is True
-    assert installer.calls == 1
+    found = request("GET", "/api/v1/updates").json()
+    assert found["current"] == 17 and [r["tag_name"] for r in found["releases"]] == ["v18"]
+    assert found["releases"][0]["notes"] == "Bug fixes and improvements"
+    assert request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": False}).json()["error"]["code"] == "confirmation_required"
+    repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "a song")])  # a task waits
+    busy = request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": True})
+    assert busy.status_code == 409 and busy.json()["error"]["code"] == "busy"
 
 
-def test_update_api_reports_failed_install_and_can_be_retried(tmp_path):
-    settings = replace(
-        Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
-        database_url=f"sqlite:///{(tmp_path / 'update-retry.db').as_posix()}",
-    )
-    repository = SqliteMetadataStore(tmp_path / "update-retry.db")
+def test_the_update_api_stages_the_release_when_idle(tmp_path):
+    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: 17)
+    request, _repository = _api(tmp_path, updater)
 
-    class RetryInstaller:
-        calls = 0
+    applied = request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": True})
 
-        def install(self, _manifest):
-            self.calls += 1
-            if self.calls == 1:
-                raise subprocess.CalledProcessError(1, "pip")
+    assert applied.status_code == 200 and applied.json() == {"state": "staged", "tag_name": "v18", "restart_required": True}
+    assert (tmp_path / "update" / "ready").read_text() == "v18"
 
-    installer = RetryInstaller()
-    service = UpdateService(release_client_with_manifest(), installer)
-    app = create_app(
-        repository=repository, settings=settings,
-        source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-        separator=StemSeparator(), update_service=service,
-    )
 
-    async def send():
-        async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://testserver"
-        ) as client:
-            return [
-                await client.post("/api/v1/updates/apply", json={"tag_name": "v2.1.0", "confirmed": True}),
-                await client.post("/api/v1/updates/apply", json={"tag_name": "v2.1.0", "confirmed": True}),
-            ]
+def test_github_out_of_reach_is_a_stable_error(tmp_path):
+    def offline(*_args, **_kwargs):
+        raise OSError("offline")
 
-    failed, retried = asyncio.run(send())
-    assert failed.status_code == 500
-    assert failed.json()["error"]["code"] == "dependency_update_failed"
-    assert retried.status_code == 200 and installer.calls == 2
+    request, _repository = _api(tmp_path, Updater(tmp_path, tmp_path / "update", open_url=offline, version=lambda: 17))
+
+    assert request("GET", "/api/v1/updates").json()["error"]["code"] == "update_check_failed"

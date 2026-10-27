@@ -12,6 +12,7 @@ def no_real_media_move(monkeypatch):
     """`run` renames the user's media folder; the tests must never touch the real one."""
     moves = []
     monkeypatch.setattr(desktop, "move_legacy_storage", lambda: moves.append("moved"))
+    monkeypatch.setattr(desktop, "apply_staged_update", lambda *_args: None)  # nor install a real downloaded update
     return moves
 
 class FakeProcess:
@@ -226,3 +227,22 @@ def test_launcher_console_turns_off_quick_edit_so_a_click_cannot_freeze_the_app(
     assert kernel32.set_to & ~0xC0 == 0x1F7 & ~0xC0  # the other input modes are kept
     no_console = Kernel32(has_console=False)
     assert desktop.disable_quick_edit(no_console) is False and no_console.set_to is None
+
+
+@pytest.mark.parametrize("same_libraries, expected", [(True, "restarted"), (False, desktop.MISSING_DEPENDENCIES)])
+def test_a_downloaded_update_is_installed_before_the_services_start(monkeypatch, tmp_path, same_libraries, expected):
+    installed = []
+    monkeypatch.setattr(desktop, "apply_staged_update", lambda root, staging: installed.append((root, staging)) or "v18")
+    monkeypatch.setattr(desktop, "ROOT", tmp_path / "app")
+    lock = tmp_path / "app" / ("requirements-windows.lock" if desktop.os.name == "nt" else "requirements-macos.lock")
+    (tmp_path / "app" / ".venv").mkdir(parents=True)
+    lock.write_text("new libraries")
+    (tmp_path / "app" / ".venv" / "requirements.installed").write_text("new libraries" if same_libraries else "old ones")
+    started, restarted = [], []
+
+    result = desktop.run(popen=lambda *args, **kwargs: started.append(args),
+                         restart=lambda command, **kwargs: restarted.append(command) or "restarted")
+
+    assert result == expected and started == []  # the old code never starts the services
+    assert installed[0][0] == tmp_path and installed[0][1].name == "update"
+    assert restarted == ([[desktop.sys.executable, "-m", "audio_stems.desktop"]] if same_libraries else [])

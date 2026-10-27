@@ -1423,20 +1423,22 @@ async function refreshBatch(batchId, selectedJobId) {
   }
 }
 
-function renderReleases(releases) {
+// Settings → Обновления: the releases newer than this copy; the newest can be installed.
+function renderReleases(result) {
+  const releases = result.releases;
   if (releases.length === 0) {
     releaseList.replaceChildren();
-    updatesMessage.textContent = "В GitHub пока нет опубликованных стабильных релизов.";
+    updatesMessage.textContent = `Установлена версия ${result.current} — это последняя.`;
     return;
   }
-  updatesMessage.textContent = "Релизы получены из GitHub. Перед обновлением остановите worker.";
+  updatesMessage.textContent = `Установлена версия ${result.current}. Есть новая:`;
   releaseList.replaceChildren(...releases.map((release, index) => {
     const card = document.createElement("article");
     card.className = "release-card";
     const title = document.createElement("h3");
-    title.textContent = `${release.name} (${release.tag_name})`;
+    title.textContent = release.name || release.tag_name;
     const published = document.createElement("p");
-    published.textContent = release.published_at;
+    published.textContent = new Date(release.published_at).toLocaleDateString("ru-RU");
     const notes = document.createElement("p");
     notes.className = "release-notes";
     notes.textContent = release.notes || "В этом релизе нет описания.";
@@ -1444,34 +1446,32 @@ function renderReleases(releases) {
     link.href = release.url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Открыть релиз на GitHub";
+    link.textContent = "Открыть на GitHub";
     card.append(title, published, notes, link);
-    if (index === 0 && release.updatable) {
+    if (index === 0) {
       const apply = document.createElement("button");
       apply.type = "button";
       apply.className = "primary-button";
-      apply.textContent = "Обновить зависимости";
+      apply.dataset.action = "install-update";
+      apply.textContent = `Обновить до ${release.tag_name}`;
       apply.addEventListener("click", async () => {
-        const confirmed = window.confirm(`Установить обновления из requirements.txt для релиза ${release.tag_name}? Остановите worker перед продолжением. После установки перезапустите API и worker.`);
-        if (!confirmed) return;
+        if (!window.confirm(`Установить «${release.name || release.tag_name}»? Задачи в очереди должны закончиться. Ваши песни и настройки не затрагиваются. После установки приложение нужно запустить заново.`)) return;
         apply.disabled = true;
-        updatesMessage.textContent = "Устанавливаем зависимости…";
+        updatesMessage.textContent = "Скачиваем обновление…";
         try {
-          await requestJson("/api/v1/updates/apply", {
+          const done = await requestJson("/api/v1/updates/apply", {
             method: "POST",
             body: JSON.stringify({ tag_name: release.tag_name, confirmed: true }),
           });
-          updatesMessage.textContent = "Зависимости обновлены. Перезапустите API и worker.";
+          updatesMessage.textContent = done.state === "applied"
+            ? "Обновление установлено. Закройте окно Audio Stems и запустите приложение снова."
+            : "Обновление скачано. Закройте окно Audio Stems и запустите приложение снова: оно установится при запуске.";
         } catch (error) {
           updatesMessage.textContent = error.message;
           apply.disabled = false;
         }
       });
       card.append(apply);
-    } else if (index === 0) {
-      const unavailable = document.createElement("p");
-      unavailable.textContent = "Для этого релиза нет проверенного manifest с точными версиями зависимостей.";
-      card.append(unavailable);
     }
     return card;
   }));
@@ -1479,10 +1479,9 @@ function renderReleases(releases) {
 
 async function checkUpdates() {
   checkUpdatesButton.disabled = true;
-  updatesMessage.textContent = "Проверяем опубликованные релизы GitHub…";
+  updatesMessage.textContent = "Проверяем новые версии на GitHub…";
   try {
-    const result = await requestJson("/api/v1/updates");
-    renderReleases(result.releases);
+    renderReleases(await requestJson("/api/v1/updates"));
   } catch (error) {
     updatesMessage.textContent = error.message;
   } finally {

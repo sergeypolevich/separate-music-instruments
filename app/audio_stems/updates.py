@@ -1,27 +1,48 @@
-"""Fixed-source release inspection and explicitly confirmed dependency updates."""
+"""Updates from the project's GitHub releases: what is new, and installing the latest one.
+
+A copy downloaded as a ZIP gets the release's archive, unpacked into the data folder and copied over the app by
+the launcher on its next start (running code is not replaced). A git clone fast-forwards to the release's tag."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+import io
 import json
-from pathlib import Path
-import subprocess
-import sys
-import tempfile
+from pathlib import Path, PurePosixPath
 import re
+import shutil
+import subprocess
 from typing import Callable
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
+import zipfile
 
 
-_RELEASES_URL = "https://api.github.com/repos/sergeypolevich/separate-music-instruments/releases?per_page=10"
-_RELEASE_PAGE_PREFIX = "https://github.com/sergeypolevich/separate-music-instruments/releases/tag/"
-_RAW_REQUIREMENTS_PREFIX = "https://raw.githubusercontent.com/sergeypolevich/separate-music-instruments/"
+_REPOSITORY = "sergeypolevich/separate-music-instruments"
+_RELEASES_URL = f"https://api.github.com/repos/{_REPOSITORY}/releases?per_page=10"
+_RELEASE_PAGE_PREFIX = f"https://github.com/{_REPOSITORY}/releases/tag/"
+_ARCHIVE_URL = f"https://api.github.com/repos/{_REPOSITORY}/zipball/"
+_ARCHIVE_HOSTS = {"api.github.com", "codeload.github.com"}  # GitHub answers the zipball URL with a redirect there
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
-_MAX_REQUIREMENTS_BYTES = 64 * 1024
+_MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
 _MAX_NOTES_LENGTH = 20_000
-_REQUIRED_RUNTIME_PACKAGES = {"pytubefix", "demucs", "fastapi", "uvicorn", "numpy"}
-_ALLOWED_RUNTIME_PACKAGES = _REQUIRED_RUNTIME_PACKAGES | {"imageio-ffmpeg", "soundfile", "audio-separator", "onnxruntime", "librosa", "beat-this"}
-_PINNED_REQUIREMENT = re.compile(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9.+!_-]*)$")
+_TAG = re.compile(r"v?(\d+)")
+# Never replaced by an update: the environment, the local settings and git's own folder.
+_KEEP = (".git", "app/.venv", "app/.env")
+VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
+
+
+def current_version() -> int:
+    """This copy's version (app/VERSION, the number of the release it was made for)."""
+    return int(VERSION_FILE.read_text(encoding="utf-8").strip())
+
+
+def release_number(tag: str) -> int | None:
+    match = _TAG.fullmatch(tag)
+    return int(match[1]) if match else None
+
+
+class UpdateError(RuntimeError):
+    """The update cannot be installed this way (local changes, a release that is not newest, a bad archive)."""
 
 
 @dataclass(frozen=True)
@@ -77,101 +98,112 @@ class GitHubReleaseClient:
             releases.append(ReleaseNote(tag, name[:200], body[:_MAX_NOTES_LENGTH], url, published_at[:40]))
         return releases
 
-    def fetch_requirements(self, tag_name: str) -> str:
-        if not tag_name or len(tag_name) > 64 or any(
-            char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._+-" for char in tag_name
-        ):
-            raise ValueError("Release tag has an invalid format")
-        url = f"{_RAW_REQUIREMENTS_PREFIX}{quote(tag_name, safe='')}/requirements.txt"
-        request = Request(url, headers={"User-Agent": "Audio-Stems-Updater"})
-        with self.open_url(request, timeout=10) as response:
-            payload = response.read(_MAX_REQUIREMENTS_BYTES + 1)
-            final_url = response.geturl() if hasattr(response, "geturl") else url
-        if final_url != url:
-            raise ValueError("Requirements manifest redirected away from its trusted release path")
-        if len(payload) > _MAX_REQUIREMENTS_BYTES:
-            raise ValueError("Requirements manifest exceeded the allowed size")
-        try:
-            manifest = payload.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ValueError("Requirements manifest is not valid UTF-8") from exc
-        validate_pinned_requirements(manifest)
-        return manifest
 
-
-class DependencyUpdater:
-    """Run pip using a bounded, exactly pinned manifest from a trusted release."""
-
-    def __init__(
-        self,
-        root: Path,
-        *,
-        python: str | None = None,
-        runner: Callable = subprocess.run,
-    ) -> None:
-        self.root = root.resolve()
-        self.python = python or sys.executable
+class Updater:
+    def __init__(self, root: Path, staging: Path, releases: GitHubReleaseClient | None = None, *,
+                 open_url: Callable = urlopen, runner: Callable = subprocess.run, version: Callable[[], int] = current_version) -> None:
+        self.root = root  # the folder with Start.bat and app/
+        self.staging = staging  # in the data folder: never inside the app it replaces
+        self.releases = releases or GitHubReleaseClient(open_url)
+        self.open_url = open_url
         self.runner = runner
+        self.version = version
 
-    def install(self, manifest: str) -> None:
-        validate_pinned_requirements(manifest)
-        with tempfile.TemporaryDirectory(prefix="audio-stems-update-") as temporary:
-            manifest_path = Path(temporary) / "requirements.txt"
-            manifest_path.write_text(manifest, encoding="utf-8")
-            self.runner(
-                [self.python, "-m", "pip", "install", "--upgrade", "-r", str(manifest_path)],
-                cwd=self.root,
-                check=True,
-                timeout=1800,
-            )
+    @property
+    def mode(self) -> str:
+        return "git" if (self.root / ".git").exists() else "archive"
 
-
-def validate_pinned_requirements(manifest: str) -> tuple[str, ...]:
-    packages: list[str] = []
-    for line in manifest.splitlines():
-        requirement = line.split("#", 1)[0].strip()
-        if not requirement:
-            continue
-        match = _PINNED_REQUIREMENT.fullmatch(requirement)
-        if not match:
-            raise ValueError("Release requirements must use exact pinned package versions")
-        packages.append(match.group(1).lower().replace("_", "-"))
-    missing = _REQUIRED_RUNTIME_PACKAGES - set(packages)
-    extra = set(packages) - _ALLOWED_RUNTIME_PACKAGES
-    if missing or extra or len(packages) != len(set(packages)):
-        raise ValueError("Release requirements must contain only the approved runtime packages, each pinned once")
-    return tuple(packages)
-
-
-class UpdateService:
-    def __init__(self, releases: GitHubReleaseClient, installer: DependencyUpdater) -> None:
-        self.releases = releases
-        self.installer = installer
-
-    def check(self) -> list[ReleaseNote]:
+    def check(self) -> dict[str, object]:
+        """Releases newer than this copy, newest first."""
         try:
-            return self.releases.fetch_releases()
+            releases = self.releases.fetch_releases()
         except Exception as exc:
             raise UpdateCheckError("Release metadata could not be retrieved") from exc
+        current = self.version()
+        newer = [r for r in releases if (number := release_number(r.tag_name)) is not None and number > current]
+        newer.sort(key=lambda r: release_number(r.tag_name), reverse=True)
+        return {"current": current, "mode": self.mode, "releases": newer}
 
-    def can_update(self, release: ReleaseNote) -> bool:
-        try:
-            manifest = self.releases.fetch_requirements(release.tag_name)
-            validate_pinned_requirements(manifest)
-            return True
-        except Exception:
-            return False
+    def apply(self, tag_name: str) -> str:
+        """Install the newest release: "applied" (git: done, restart to use it) or "staged" (installed on the
+        launcher's next start)."""
+        newer = self.check()["releases"]
+        if not newer or newer[0].tag_name != tag_name:
+            raise UpdateError("Only the newest release can be installed")
+        if self.mode == "git":
+            self._fast_forward(tag_name)
+            return "applied"
+        self._stage(tag_name)
+        return "staged"
 
-    def apply(self, tag_name: str, *, confirmed: bool) -> ReleaseNote:
-        if confirmed is not True:
-            raise PermissionError("Explicit confirmation is required before updating dependencies")
-        releases = self.check()
-        if not releases or releases[0].tag_name != tag_name:
-            raise ValueError("Only the latest stable release can be applied")
+    def _git(self, *arguments: str) -> str:
+        return self.runner(["git", *arguments], cwd=self.root, capture_output=True, text=True, check=True, timeout=300).stdout
+
+    def _fast_forward(self, tag: str) -> None:
+        if self._git("status", "--porcelain", "--untracked-files=no").strip():
+            raise UpdateError("The app folder has local changes: update it by hand")
+        self._git("fetch", "--tags", "origin")
         try:
-            manifest = self.releases.fetch_requirements(tag_name)
-            validate_pinned_requirements(manifest)
-        except Exception as exc:
-            raise UpdateCheckError("The release has no valid exactly pinned requirements manifest") from exc
-        self.installer.install(manifest)
-        return releases[0]
+            self._git("merge", "--ff-only", f"refs/tags/{tag}")
+        except subprocess.CalledProcessError as exc:
+            raise UpdateError("This copy has commits the release does not: update it by hand") from exc
+
+    def _stage(self, tag: str) -> None:
+        request = Request(_ARCHIVE_URL + quote(tag, safe=""), headers={"User-Agent": "Audio-Stems-Updater"})
+        with self.open_url(request, timeout=60) as response:
+            final = response.geturl() if hasattr(response, "geturl") else request.full_url
+            if urlparse(final).scheme != "https" or urlparse(final).hostname not in _ARCHIVE_HOSTS:
+                raise UpdateError("The release archive came from an unexpected address")
+            payload = response.read(_MAX_ARCHIVE_BYTES + 1)
+        if len(payload) > _MAX_ARCHIVE_BYTES:
+            raise UpdateError("The release archive is too large")
+        target = self.staging / tag
+        shutil.rmtree(self.staging, ignore_errors=True)
+        try:
+            unpack_release(payload, target)
+            if release_number(tag) != int((target / "app" / "VERSION").read_text(encoding="utf-8").strip()):
+                raise UpdateError("The release archive is for another version")
+        except (OSError, ValueError, zipfile.BadZipFile) as exc:
+            shutil.rmtree(self.staging, ignore_errors=True)
+            raise UpdateError("The release archive could not be unpacked") from exc
+        except UpdateError:
+            shutil.rmtree(self.staging, ignore_errors=True)
+            raise
+        (self.staging / "ready").write_text(tag, encoding="utf-8")  # last: a half-unpacked update is never used
+
+
+def unpack_release(payload: bytes, target: Path) -> None:
+    """GitHub's archive holds one top folder; its content goes to target. Paths that would leave it are refused."""
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        names = [name for name in archive.namelist() if not name.endswith("/")]
+        if not names:
+            raise UpdateError("The release archive is empty")
+        for name in names:
+            parts = PurePosixPath(name).parts[1:]  # without GitHub's "<owner>-<repo>-<commit>/"
+            if not parts or any(part in ("..", "") or ":" in part for part in parts) or PurePosixPath(name).is_absolute():
+                raise UpdateError("The release archive has an unsafe path")
+            destination = target.joinpath(*parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(name) as source, destination.open("wb") as output:
+                shutil.copyfileobj(source, output)
+    if not (target / "app" / "audio_stems" / "__init__.py").is_file():
+        raise UpdateError("The release archive does not contain the app")
+
+
+def apply_staged_update(root: Path, staging: Path) -> str | None:
+    """Run by the launcher before the services start: copy a downloaded release over the app (the environment,
+    the local settings and git's folder stay) and remove it. Returns the installed tag, or None."""
+    ready = staging / "ready"
+    if not ready.is_file():
+        return None
+    tag = ready.read_text(encoding="utf-8").strip()
+    source = staging / tag
+    for path in sorted(source.rglob("*")):
+        relative = path.relative_to(source).as_posix()
+        if path.is_dir() or any(relative == keep or relative.startswith(keep + "/") for keep in _KEEP):
+            continue
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, destination)
+    shutil.rmtree(staging, ignore_errors=True)
+    return tag

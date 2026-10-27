@@ -50,6 +50,12 @@ downloads the components (about 1.5 GB). Each separation model downloads its wei
 (the fast one about 160 MB, the best one about 650 MB, the beat detector about 80 MB). Later starts take a few
 seconds.
 
+## Updating
+
+**Settings → Обновления → Проверить** shows what is new in later versions. **Обновить до …** downloads the newest
+one (when no song is being separated); close the Audio Stems window and start the app again, and the update is
+installed before it opens. Your songs, stems and settings stay as they are.
+
 ## Where your files are
 
 Songs, tracks, the project database and logs are kept in the `Audio Stems` folder in your user folder, separate
@@ -66,7 +72,8 @@ It connects only to:
   the libraries;
 - **Hugging Face** (huggingface.co), **GitHub** (the releases that audio-separator uses) and
   **cloud.cp.jku.at**: once, to download a separation model or the beat model the first time you use it;
-- **GitHub API** (api.github.com): to check for a new version of Audio Stems.
+- **GitHub** (api.github.com, codeload.github.com): to check for a new version of Audio Stems, and to download it
+  when you choose to install it.
 
 ## Please note
 

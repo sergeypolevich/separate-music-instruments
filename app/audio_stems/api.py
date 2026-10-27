@@ -38,7 +38,7 @@ from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
-from audio_stems.updates import DependencyUpdater, GitHubReleaseClient, UpdateCheckError, UpdateService
+from audio_stems.updates import UpdateCheckError, UpdateError, Updater
 import numpy as np
 import soundfile
 
@@ -163,7 +163,7 @@ def create_app(
     source_adapter: YouTubeSourceAdapter | None = None,
     separator: StemSeparator | None = None,
     storage: LocalMediaStorage | None = None,
-    update_service: UpdateService | None = None,
+    updater: Updater | None = None,
     start_analysis: Callable[[], None] | None = None,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
@@ -171,10 +171,8 @@ def create_app(
     separator = separator or StemSeparator()
     storage = storage or LocalMediaStorage(settings.storage_root, temp_root=settings.temp_root)
     application_root = Path(__file__).resolve().parents[1]
-    update_service = update_service or UpdateService(
-        GitHubReleaseClient(),
-        DependencyUpdater(application_root),
-    )
+    # The release is unpacked in the data folder, next to Music/, never inside the app it will replace.
+    updater = updater or Updater(application_root.parent, settings.storage_root.parent / "update")
     def finish_deletion(deletion) -> None:
         for storage_key in deletion.storage_keys:
             storage.delete_asset(storage_key)
@@ -272,23 +270,17 @@ def create_app(
     @app.get("/api/v1/updates")
     def check_updates() -> dict[str, object]:
         try:
-            releases = update_service.check()
-        except Exception as exc:
+            found = updater.check()
+        except UpdateCheckError as exc:
             logger.exception(
                 "GitHub release check failed",
-                extra={"event": "update_check_failed", "ClientID": _OWNER_ID,
-                       "error_type": type(exc).__name__},
+                extra={"event": "update_check_failed", "ClientID": _OWNER_ID, "error_type": type(exc).__name__},
             )
             raise HTTPException(
                 status_code=503,
                 detail={"code": "update_check_failed", "message": "Could not retrieve release information from GitHub"},
             ) from exc
-        return {
-            "releases": [
-                {**release.__dict__, "updatable": index == 0 and update_service.can_update(release)}
-                for index, release in enumerate(releases)
-            ]
-        }
+        return {**found, "releases": [release.__dict__ for release in found["releases"]]}
 
     def beats_state(project_id: UUID) -> dict[str, object]:
         state = repository.get_analysis(project_id, "beats") or {"status": "none", "progress": 0, "result": None, "error": None}
@@ -427,31 +419,28 @@ def create_app(
         if not body.confirmed:
             raise HTTPException(
                 status_code=409,
-                detail={"code": "confirmation_required", "message": "Confirm the dependency update before continuing"},
+                detail={"code": "confirmation_required", "message": "Confirm the update before continuing"},
             )
+        if repository.has_active_jobs():  # a separation must not lose its code halfway
+            raise HTTPException(status_code=409, detail={"code": "busy", "message": "Дождитесь окончания задач в очереди"})
         try:
-            release = update_service.apply(body.tag_name, confirmed=True)
+            state = updater.apply(body.tag_name)
         except UpdateCheckError as exc:
             raise HTTPException(
                 status_code=503,
                 detail={"code": "update_check_failed", "message": "Could not retrieve release information from GitHub"},
             ) from exc
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=409,
-                detail={"code": "release_not_available", "message": "That release is not the latest stable version"},
-            ) from exc
-        except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
+        except UpdateError as exc:
+            raise HTTPException(status_code=409, detail={"code": "update_refused", "message": str(exc)}) from exc
+        except (subprocess.SubprocessError, OSError) as exc:
             logger.exception(
-                "Confirmed dependency update failed",
-                extra={"event": "dependency_update_failed", "ClientID": _OWNER_ID,
-                       "tag_name": body.tag_name, "error_type": type(exc).__name__},
+                "Update failed",
+                extra={"event": "update_failed", "ClientID": _OWNER_ID, "tag_name": body.tag_name,
+                       "error_type": type(exc).__name__},
             )
-            raise HTTPException(
-                status_code=500,
-                detail={"code": "dependency_update_failed", "message": "Dependency installation failed; restart was not requested"},
-            ) from exc
-        return {"status": "updated", "tag_name": release.tag_name, "restart_required": True}
+            raise HTTPException(status_code=500, detail={"code": "update_failed", "message": "The update could not be installed"}) from exc
+        logger.info("Update prepared", extra={"event": "update_" + state, "ClientID": _OWNER_ID, "tag_name": body.tag_name})
+        return {"state": state, "tag_name": body.tag_name, "restart_required": True}
 
     @app.post("/api/v1/batches", status_code=status.HTTP_202_ACCEPTED)
     def create_batch(body: BatchSubmission) -> dict[str, object]:

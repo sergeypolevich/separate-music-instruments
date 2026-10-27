@@ -28,7 +28,7 @@ def test_readme_describes_shared_api_worker_and_restart_limits():
     text = readme.read_text(encoding="utf-8")
 
     assert "Keep `py run.py --worker` running separately" in text
-    assert "restart both the API and worker" in text
+    assert "restart to use it" in text and "Обновить до vNN" in text  # updates: when they take effect
     assert "By default, no live YouTube or Demucs smoke tests run" in text
     assert "Run it before every commit" in text
 

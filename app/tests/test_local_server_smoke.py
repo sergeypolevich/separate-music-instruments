@@ -25,7 +25,7 @@ def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):
 
     class NoNetworkUpdates:
         def check(self):
-            return []
+            return {"current": 17, "mode": "archive", "releases": []}
 
         def apply(self, *_args, **_kwargs):
             raise AssertionError("smoke test must not install dependencies")
@@ -35,7 +35,7 @@ def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):
         settings=settings,
         source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
         separator=StemSeparator(),
-        update_service=NoNetworkUpdates(),
+        updater=NoNetworkUpdates(),
     )
     with socket.socket() as listener:
         listener.bind(("127.0.0.1", 0))
@@ -46,7 +46,8 @@ def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):
     thread.start()
     base_url = f"http://127.0.0.1:{port}"
     try:
-        with httpx.Client(base_url=base_url, timeout=2) as client:
+        # 10 s: the first batch detects the device (imports torch), 2-3 s on a laptop.
+        with httpx.Client(base_url=base_url, timeout=10) as client:
             deadline = time.monotonic() + 5
             while True:
                 try:

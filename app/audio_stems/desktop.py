@@ -13,6 +13,7 @@ from urllib.request import urlopen
 import webbrowser
 
 from audio_stems.config import Settings, move_legacy_storage
+from audio_stems.updates import apply_staged_update
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,6 +67,7 @@ def run(
     popen: Callable = subprocess.Popen,
     sleep: Callable[[float], None] = time.sleep,
     open_browser: Callable | None = None,
+    restart: Callable = subprocess.call,
 ) -> int:
     missing = missing_runtime_modules()
     if missing:
@@ -73,6 +75,17 @@ def run(
         return MISSING_DEPENDENCIES
     move_legacy_storage()  # before the services open any file in it
     settings = Settings.load()
+    installed = apply_staged_update(ROOT.parent, settings.storage_root.parent / "update")
+    if installed:  # downloaded in Settings → Обновления; copied over the app now, before any of it runs
+        print(f"Installed the update {installed}.", flush=True)
+        lock = ROOT / ("requirements-windows.lock" if os.name == "nt" else "requirements-macos.lock")
+        try:
+            libraries_unchanged = (ROOT / ".venv" / "requirements.installed").read_bytes() == lock.read_bytes()
+        except OSError:
+            libraries_unchanged = False
+        if not libraries_unchanged:
+            return MISSING_DEPENDENCIES  # the launcher installs the new libraries, then starts the new code
+        return restart([sys.executable, "-m", "audio_stems.desktop"], cwd=ROOT)  # this process still runs the old code
     url = f"http://127.0.0.1:{settings.api_port}"
     if stop_file is None:
         configured_stop_file = os.environ.get("AUDIO_STEMS_STOP_FILE")
