@@ -262,7 +262,6 @@ h1, h2, h3, p { margin-top: 0; }
 .search-overlay[hidden] { display: none; }
 .search-dialog { width: min(100%, 820px); min-height: min(460px, 78vh); padding: clamp(20px, 4vw, 34px); border: 1px solid var(--line-strong); border-radius: 18px; background: linear-gradient(145deg, var(--panel-soft), var(--panel)); box-shadow: 0 28px 90px var(--shadow); }
 .search-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 25px; }
-.search-dialog-heading .eyebrow { margin: 0 0 6px; color: var(--accent); font-size: 9px; font-weight: 700; letter-spacing: 1.5px; }
 .search-dialog-heading h1 { margin: 0; font: 650 clamp(22px, 4vw, 30px)/1.2 Manrope, sans-serif; }
 #submit-form label { display: block; margin: 0 0 7px; color: var(--text-soft); font-size: 11px; font-weight: 600; }
 .search-dialog textarea, .search-dialog select { width: 100%; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-input); color: var(--text); font: inherit; }

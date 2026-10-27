@@ -242,6 +242,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 disk.update(unused=0, temp=0)
                 self._json({"freed_bytes": freed})
                 return
+            if self.path == "/api/v1/batches" and body["inputs"][0].startswith("https://vimeo.com/"):
+                self._json({"error": {"code": "invalid_input", "message": "Video URL host is not allowed"}}, 422)
+                return
             if self.path == "/api/v1/batches":
                 submitted.append(body)
                 title = body["inputs"][0]
@@ -893,6 +896,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             _assert_icon_centred(page, "#submit-button .icon", "#submit-button span", horizontal=False, tolerance=1)
             bounds = overlay.bounding_box()
             assert bounds["width"] == viewport[0] and bounds["height"] == viewport[1]
+            # Few words: no YouTube anywhere in the dialog, one hint about several songs, none about Enter.
+            dialog_text = page.locator("#search-overlay .search-dialog").inner_text()
+            assert "YouTube" not in dialog_text and "Enter" not in dialog_text and "НОВАЯ ЗАДАЧА" not in dialog_text
+            assert page.locator("#submit-form .field-hint").inner_text() == "Несколько песен — каждая с новой строки."
+            assert page.locator("#inputs").get_attribute("placeholder") == "Исполнитель — Песня"
             textarea = page.locator("#inputs")
             initial_height = textarea.evaluate("el => el.getBoundingClientRect().height")
             textarea.fill("one\ntwo\nthree\nfour")
@@ -908,6 +916,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not overlay.is_visible()
             page.locator("#search-trigger").click()
             page.wait_for_function("document.activeElement.id === 'inputs'")
+            page.locator("#inputs").fill("https://vimeo.com/1")  # a link the app does not take: said in Russian
+            page.keyboard.press("Enter")
+            page.wait_for_function("document.querySelector('#form-message').textContent.includes('поддерживаются ссылки YouTube')")
             page.locator("#inputs").fill("")  # the text typed earlier is still there
             page.keyboard.type("New track")
             page.keyboard.press("Shift+Enter")  # a new line, not a submission

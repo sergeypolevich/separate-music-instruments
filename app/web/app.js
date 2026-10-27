@@ -1324,7 +1324,8 @@ async function submitSearch(event) {
     await loadProjects(created.job_ids[0]);
     pollingTimer = window.setTimeout(() => refreshBatch(created.batch_id, created.job_ids[0]), 1200);
   } catch (error) {
-    setFormMessage(error.message, true);
+    // The API names the problem with a link in English; the only place the dialog mentions YouTube.
+    setFormMessage(/URL/.test(error.message) ? "Ссылка не подходит: поддерживаются ссылки YouTube (youtube.com, youtu.be)." : error.message, true);
   } finally {
     submitButton.disabled = false;
   }
