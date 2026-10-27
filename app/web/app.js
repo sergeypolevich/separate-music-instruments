@@ -77,6 +77,7 @@ const transportIcons = {
   turtle: '<path d="m12 10 2 4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a8 8 0 1 0-16 0v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3l2-4h4z"/><path d="M4.82 7.9 8 10"/><path d="M15.18 7.9 12 10"/><path d="M16.93 10H20a2 2 0 0 1 0 4H2"/>',
   rabbit: '<path d="M13 16a3 3 0 0 1 2.24 5"/><path d="M18 12h.01"/><path d="M18 21h-8a4 4 0 0 1-4-4 7 7 0 0 1 7-7h.2L9.6 6.4a1 1 0 1 1 2.8-2.8L15.8 7h.2c3.3 0 6 2.7 6 6v1a2 2 0 0 1-2 2h-1a3 3 0 0 0-3 3"/><path d="M20 8.54V4a2 2 0 1 0-4 0v3"/><path d="M7.612 12.524a3 3 0 1 0-1.6 4.3"/>',
   sparkles: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
+  original: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   speaker: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>',
 };
 
@@ -312,7 +313,8 @@ function renderJobProgress(state) {
     bar.setAttribute("aria-valuemin", "0");
     bar.setAttribute("aria-valuemax", "100");
     bar.append(document.createElement("span"));
-    playbackPanel.replaceChildren(label, bar);
+    if (activeControls) playbackPanel.prepend(label, bar);  // over the original audio, which plays meanwhile
+    else playbackPanel.replaceChildren(label, bar);
     playbackPanel.hidden = false;
   }
   const percent = Math.round((state.progress || 0) * 100);
@@ -326,9 +328,13 @@ function followSelectedJob(projects) {
   const selected = projects.find((project) => project.project_id === selectedProjectId);
   if (!selected) return;
   const wasRunning = selectedJobState && !finishedStates.has(selectedJobState.job_status);
+  const sourceReady = (state) => state === "downloaded" || state === "separating";  // polling may miss «downloaded»
+  const downloadedNow = sourceReady(selected.job_status) && !sourceReady(selectedJobState?.job_status);
   selectedJobState = selected;
-  if (!finishedStates.has(selected.job_status)) {
-    if (!activeControls) renderJobProgress(selected);
+  if (downloadedNow) {
+    openProject(selected.project_id);  // the source audio is there: play it while the stems are made
+  } else if (!finishedStates.has(selected.job_status)) {
+    renderJobProgress(selected);
   } else if (wasRunning) {
     openProject(selected.project_id);  // finished while open: show the mixer (or the error)
   }
@@ -472,7 +478,7 @@ function cleanupPlayback() {
   playbackKey = "";
 }
 
-const STEM_LABELS = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Guitar", piano: "Piano", other: "Other" };
+const STEM_LABELS = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Guitar", piano: "Piano", other: "Other", original: "Original" };
 
 // Files of a finished project were removed from disk by hand: say which, and offer to make them again.
 function renderMissingFiles(project, missing) {
@@ -536,6 +542,9 @@ function renderProject(project) {
     if (!finishedStates.has(project.job.status)) {
       const known = selectedJobState && selectedJobState.project_id === project.project_id ? selectedJobState : null;
       renderJobProgress(known || { job_status: project.job.status, progress: 0 });
+      // Downloaded: one track, «Original», to check it is the right song while it is separated.
+      const source = project.assets.find((asset) => asset.asset_type === "source_audio" && asset.available);
+      if (source) setupProjectPlayback([{ ...source, asset_type: "stem", stem_name: "original" }], ++playbackSetupId, 0, project, true);
     } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
     } else {
@@ -547,15 +556,15 @@ function renderProject(project) {
   });
 }
 
-async function setupProjectPlayback(assets, setupId, startOffset = 0, project = {}) {
-  const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other"];
+async function setupProjectPlayback(assets, setupId, startOffset = 0, project = {}, original = false) {
+  const stemOrder = ["vocals", "drums", "bass", "guitar", "piano", "other", "original"];
   const stemLabels = STEM_LABELS;
   const stemsByName = new Map(assets.filter((asset) => asset.asset_type === "stem").map((asset) => [asset.stem_name, asset]));
   // Four-stem models have no guitar and piano rows.
   const stems = stemOrder.map((name) => stemsByName.get(name)).filter(Boolean);
   const heading = document.createElement("p");
   heading.className = "playback-message";
-  if (!stems.length || stems.some((asset) => !asset.available || !["wav", "flac"].includes(asset.media_format))) {
+  if (!stems.length || stems.some((asset) => !asset.available || (!original && !["wav", "flac"].includes(asset.media_format)))) {
     heading.textContent = "Для синхронного воспроизведения нужны все дорожки проекта.";
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;
@@ -660,6 +669,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const buttons = document.createElement("div");
     buttons.className = "playback-buttons";
     buttons.append(play, countIn, reset);
+    countIn.hidden = original;  // no beats before the stems exist
     const error = document.createElement("span");
     error.className = "playback-error";
     const mixerRows = document.createElement("div");
@@ -804,7 +814,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       waveSvg.setAttribute("role", "img");
       waveSvg.setAttribute("aria-label", `Форма волны: ${stemLabels[asset.stem_name]}`);
       wave.append(waveSvg);
-      drawWaveform(waveSvg, asset.asset_id);
+      if (!original) drawWaveform(waveSvg, asset.asset_id);  // none for the source audio (WAV/FLAC only)
       row.append(left, wave);
       mixerRows.append(row);
     });
@@ -1166,7 +1176,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
     playbackPanel.style.setProperty("--progress", "0");
-    playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
+    if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
+    else playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
     playbackPanel.hidden = false;
     selectStem(0);
     // After an upgrade the new player picks up where the old one was.
@@ -1202,6 +1213,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       },
     };
     tracks.forEach((audio) => audio.load());
+    if (original) renderJobProgress(selectedJobState || { job_status: project.job.status, progress: 0 });
   } catch (reason) {
     console.error("Playback setup failed", reason);
     heading.textContent = "Не удалось подготовить синхронное воспроизведение в этом браузере.";

@@ -137,6 +137,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     uploaded = []
     deleted = []
     running_detail = {}
+    running_source = set()  # running projects whose source audio is already downloaded
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
     beats_polls = []
     upgrade_polls = []
@@ -173,7 +174,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                     detail["upgrade"].update(status="done", progress=1.0, best=True)
                 if project_id in running_detail:  # still processing: no stems yet
                     detail["job"]["status"] = running_detail[project_id]
-                    detail["assets"] = []
+                    detail["assets"] = [{"asset_id": f"source-{project_id}", "asset_type": "source_audio", "stem_name": None,
+                                         "media_format": "wav", "byte_size": 64_000, "available": True}] if project_id in running_source else []
                 self._json(detail)
             elif path == "/api/v1/models":
                 self._json([
@@ -316,6 +318,31 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             running_detail.pop("project-5")
             projects[5].update(job_status="completed", progress=1.0, eta_seconds=None)
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6", timeout=15000)
+            # Once the song is downloaded it plays as one track, «Original», while the stems are made: no waveform,
+            # no 4▶, metronome, upgrade or speed; the progress stays above it. Then the full mixer replaces it.
+            running_detail["project-6"] = "downloading"
+            projects[6].update(job_status="downloading", progress=0.05, eta_seconds=720)
+            page.locator('.project-tab[data-project-id="project-6"]').click()
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Загружаем аудио')")
+            assert page.locator(".mixer-row").count() == 0
+            running_source.add("project-6")
+            running_detail["project-6"] = "separating"
+            projects[6].update(job_status="separating", progress=0.3)
+            page.wait_for_function("document.querySelectorAll('.mixer-row').length === 1", timeout=15000)
+            assert page.locator(".mixer-row .mixer-name").text_content() == "Original"
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Разделяем дорожки · 30%')")
+            assert page.evaluate("""() => [document.querySelector('[data-action="count-in"]').hidden, document.querySelectorAll('.project-footer').length,
+                document.querySelector('.mixer-row .waveform-preview').childElementCount,
+                document.querySelector('.job-progress').compareDocumentPosition(document.querySelector('.mixer-grid, .mixer-row')) & 4]""") == [True, 0, 0, 4]
+            page.keyboard.press("Space")  # it plays
+            page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
+            page.keyboard.press("Space")
+            page.wait_for_function("document.querySelector('#playback-panel audio').paused")
+            running_detail.pop("project-6")
+            running_source.discard("project-6")
+            projects[6].update(job_status="completed", progress=1.0, eta_seconds=None)
+            page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6 && document.querySelectorAll('.project-footer').length === 1", timeout=15000)
+            assert page.locator(".job-progress").count() == 0
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
 

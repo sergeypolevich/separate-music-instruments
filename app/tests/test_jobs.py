@@ -522,3 +522,24 @@ def test_the_same_file_opened_again_reuses_its_stored_audio_and_a_lost_upload_fa
     assert [job.status for job in result.jobs] == [JobStatus.COMPLETED, JobStatus.FAILED]
     assert result.jobs[1].error_summary == "Source was not found"
     assert sorted(path.name for path in (tmp_path / "media").glob("*.flac")) == ["My Song.flac"]
+
+
+def test_a_search_shows_the_found_title_before_the_download_finishes(tmp_path):
+    seen = []
+
+    class NamedDownloader(FakeDownloader):
+        def search(self, query):
+            return [VideoCandidate("found-id", "Artist - Found Song (Official Video)", "https://youtube.com/watch?v=found-id")]
+
+        def download(self, source, progress=None):
+            seen.append(store.list_projects("client-1")[0].title)  # what the project tab shows meanwhile
+            return super().download(source, progress)
+
+    orchestrator, store, _, _, _, _ = build_orchestrator(tmp_path, downloader=NamedDownloader(tmp_path / "downloads", []))
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "found song")]
+    receipt = store.create_batch("client-1", requests)
+
+    orchestrator.process_batch(receipt, requests)
+
+    assert seen == ["Artist - Found Song (Official Video)"]
+    assert store.list_projects("client-1")[0].source_id == "found-id"

@@ -125,6 +125,8 @@ class BatchOrchestrator:
         for job_id, request in zip(receipt.job_ids, sources):
             try:
                 candidate = self._resolve_source(job_id, request, owner_id, receipt.batch_id)
+                if request.kind is SourceKind.SEARCH_QUERY:  # the tab names the found video while it downloads
+                    self.repository.update_project_source(job_id, candidate.source_id, candidate.title)
                 current = self.repository.get_job(job_id, owner_id)
                 if current is None:
                     raise AdapterError("Job was not found", FailureCategory.NOT_FOUND)
