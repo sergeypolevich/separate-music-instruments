@@ -336,6 +336,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6", timeout=15000)  # finished: mixer
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0' && document.querySelectorAll('#playback-panel audio').length === 6")
+            # A title longer than two lines is cut after the second and fades out there; a short one is whole.
+            assert page.locator("#detail-title").get_attribute("data-clipped") is None
+            page.evaluate("document.querySelector('#detail-title').textContent = 'A very long live recording title, '.repeat(8)")
+            page.wait_for_function("document.querySelector('#detail-title').hasAttribute('data-clipped')")
+            clipped = page.evaluate("""() => { const t = document.querySelector('#detail-title'), style = getComputedStyle(t);
+                return [t.getBoundingClientRect().height / parseFloat(style.lineHeight), style.maskImage || style.webkitMaskImage]; }""")
+            assert 1.9 < clipped[0] <= 2.05 and "linear-gradient" in clipped[1], clipped
+            page.evaluate("document.querySelector('#detail-title').textContent = 'Track 0'")
+            page.wait_for_function("!document.querySelector('#detail-title').hasAttribute('data-clipped')")
             # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
             page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
             # Running jobs keep the page polling, so wait for this project's response, not network idle.

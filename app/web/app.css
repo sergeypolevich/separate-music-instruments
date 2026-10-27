@@ -131,7 +131,9 @@ button { cursor: pointer; }
 .project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
 .detail-time { flex: none; color: var(--text); font: 300 15px/1.2 Manrope, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
 h1, h2, h3, p { margin-top: 0; }
-#detail-title { min-width: 0; margin: 0; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+#detail-title { min-width: 0; max-height: 2.4em; margin: 0; overflow: hidden; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+/* Cut after two lines: the first line stays whole, the second fades out toward its end. */
+#detail-title[data-clipped] { mask: linear-gradient(#000, #000) top / 100% 50% no-repeat, linear-gradient(to right, #000 55%, transparent) bottom / 100% 50% no-repeat; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
 .icon-button:hover { border-color: var(--line-strong); color: var(--accent); }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger-text); font-size: 12px; }

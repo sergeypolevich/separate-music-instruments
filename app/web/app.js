@@ -25,6 +25,9 @@ const projectTabs = document.querySelector("#project-tabs");
 const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");
+// At most two lines (CSS); a longer title fades out at the end of the second line instead of scrolling.
+const markClippedTitle = () => { detailTitle.toggleAttribute("data-clipped", detailTitle.scrollHeight > detailTitle.clientHeight + 1); };
+new ResizeObserver(markClippedTitle).observe(detailTitle);
 const detailControls = document.querySelector("#detail-controls");
 const detailTime = document.querySelector("#detail-time");
 const detailError = document.querySelector("#detail-error");
@@ -485,6 +488,8 @@ function renderProject(project) {
   projectEmpty.hidden = true;
   projectDetail.hidden = false;
   detailTitle.textContent = selectedProjectTitle;
+  detailTitle.title = selectedProjectTitle;
+  markClippedTitle();
   detailError.textContent = project.job.error_summary || "";
   detailError.hidden = !project.job.error_summary;
   deleteProjectButton.dataset.projectId = project.project_id;
