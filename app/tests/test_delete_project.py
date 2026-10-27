@@ -424,3 +424,34 @@ def test_separate_requeues_a_cancelled_project_with_its_audio_in_a_batch_of_its_
     assert job.status is JobStatus.QUEUED and job.batch_id != receipt.batch_id and not repository.cancel_requested(job_id)
     assert repository.claim_next_batch().receipt.job_ids == (job_id,)
     assert refused.status_code == 409 and refused.json()["error"]["code"] == "not_separable"
+
+
+def test_a_queued_upgrade_is_cancelled_at_once_and_a_missing_one_is_refused(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, _receipt, _ = add_project(repository, storage, "Upgrade me")
+    request("POST", f"/api/v1/projects/{project.project_id}/upgrade")
+
+    cancelled = request("DELETE", f"/api/v1/projects/{project.project_id}/upgrade")
+    again = request("DELETE", f"/api/v1/projects/{project.project_id}/upgrade")
+
+    assert cancelled.status_code == 200 and cancelled.json()["state"] == "removed" and cancelled.json()["status"] == "none"
+    assert again.status_code == 409 and again.json()["error"]["code"] == "no_upgrade"
+    assert request("DELETE", f"/api/v1/projects/{project.project_id}").status_code == 204  # deletable again
+
+
+def test_the_queue_lists_the_running_task_first_then_waiting_songs_then_waiting_upgrades(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    upgraded, _r, _ = add_project(repository, storage, "Upgrade me")
+    waiting, _w, _ = add_project(repository, storage, "Waiting", completed=False)
+    running, running_receipt, _ = add_project(repository, storage, "Running", completed=False)
+    add_project(repository, storage, "Done")
+    repository.transition_job(running_receipt.job_ids[0], JobStatus.SEARCHING, stage="search")
+    request("POST", f"/api/v1/projects/{upgraded.project_id}/upgrade")
+
+    queue = request("GET", "/api/v1/queue").json()
+
+    assert [(item["kind"], item["title"], item["status"]) for item in queue] == [
+        ("job", "Running", "searching"), ("job", "Waiting", "queued"), ("upgrade", "Upgrade me", "queued")]
+    assert queue[0]["job_id"] == str(running_receipt.job_ids[0]) and queue[2]["project_id"] == str(upgraded.project_id)
+    assert request("GET", "/api/v1/queue").json() != [] and set(queue[0]) == {
+        "kind", "job_id", "project_id", "title", "status", "progress", "eta_seconds"}

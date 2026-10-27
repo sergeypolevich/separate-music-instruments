@@ -446,7 +446,11 @@ class BatchOrchestrator:
         else:
             started = time.monotonic()
             temp_dir = self.storage.temporary_directory(title, source_id)
-            result = self.separator.separate(audio_path, temp_dir, options, progress=progress)
+            try:
+                result = self.separator.separate(audio_path, temp_dir, options, progress=progress)
+            except OperationCancelled:
+                self.storage.remove_temporary_directory(title, source_id)  # the old stems stay; the new half goes
+                raise
             artifacts = _checked_artifacts(result.stems, stems)
             assets = self.storage.save_stems(job.job_id, title, source_id, artifacts, result.level, BEST_MODEL)
             if not self.storage.stems_complete(title, stems, source_id, BEST_MODEL):
@@ -522,14 +526,23 @@ class DatabaseWorker:
             return False
         project_id, request = task
         reported = [0.0]
+        checked = [0.0]
 
         def progress(value: float) -> None:
             if value - reported[0] >= 0.01:
                 reported[0] = value
                 self.repository.set_analysis_progress(project_id, "upgrade", min(0.99, value))
+            if time.monotonic() - checked[0] >= 0.5:  # the user's cancel, read at most twice a second
+                checked[0] = time.monotonic()
+                if self.repository.analysis_cancel_requested(project_id, "upgrade"):
+                    raise OperationCancelled()
 
         try:
             replaced = self.orchestrator.upgrade_project(UUID(project_id), request["owner_id"], progress)
+        except OperationCancelled:
+            self.repository.drop_analysis(project_id, "upgrade")
+            worker_logger.info("Quality upgrade cancelled", extra={"event": "upgrade_cancelled", "project_id": project_id})
+            return True
         except AdapterError as error:
             self.repository.fail_analysis(project_id, "upgrade", str(error))
             return True

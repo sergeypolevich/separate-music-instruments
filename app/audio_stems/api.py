@@ -389,6 +389,16 @@ def create_app(
         repository.queue_analysis(project_id, "upgrade", {"owner_id": _OWNER_ID})  # the worker runs it
         return JSONResponse(upgrade_state(project, job), status_code=202)
 
+    @app.delete("/api/v1/projects/{project_id}/upgrade")
+    def cancel_upgrade(project_id: UUID) -> dict[str, object]:
+        """Cancel «Улучшить качество»: a queued one is gone at once, a running one stops within a second or so
+        (the worker); the project keeps its stems either way."""
+        project, job = project_and_job(project_id)
+        outcome = repository.cancel_analysis(project_id, "upgrade")
+        if outcome is None:
+            raise HTTPException(status_code=409, detail={"code": "no_upgrade", "message": "Улучшение не запущено"})
+        return {"state": outcome, **upgrade_state(project, job)}
+
     @app.get("/api/v1/storage")
     def storage_report() -> dict[str, object]:
         report = storage.disk_report(repository.storage_keys_in_use())
@@ -558,6 +568,28 @@ def create_app(
             }
             for project in repository.list_projects(_OWNER_ID)
         ]
+
+    @app.get("/api/v1/queue")
+    def get_queue() -> list[dict[str, object]]:
+        """What the worker is doing and what waits, in its order: the running task first, then the songs
+        waiting to be separated, then the waiting «Улучшить качество» (the worker takes batches first)."""
+        speed = rates()
+        jobs = [
+            {"kind": "job", "job_id": str(project.job_id), "project_id": str(project.project_id),
+             "title": project.title or project.input_value, "status": project.job_status,
+             "progress": round(project.job_progress, 3), "eta_seconds": eta_seconds(project, speed)}
+            for project in repository.list_projects(_OWNER_ID)
+            if project.job_status not in {"completed", "failed", "cancelled"}
+        ]
+        upgrades = []
+        for project_id in repository.active_analyses("upgrade"):
+            project, job = project_and_job(UUID(project_id))
+            state = upgrade_state(project, job)
+            upgrades.append({"kind": "upgrade", "job_id": str(job.job_id), "project_id": project_id,
+                             "title": project.title or project.input_value, "status": state["status"],
+                             "progress": state["progress"], "eta_seconds": state["eta_seconds"]})
+        working = {"searching", "downloading", "separating", "running"}
+        return sorted(jobs + upgrades, key=lambda item: item["status"] not in working)  # stable: the order otherwise
 
     @app.get("/api/v1/projects/{project_id}")
     def get_project(project_id: UUID) -> dict[str, object]:

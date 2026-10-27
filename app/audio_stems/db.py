@@ -414,9 +414,47 @@ class SqliteMetadataStore:
                 (str(project_id), kind, json.dumps(request), _utc_now(), redo),
             )
 
+    def cancel_analysis(self, project_id: UUID | str, kind: str) -> str | None:
+        """Cancel a queued or running analysis: a queued one is removed now ("removed"), a running one is
+        flagged for its process to stop ("cancelling"); None when there is none."""
+        with self._connection() as connection:
+            removed = connection.execute(
+                "DELETE FROM analyses WHERE project_id = ? AND kind = ? AND status = 'queued'", (str(project_id), kind)
+            ).rowcount
+            if removed:
+                return "removed"
+            flagged = connection.execute(
+                "UPDATE analyses SET cancel_requested = 1 WHERE project_id = ? AND kind = ? AND status = 'running'",
+                (str(project_id), kind),
+            ).rowcount
+        return "cancelling" if flagged else None
+
+    def analysis_cancel_requested(self, project_id: UUID | str, kind: str) -> bool:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT cancel_requested FROM analyses WHERE project_id = ? AND kind = ?", (str(project_id), kind)
+            ).fetchone()
+        return row is None or bool(row["cancel_requested"])
+
+    def active_analyses(self, kind: str) -> list[str]:
+        """Projects with a queued or running analysis of this kind, in the order the worker takes them."""
+        with self._connection() as connection:
+            return [row[0] for row in connection.execute(
+                "SELECT project_id FROM analyses WHERE kind = ? AND status IN ('queued', 'running') "
+                "ORDER BY status = 'queued', updated_at",
+                (kind,),
+            )]
+
+    def drop_analysis(self, project_id: UUID | str, kind: str) -> None:
+        """Forget a cancelled analysis: the project shows it as never asked for."""
+        with self._connection() as connection:
+            connection.execute("DELETE FROM analyses WHERE project_id = ? AND kind = ?", (str(project_id), kind))
+
     def claim_analysis(self, kind: str) -> tuple[str, dict[str, object]] | None:
         with self._connection() as connection:
             connection.execute("BEGIN IMMEDIATE")
+            # Cancelled while it ran and then requeued by a restart: it is not started again.
+            connection.execute("DELETE FROM analyses WHERE kind = ? AND status = 'queued' AND cancel_requested = 1", (kind,))
             row = connection.execute(
                 "SELECT project_id, request_json FROM analyses WHERE kind = ? AND status = 'queued' ORDER BY updated_at LIMIT 1",
                 (kind,),

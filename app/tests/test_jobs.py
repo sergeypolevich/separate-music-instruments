@@ -638,3 +638,25 @@ def test_a_finished_job_cannot_be_cancelled_and_a_running_one_cannot_be_requeued
     with pytest.raises(AdapterError) as finished:
         store.request_job_cancel(receipt.job_ids[0], "client-1")
     assert finished.value.category is FailureCategory.CONFLICT
+
+
+def test_cancelling_a_running_upgrade_stops_it_and_keeps_the_old_stems(tmp_path):
+    orchestrator, store, storage, _, _, _ = build_orchestrator(tmp_path)
+    project, job_id = _finished_project(orchestrator, store, "song")
+    old_keys = _stem_keys(store, job_id)
+    store.queue_analysis(project.project_id, "upgrade", {"owner_id": "local"})
+
+    class Cancelled(FakeSeparator):
+        def separate(self, audio_path, output_dir, options, progress=None):
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "half.wav").write_bytes(b"partial")
+            assert store.cancel_analysis(project.project_id, "upgrade") == "cancelling"  # the user's click
+            progress(0.3)
+            raise AssertionError("the upgrade should have stopped")
+
+    orchestrator.separator = Cancelled([])
+    assert DatabaseWorker(store, orchestrator).run_once() is True
+
+    assert store.get_analysis(project.project_id, "upgrade") is None  # as if never asked for
+    assert _stem_keys(store, job_id) == old_keys and all(storage.resolve_path(key).is_file() for key in old_keys)
+    assert not storage.temporary_directory(project.title, project.source_id).exists()
