@@ -959,7 +959,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       upgradeButton.disabled = Boolean(state.best) || busy;
       if (busy) upgradeButton.dataset.analyzing = "true";
       else delete upgradeButton.dataset.analyzing;
-      upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
+      // Only while it runs: an inline value outlives the stylesheet's «not analysing → 0 %», so a project upgraded
+      // here kept a full fill on its finished button while one separated with the best model had none.
+      if (busy) upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
+      else upgradeButton.style.removeProperty("--job-progress");
       const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · осталось ${formatMinutes(state.eta_seconds)}` : "";
       if (state.best) upgradeButton.textContent = "Улучшенное качество разделения";
       else if (state.status === "queued") upgradeButton.textContent = `Улучшение в очереди${left}`;

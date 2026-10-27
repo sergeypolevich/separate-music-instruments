@@ -75,7 +75,9 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missi
         "start_seconds": 1.0 if project_id == "project-6" else 0.0,
         "disk_bytes": 12 * 2**20,
         "shared_bytes": 3 * 2**20 if project_id == "project-1" else 0,
-        "upgrade": {"status": "none", "progress": 0.0, "error": None, "best": project_id == "project-3",
+        # project-3 was upgraded here: its finished upgrade stays «done, 100 %»
+        "upgrade": {"status": "done" if project_id == "project-3" else "none",
+                    "progress": 1.0 if project_id == "project-3" else 0.0, "error": None, "best": project_id == "project-3",
                     "estimate_seconds": 1380, "eta_seconds": None},
     }
 
@@ -687,6 +689,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate(position) >= before_switch - 0.3
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Улучшенное качество разделения" and upgrade.is_disabled()
+            assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # no leftover progress fill once done
             page.keyboard.press("Space")
             page.wait_for_function(paused)
             page.keyboard.press("Home")
@@ -863,6 +866,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")
             assert page.locator('[data-action="upgrade"]').text_content() == "Улучшенное качество разделения"  # already the best model
+            assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # the same look as any best-model project
             assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
             page.keyboard.press("KeyG")  # no guitar row: the selection stays put
             assert page.evaluate("[...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)") == ["true", "false", "false", "false"]
