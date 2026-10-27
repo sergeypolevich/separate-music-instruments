@@ -452,3 +452,15 @@ test("after a seek the stems start again on a timer too: a covered window gets n
   timer();
   assert.ok(tracks.every((track) => track.paused));
 });
+
+test("a paused stem that moves on its own (Safari applying a late position) never shifts the song", async () => {
+  const { tracks, transport } = makeTransport();
+  await transport.play();
+  transport.pause();
+  transport.seek(0);
+  tracks[0].currentTime = 0.39;  // arrives after the seek, the stem still paused
+  tracks[1].currentTime = 0.41;
+  assert.equal(transport.currentTime, 0);
+  await transport.play();
+  assert.deepEqual(tracks.map((track) => track.currentTime), [0, 0, 0, 0, 0, 0]);  // all start together at 0
+});

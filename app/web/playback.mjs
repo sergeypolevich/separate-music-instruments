@@ -99,6 +99,9 @@ export class SynchronizedTransport {
     this.stretch = null;
     this.frameId = null;
     this.playing = false;
+    // File seconds while paused: Safari may move a paused stem later on its own (a position from before the
+    // pause applied after a seek), so the paused position is kept here rather than read from the stems.
+    this.pausedAt = null;
     this.syncFrame = this.syncFrame.bind(this);
   }
 
@@ -120,6 +123,7 @@ export class SynchronizedTransport {
   // stands still) neither freezes the shown time nor pulls the others back; the first stem when none plays.
   get mediaTime() {
     if (this.stretching) return this.stretch.position;
+    if (!this.playing && this.pausedAt !== null) return this.pausedAt;
     const live = this.tracks.filter((track) => !track.paused && !track.seeking && track.readyState >= HAVE_FUTURE_DATA)
       .map((track) => track.currentTime).sort((a, b) => a - b);
     return live.length ? live[live.length >> 1] : this.tracks[0].currentTime;
@@ -140,7 +144,8 @@ export class SynchronizedTransport {
       this.waitToResume();
     }
     // The stems keep the position in both engines, so a speed change never jumps.
-    this.tracks.forEach((track) => { track.currentTime = position + this.startOffset; });
+    this.pausedAt = position + this.startOffset;
+    this.tracks.forEach((track) => { track.currentTime = this.pausedAt; });
     if (this.stretching) this.stretch.seek(position + this.startOffset);
     this.onTimeUpdate(position);
     return position;
@@ -167,9 +172,14 @@ export class SynchronizedTransport {
     if (this.stretching) {
       await this.beforePlay();
       if (!this.playing) return;
-      this.stretch.play(this.tracks[0].currentTime);
+      this.stretch.play(this.pausedAt ?? this.tracks[0].currentTime);
       this.scheduleFrame();
       return;
+    }
+    if (this.pausedAt !== null) {
+      this.tracks.forEach((track) => {
+        if (Math.abs(track.currentTime - this.pausedAt) > this.driftTolerance) track.currentTime = this.pausedAt;
+      });
     }
     try {
       const ready = this.beforePlay();
@@ -185,6 +195,7 @@ export class SynchronizedTransport {
   }
 
   pause() {
+    const heard = this.mediaTime;
     this.playing = false;
     this.resumeAfterSeek = null;
     if (this.resumeTimer !== null) {
@@ -196,9 +207,10 @@ export class SynchronizedTransport {
       this.frameId = null;
     }
     this.tracks.forEach((track) => track.pause());
+    this.pausedAt = heard;
     if (this.stretching) {
-      const position = this.stretch.pause();
-      this.tracks.forEach((track) => { track.currentTime = position; });
+      this.pausedAt = this.stretch.pause();
+      this.tracks.forEach((track) => { track.currentTime = this.pausedAt; });
     }
   }
 
