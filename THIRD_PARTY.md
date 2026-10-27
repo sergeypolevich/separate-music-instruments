@@ -9,6 +9,7 @@ time it is needed; none of it is redistributed here.
 | Component | Author | License | File |
 |---|---|---|---|
 | Signalsmith Stretch Web 1.3.2 (playback speed) | Geraint Luff / Signalsmith Audio Ltd. | MIT | `app/web/vendor/signalsmith-stretch-1.3.2.mjs`, license text next to it |
+| Icons in the style of Lucide (microphone, drum, keys, sound lines, speaker and others; drawn inline) | Lucide contributors | ISC | `app/web/app.js`, `app/web/index.html` |
 
 ## Models (downloaded on first use)
 

@@ -56,17 +56,29 @@ let pendingResume = null;
 let selectedProjectId = null;
 let selectedProjectTitle = "";
 
-// Transport icons are drawn in the same 24px grid as the static SVG icons in index.html.
+// Icons are drawn in the same 24px grid as the static SVG icons in index.html (lucide style, ISC; the bass and
+// guitar headstocks are our own).
 const transportIcons = {
   play: '<path d="M8 5.5v13l10.5-6.5z" fill="currentColor" stroke="none"/>',
   pause: '<rect x="6" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="5" width="4" height="14" rx="1" fill="currentColor" stroke="none"/>',
   start: '<path d="M6 5v14"/><path d="M18 5.5v13L8.5 12z" fill="currentColor" stroke="none"/>',
   metronome: '<path d="M9 3h6l4 18H5z"/><path d="M12 16l5-9"/><path d="M7 15h10"/>',
   countin: '<text x="6.5" y="17" font-size="14" font-weight="700" fill="currentColor" stroke="none" text-anchor="middle">4</text><path d="M12.5 6.5v11l8.5-5.5z" fill="currentColor" stroke="none"/>',
+  vocals: '<path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><path d="M12 19v3"/>',
+  drums: '<path d="m2 2 8 8"/><path d="m22 2-8 8"/><ellipse cx="12" cy="9" rx="10" ry="5"/><path d="M7 13.4v7.9"/><path d="M12 14v8"/><path d="M17 13.4v7.9"/><path d="M2 9v8a10 5 0 0 0 20 0V9"/>',
+  bass: '<path d="M10.5 23v-9M13.5 23v-9"/><path d="M10.5 14 9.2 4.5C9 2.8 10.2 1.5 12 1.5s3 1.3 2.8 3L13.5 14"/><path d="M9.6 6H6.5M10 11H6.5M14.4 6h3.1M14 11h3.5"/><g fill="currentColor" stroke="none"><ellipse cx="5" cy="6" rx="1.8" ry="1.2"/><ellipse cx="5" cy="11" rx="1.8" ry="1.2"/><ellipse cx="19" cy="6" rx="1.8" ry="1.2"/><ellipse cx="19" cy="11" rx="1.8" ry="1.2"/></g>',
+  guitar: '<path d="M11 23v-8M14 23v-8"/><path d="M11 15 10 3.6C9.9 2.2 10.9 1.3 12.4 1.6l3.8.8c1.6.4 2 1.9 1 3.1L15 8.7 14 15"/><g fill="currentColor" stroke="none"><circle cx="7" cy="3.4" r="1"/><circle cx="7" cy="5.8" r="1"/><circle cx="7" cy="8.2" r="1"/><circle cx="7" cy="10.6" r="1"/><circle cx="7" cy="13" r="1"/><circle cx="7" cy="15.4" r="1"/></g>',
+  piano: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 20v-6M12 20v-6M17 20v-6"/><path d="M5.5 4v10h3V4M10.5 4v10h3V4M15.5 4v10h3V4" fill="currentColor"/>',
+  other: '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
+  speaker: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>',
 };
 
+function iconSvg(name) {
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${transportIcons[name]}</svg>`;
+}
+
 function setIcon(button, name) {
-  button.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${transportIcons[name]}</svg>`;
+  button.innerHTML = iconSvg(name);
 }
 
 async function requestJson(url, options = {}) {
@@ -685,7 +697,9 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       left.className = "mixer-left";
       const name = document.createElement("span");
       name.className = "mixer-name";
-      name.textContent = stemLabels[asset.stem_name];
+      // On a narrow screen only the first letter shows (CSS), after the icon; the letter is also the stem's hotkey.
+      const label = stemLabels[asset.stem_name] || asset.stem_name;
+      name.innerHTML = `${transportIcons[asset.stem_name] ? iconSvg(asset.stem_name) : ""}<span class="mixer-label" data-short="${label[0]}">${label}</span>`;
       const switches = document.createElement("div");
       switches.className = "mixer-switches";
       const solo = document.createElement("button");
@@ -762,7 +776,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     masterHeading.className = "mixer-heading";
     const masterName = document.createElement("span");
     masterName.className = "mixer-name";
-    masterName.textContent = "Общая";
+    masterName.innerHTML = iconSvg("speaker");  // the fader carries the name «Общая громкость»
     masterHeading.append(masterName);
     const masterFader = document.createElement("div");
     masterFader.className = "mixer-fader master-fader";

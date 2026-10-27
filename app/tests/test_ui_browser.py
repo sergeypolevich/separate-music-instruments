@@ -452,6 +452,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs((mute_box["x"] + mute_box["width"]) - (fader_box["x"] + fader_box["width"])) <= 1
             assert mute_box["height"] == 22
             assert page.locator(".mixer-name").first.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == ["15px", "400"]
+            # Every stem name starts with its own icon; a narrow screen shows the icon and the first letter only.
+            names = page.evaluate("""() => [...document.querySelectorAll('.mixer-row .mixer-name')].map(n => [n.textContent,
+                n.querySelector('svg')?.innerHTML, getComputedStyle(n.querySelector('.mixer-label'), '::after').content])""")
+            assert [n[0] for n in names] == ["Vocal", "Drums", "Bass", "Guitar", "Piano", "Other"]
+            assert len({n[1] for n in names}) == 6 and all(n[1] for n in names)
+            if viewport[0] < 600:
+                assert [n[2] for n in names] == ['"V"', '"D"', '"B"', '"G"', '"P"', '"O"']
+                assert page.locator(".mixer-left").first.bounding_box()["width"] <= 0.3 * viewport[0]
+                label_box = page.locator(".mixer-row .mixer-label").first.bounding_box()
+                assert label_box["width"] < 15  # one letter
+            else:
+                assert names[0][2] == "none"
             # No bottom gap under the workspace, and the page gradient never repeats as a band.
             assert page.locator("#project-workspace").evaluate("el => getComputedStyle(el).paddingBottom") == "0px"
             assert page.evaluate("getComputedStyle(document.body).backgroundRepeat").startswith("no-repeat")
@@ -559,7 +571,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1
             # «Общая» under the stems: 0-100 % for the whole mix, remembered for the project; not a stem row.
             master_row = page.locator(".mixer-master")
-            assert master_row.locator(".mixer-name").text_content() == "Общая"
+            # A speaker icon, no word (the stems are named in English); the fader carries the name.
+            assert master_row.locator(".mixer-name").text_content() == "" and master_row.locator(".mixer-name svg").count() == 1
             assert master_row.bounding_box()["y"] >= page.locator(".mixer-row").last.bounding_box()["y"] + 20
             master = page.locator('[data-control="master-volume"]')
             assert master.input_value() == "100" and page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "1"
@@ -783,7 +796,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('[data-control="solo"]').nth(2).click()
             assert [page.evaluate(opacity, i) for i in range(6)] == ["1"] * 6
             switches_gap = page.locator(".mixer-switches").first.evaluate("el => getComputedStyle(el).columnGap")
-            assert switches_gap == "11px"
+            assert switches_gap == ("6px" if viewport[0] < 600 else "11px")  # closer on a narrow screen
 
             # Settings open as a popup over the project: a click outside or Esc closes them, × too.
             settings = page.locator("#settings-overlay")
