@@ -102,6 +102,7 @@ export class SynchronizedTransport {
     // File seconds while paused: Safari may move a paused stem later on its own (a position from before the
     // pause applied after a seek), so the paused position is kept here rather than read from the stems.
     this.pausedAt = null;
+    this.playAttempt = 0;
     this.syncFrame = this.syncFrame.bind(this);
   }
 
@@ -181,6 +182,8 @@ export class SynchronizedTransport {
         if (Math.abs(track.currentTime - this.pausedAt) > this.driftTolerance) track.currentTime = this.pausedAt;
       });
     }
+    // A start cancelled by a pause may be refused by the browser only after the next start: that refusal is old news.
+    const attempt = ++this.playAttempt;
     try {
       const ready = this.beforePlay();
       // Invoke every play() in the same gesture before awaiting any promise.
@@ -188,7 +191,7 @@ export class SynchronizedTransport {
       await Promise.all([ready, ...playPromises]);
       if (this.playing) this.scheduleFrame();
     } catch (error) {
-      if (!this.playing) return; // paused while starting: an intentional stop, not a failure
+      if (!this.playing || attempt !== this.playAttempt) return; // paused while starting: an intentional stop, not a failure
       this.pause();
       throw error;
     }

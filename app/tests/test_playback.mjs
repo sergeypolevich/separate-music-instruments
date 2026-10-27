@@ -86,6 +86,22 @@ test("pausing while the start is pending wins and is not reported as a failure",
   assert.ok(tracks.every((track) => track.paused));
 });
 
+test("a start cancelled by a pause and refused only after the next start never stops the new one", async () => {
+  const { tracks, transport } = makeTransport();
+  const aborts = [];
+  tracks.forEach((track) => {
+    track.play = () => { track.paused = false; return new Promise((resolve, reject) => { aborts.push(reject); track.resolve = resolve; }); };
+  });
+  const first = transport.play();
+  transport.pause();
+  tracks.forEach((track) => { track.play = () => { track.paused = false; return Promise.resolve(); }; });
+  await transport.play();  // Space again before the browser refused the first start
+  aborts.forEach((reject) => reject(new Error("AbortError: play() was interrupted by pause()")));
+  await first;
+  assert.equal(transport.playing, true);
+  assert.ok(tracks.every((track) => !track.paused));
+});
+
 test("a rejected play pauses every track and reports the failure", async () => {
   const { tracks, transport } = makeTransport();
   tracks[3].rejectPlay = true;
