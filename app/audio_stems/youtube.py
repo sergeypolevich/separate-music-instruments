@@ -12,6 +12,7 @@ from audio_stems.models import (
     AdapterError,
     DownloadedAudio,
     FailureCategory,
+    OperationCancelled,
     VideoCandidate,
     disk_full_error,
     is_disk_full,
@@ -79,13 +80,17 @@ class PytubeDownloader:
                     return DownloadedAudio(destination, selected, stream.subtype, destination.stat().st_size)
                 self.storage.quarantine_audio(destination)
 
-            stream.download(output_path=str(destination.parent), filename=destination.name)
+            try:
+                stream.download(output_path=str(destination.parent), filename=destination.name)
+            except OperationCancelled:
+                destination.unlink(missing_ok=True)  # half a file is no use to anyone
+                raise
             if not self.storage.validate_audio_file(destination, stream.subtype):
                 if destination.exists():
                     self.storage.quarantine_audio(destination)
                 raise AdapterError("Downloaded audio failed container validation", FailureCategory.PERMANENT)
             return DownloadedAudio(destination, selected, stream.subtype, destination.stat().st_size)
-        except AdapterError:
+        except (AdapterError, OperationCancelled):
             raise
         except OSError as exc:
             if is_disk_full(exc):

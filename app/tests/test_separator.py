@@ -14,6 +14,7 @@ import soundfile
 
 import audio_stems.separator as separator_module
 from audio_stems.models import AdapterError, FailureCategory, SeparationOptions
+from audio_stems.models import OperationCancelled
 from audio_stems.separator import StemSeparator, audio_duration, decode_to_wav, detect_compute_devices, run_with_progress
 
 _REAL_VERIFY = StemSeparator.verify_weights
@@ -383,3 +384,16 @@ def test_audio_separator_weights_are_checked_once_present(monkeypatch, tmp_path)
 
 def test_separator_children_run_with_the_hub_offline():
     run_with_progress([sys.executable, "-c", "import os, sys; sys.exit(os.environ.get('HF_HUB_OFFLINE') != '1')"], 1, None)
+
+
+def test_a_cancel_from_the_progress_callback_stops_the_model_process():
+    # A separator that would run for a minute, reporting a bar every 0.1 s: the cancel kills it at once.
+    script = "import sys, time\nfor i in range(600):\n    sys.stderr.write(f'\\r{i}/600 [00:00<00:00]'); sys.stderr.flush(); time.sleep(0.1)"
+
+    def cancel(_value):
+        raise OperationCancelled()
+
+    started = time.monotonic()
+    with pytest.raises(OperationCancelled):
+        run_with_progress([sys.executable, "-c", script], 1, cancel)
+    assert time.monotonic() - started < 10

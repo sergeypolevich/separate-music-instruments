@@ -2,6 +2,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import pytest
 import soundfile
 
 from audio_stems.models import (
@@ -17,6 +18,7 @@ from audio_stems.models import (
     StemArtifact,
     VideoCandidate,
     disk_full_error,
+    OperationCancelled,
 )
 from audio_stems.models import MediaAssetType
 from audio_stems.pipeline import BatchOrchestrator, DatabaseWorker
@@ -543,3 +545,96 @@ def test_a_search_shows_the_found_title_before_the_download_finishes(tmp_path):
 
     assert seen == ["Artist - Found Song (Official Video)"]
     assert store.list_projects("client-1")[0].source_id == "found-id"
+
+
+def _cancel_while(store, job_id_box):
+    """A progress callback that asks to cancel the job the first time it is called, as the user's click would."""
+    def progress(report):
+        store.request_job_cancel(job_id_box[0], "client-1")
+        report(0.5)
+    return progress
+
+
+def test_cancel_while_downloading_deletes_the_project_and_stops_its_batch(tmp_path):
+    box = []
+
+    class CancelledDownload(FakeDownloader):
+        def download(self, source, progress=None):
+            store.request_job_cancel(box[0], "client-1")
+            progress(0.5)  # the downloader's next progress report meets the cancel
+            raise AssertionError("the download should have stopped")
+
+    orchestrator, store, _, _, _, separator = build_orchestrator(tmp_path, downloader=CancelledDownload(tmp_path / "downloads", []))
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "song")]
+    receipt = store.create_batch("client-1", requests)
+    box.append(receipt.job_ids[0])
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert store.list_projects("client-1") == []  # «удалять, если это загрузка»
+    assert result.status is BatchStatus.CANCELLED and separator.calls == []
+
+
+def test_cancel_while_separating_keeps_the_project_with_its_audio_and_separate_finishes_it(tmp_path):
+    box = []
+
+    class CancelledSeparation(FakeSeparator):
+        def separate(self, audio_path, output_dir, options, progress=None):
+            output_dir.mkdir(parents=True, exist_ok=True)
+            (output_dir / "half.wav").write_bytes(b"partial")
+            store.request_job_cancel(box[0], "client-1")
+            progress(0.4)
+            raise AssertionError("the separation should have stopped")
+
+    orchestrator, store, storage, events, _, _ = build_orchestrator(tmp_path, separator=CancelledSeparation([]))
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "song")]
+    receipt = store.create_batch("client-1", requests)
+    box.append(receipt.job_ids[0])
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    [project] = store.list_projects("client-1")
+    assert project.job_status == "cancelled" and result.status is BatchStatus.CANCELLED
+    assets = store.list_assets(receipt.job_ids[0], "client-1")
+    assert [a.asset_type for a in assets] == [MediaAssetType.SOURCE_AUDIO]  # the song stays, to listen to or separate
+    assert not storage.temporary_directory(project.title, project.source_id).exists()  # the half-made stems are gone
+
+    # «Разделить»: back in the queue on its own; the stored audio is separated, no new search or download.
+    store.requeue_separation(project.project_id, "client-1")
+    events.clear()
+    claimed = store.claim_next_batch()
+    finished = build_orchestrator(tmp_path)[0]
+    finished.repository, finished.storage = store, storage
+    result = finished.process_batch(claimed.receipt, claimed.sources, already_processing=True)
+    assert result.status is BatchStatus.COMPLETED
+    assert store.get_job(receipt.job_ids[0], "client-1").status is JobStatus.COMPLETED
+    assert not [e for e in finished.downloader.events if e[0] in ("search", "download")]
+    assert len([a for a in store.list_assets(receipt.job_ids[0], "client-1") if a.asset_type is MediaAssetType.STEM]) == 6
+
+
+def test_a_song_cancelled_while_its_batch_waits_is_skipped_and_the_rest_is_done(tmp_path):
+    orchestrator, store, _, events, _, _ = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "keep"), SourceRequest(SourceKind.SEARCH_QUERY, "drop")]
+    receipt = store.create_batch("client-1", requests)
+    project, not_started = store.request_job_cancel(receipt.job_ids[1], "client-1")
+    assert not_started
+
+    result = orchestrator.process_batch(receipt, requests)
+
+    assert [p.input_value for p in store.list_projects("client-1")] == ["keep"]
+    assert ("search", "drop") not in events
+    assert result.status is BatchStatus.PARTIAL
+
+
+def test_a_finished_job_cannot_be_cancelled_and_a_running_one_cannot_be_requeued(tmp_path):
+    orchestrator, store, _, _, _, _ = build_orchestrator(tmp_path)
+    requests = [SourceRequest(SourceKind.SEARCH_QUERY, "song")]
+    receipt = store.create_batch("client-1", requests)
+    project_id = store.list_projects("client-1")[0].project_id
+    with pytest.raises(AdapterError) as running:
+        store.requeue_separation(project_id, "client-1")
+    assert running.value.category is FailureCategory.CONFLICT
+    orchestrator.process_batch(receipt, requests)
+    with pytest.raises(AdapterError) as finished:
+        store.request_job_cancel(receipt.job_ids[0], "client-1")
+    assert finished.value.category is FailureCategory.CONFLICT

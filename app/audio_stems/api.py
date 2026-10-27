@@ -655,6 +655,39 @@ def create_app(
             ) from exc
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+    @app.post("/api/v1/jobs/{job_id}/cancel")
+    def cancel_job(job_id: UUID) -> dict[str, str]:
+        """Stop a job: one that has not started is deleted here; a running one is stopped by the worker — deleted
+        before its separation, kept with its audio after the download."""
+        try:
+            project_id, not_started = repository.request_job_cancel(job_id, _OWNER_ID)
+        except AdapterError as exc:
+            if exc.category is FailureCategory.NOT_FOUND:
+                raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Job not found"}) from exc
+            if exc.category is FailureCategory.CONFLICT:
+                raise HTTPException(status_code=409, detail={"code": "job_finished", "message": "The job has already finished"}) from exc
+            raise
+        if not_started:
+            try:
+                finish_deletion(repository.begin_project_deletion(project_id, _OWNER_ID))
+                return {"state": "deleted"}
+            except AdapterError:
+                pass  # the worker claimed the batch meanwhile, or it holds other songs: the worker cancels it
+        return {"state": "cancelling"}
+
+    @app.post("/api/v1/projects/{project_id}/separate", status_code=status.HTTP_202_ACCEPTED)
+    def separate_again(project_id: UUID) -> dict[str, str]:
+        """«Разделить»: a cancelled or failed project with its source audio goes back into the queue."""
+        try:
+            job_id = repository.requeue_separation(project_id, _OWNER_ID)
+        except AdapterError as exc:
+            if exc.category is FailureCategory.NOT_FOUND:
+                raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"}) from exc
+            if exc.category is FailureCategory.CONFLICT:
+                raise HTTPException(status_code=409, detail={"code": "not_separable", "message": str(exc)}) from exc
+            raise
+        return {"job_id": str(job_id)}
+
     @app.get("/api/v1/assets/{asset_id}/waveform")
     def get_waveform(asset_id: UUID) -> dict[str, object]:
         asset = repository.get_asset(asset_id, _OWNER_ID)

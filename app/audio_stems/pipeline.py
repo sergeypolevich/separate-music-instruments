@@ -19,6 +19,7 @@ from audio_stems.models import (
     JobStatus,
     JobView,
     MediaAssetType,
+    OperationCancelled,
     SeparationOptions,
     SourceKind,
     SourceRequest,
@@ -102,6 +103,7 @@ class BatchOrchestrator:
         self.settings = settings
         self.sleep = sleep
         self._progress_written: dict[UUID, tuple[float, float]] = {}
+        self._cancel_checked: dict[UUID, float] = {}
 
     def process_batch(
         self,
@@ -124,6 +126,13 @@ class BatchOrchestrator:
         # Phase one: attempt resolution and download for every item.
         for job_id, request in zip(receipt.job_ids, sources):
             try:
+                self._stop_if_cancelled(job_id)
+                stored = self._stored_source(job_id, owner_id)
+                if stored is not None:  # «Разделить» after a cancel or a failure: no new search, no new download
+                    self.repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
+                    self.repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
+                    downloaded[job_id] = stored
+                    continue
                 candidate = self._resolve_source(job_id, request, owner_id, receipt.batch_id)
                 if request.kind is SourceKind.SEARCH_QUERY:  # the tab names the found video while it downloads
                     self.repository.update_project_source(job_id, candidate.source_id, candidate.title)
@@ -164,6 +173,8 @@ class BatchOrchestrator:
                 self.repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
                 self._report_progress(job_id, 0.10, force=True)
                 downloaded[job_id] = audio
+            except OperationCancelled:
+                self._cancel(job_id, "download", owner_id, receipt.batch_id, request)
             except AdapterError as error:
                 self._fail(job_id, error, "download", owner_id, receipt.batch_id)
             except Exception:
@@ -183,9 +194,12 @@ class BatchOrchestrator:
             if audio is None:
                 continue
             try:
+                self._stop_if_cancelled(job_id)
                 job = self.repository.get_job(job_id, owner_id)
                 options = (job.separation_options if job else None) or receipt.separation_options or self.options
                 self._separate(job_id, audio, owner_id, receipt.batch_id, options)
+            except OperationCancelled:
+                self._cancel(job_id, "separation", owner_id, receipt.batch_id, request)
             except AdapterError as error:
                 self._fail(job_id, error, "separation", owner_id, receipt.batch_id)
             except Exception:
@@ -206,9 +220,13 @@ class BatchOrchestrator:
         final_jobs = tuple(job for job in jobs if job is not None)
         completed = sum(job.status is JobStatus.COMPLETED for job in final_jobs)
         failed = sum(job.status is JobStatus.FAILED for job in final_jobs)
-        if len(final_jobs) == len(receipt.job_ids) and completed == len(final_jobs):
+        # A job gone from the database was cancelled before its separation and deleted with its project.
+        cancelled = len(receipt.job_ids) - len(final_jobs) + sum(job.status is JobStatus.CANCELLED for job in final_jobs)
+        if completed == len(receipt.job_ids):
             batch_status = BatchStatus.COMPLETED
-        elif len(final_jobs) != len(receipt.job_ids) or failed == len(final_jobs):
+        elif cancelled == len(receipt.job_ids):
+            batch_status = BatchStatus.CANCELLED
+        elif completed == 0:
             batch_status = BatchStatus.FAILED
         else:
             batch_status = BatchStatus.PARTIAL
@@ -229,8 +247,53 @@ class BatchOrchestrator:
             logger.warning("Job progress could not be saved", extra={"event": "job_progress_failed", "job_id": str(job_id)})
 
     def _progress_reporter(self, job_id: UUID, start: float, end: float) -> Callable[[float], None]:
-        """Map a stage's own 0..1 progress onto its share of the job."""
-        return lambda fraction: self._report_progress(job_id, start + (end - start) * min(1.0, max(0.0, fraction)))
+        """Map a stage's own 0..1 progress onto its share of the job; a cancel stops the stage from here."""
+        def report(fraction: float) -> None:
+            self._report_progress(job_id, start + (end - start) * min(1.0, max(0.0, fraction)))
+            self._stop_if_cancelled(job_id, throttle=True)
+        return report
+
+    def _stop_if_cancelled(self, job_id: UUID, *, throttle: bool = False) -> None:
+        """Raise OperationCancelled when the user cancelled this job (read at most twice a second while it runs)."""
+        if throttle:
+            now = time.monotonic()
+            if now - self._cancel_checked.get(job_id, 0.0) < 0.5:
+                return
+            self._cancel_checked[job_id] = now
+        if self.repository.cancel_requested(job_id):
+            raise OperationCancelled()
+
+    def _cancel(self, job_id: UUID, stage: str, owner_id: str, batch_id: UUID, request: SourceRequest) -> None:
+        """Before the separation the project goes away (the user's rule); after the download it stays with its
+        audio, to be separated again with «Разделить»."""
+        logger.info("Job cancelled", extra={"event": "job_cancelled", "ClientID": owner_id, "batch_id": str(batch_id),
+                                            "job_id": str(job_id), "stage": stage})
+        if stage == "download" and request.kind is SourceKind.LOCAL_FILE:
+            self.storage.remove_upload(_upload_token(request))
+        job = self.repository.get_job(job_id, owner_id)
+        if job is None:  # deleted meanwhile
+            return
+        if job.status is not JobStatus.CANCELLED:
+            self.repository.transition_job(job_id, JobStatus.CANCELLED, stage=stage)
+        if stage == "download":
+            project_id = self.repository.job_project(job_id)
+            deletion = self.repository.begin_project_deletion(project_id, owner_id)
+            for storage_key in deletion.storage_keys:
+                self.storage.delete_asset(storage_key)
+            self.repository.complete_project_deletion(project_id, owner_id)
+
+    def _stored_source(self, job_id: UUID, owner_id: str) -> DownloadedAudio | None:
+        """The source audio this job already stored, when its file is still there."""
+        asset = next((a for a in self.repository.list_assets(job_id, owner_id) if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
+        if asset is None:
+            return None
+        path = self.storage.resolve_path(asset.storage_key)
+        if not path.is_file():
+            return None
+        project = self.repository.get_project(self.repository.job_project(job_id), owner_id)
+        title = project.title or project.input_value
+        source = VideoCandidate(project.source_id or title, title, project.input_value)
+        return DownloadedAudio(path, source, asset.media_format or path.suffix.lstrip("."), asset.byte_size)
 
     def _resolve_source(
         self, job_id: UUID, request: SourceRequest, owner_id: str, batch_id: UUID
@@ -306,14 +369,18 @@ class BatchOrchestrator:
 
         self.repository.transition_job(job_id, JobStatus.SEPARATING, stage="separation")
         temp_dir = self.storage.temporary_directory(title, source_id)
-        result = self._retry(
-            job_id,
-            lambda: self.separator.separate(
-                audio.path, temp_dir, options, progress=self._progress_reporter(job_id, 0.10, 0.97)
-            ),
-            owner_id,
-            batch_id,
-        )
+        try:
+            result = self._retry(
+                job_id,
+                lambda: self.separator.separate(
+                    audio.path, temp_dir, options, progress=self._progress_reporter(job_id, 0.10, 0.97)
+                ),
+                owner_id,
+                batch_id,
+            )
+        except OperationCancelled:
+            self.storage.remove_temporary_directory(title, source_id)  # the model was stopped mid-way
+            raise
         artifacts = _checked_artifacts(result.stems, stems)
         # Not retried: it deletes each float stem once its FLAC is written, to need less temporary space.
         for asset in self.storage.save_stems(job_id, title, source_id, artifacts, result.level, variant):

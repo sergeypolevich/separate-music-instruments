@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from audio_stems.models import AdapterError, FailureCategory, VideoCandidate
+from audio_stems.models import AdapterError, FailureCategory, OperationCancelled, VideoCandidate
 from audio_stems.storage import LocalMediaStorage
 from audio_stems.youtube import PytubeDownloader
 from audio_stems.config import Settings
@@ -169,3 +169,20 @@ def test_pytubefix_still_has_the_fallback_list_the_adapter_narrows():
     assert "self.fallback_clients" in inspect.getsource(YouTube.__init__)  # renamed on an update → this fails
     clients = innertube._default_clients
     assert not clients["IOS"]["require_js_player"] and not clients["VISION_OS"]["require_js_player"]
+
+
+def test_a_cancel_during_the_download_removes_the_half_file_and_is_not_retried(monkeypatch, tmp_path):
+    class HalfStream(FakeStream):
+        def download(self, *, output_path, filename):
+            Path(output_path, filename).write_bytes(b"\x1aE\xdf\xa3half")
+            raise OperationCancelled()  # what the progress callback raises when the user cancels
+
+    monkeypatch.setattr("audio_stems.youtube.YouTube",
+                        lambda url, **_kwargs: FakeYoutube(url, None, streams=FakeStreams(HalfStream("webm"))))
+    storage = LocalMediaStorage(tmp_path / "media")
+    downloader = PytubeDownloader(storage, Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"))
+
+    with pytest.raises(OperationCancelled):
+        downloader.download(VideoCandidate("canonical", "A Track", "https://youtube.com/watch?v=canonical"))
+
+    assert not list((tmp_path / "media").rglob("*.webm"))

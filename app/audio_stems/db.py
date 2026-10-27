@@ -36,7 +36,7 @@ _ALLOWED_JOB_TRANSITIONS = {
     JobStatus.SEPARATING: {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
     JobStatus.FAILED: {JobStatus.QUEUED},
     JobStatus.COMPLETED: set(),
-    JobStatus.CANCELLED: set(),
+    JobStatus.CANCELLED: {JobStatus.QUEUED},  # «Разделить» after a cancelled separation (requeue_separation)
 }
 _ALLOWED_BATCH_TRANSITIONS = {
     BatchStatus.QUEUED: {BatchStatus.PROCESSING, BatchStatus.CANCELLED},
@@ -564,6 +564,68 @@ class SqliteMetadataStore:
             ).fetchall()
         return [self._job_view(row) for row in rows]
 
+    def request_job_cancel(self, job_id: UUID, owner_id: str) -> tuple[UUID, bool]:
+        """Ask the worker to stop an unfinished job. Returns its project and whether the job has not started yet
+        (its batch is still queued, so nothing runs that could clean up after it)."""
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT j.status, j.project_id, b.status AS batch_status FROM jobs j JOIN batches b ON b.id = j.batch_id "
+                "WHERE j.id = ? AND j.owner_id = ?",
+                (str(job_id), owner_id),
+            ).fetchone()
+            if row is None:
+                raise AdapterError("Job was not found", FailureCategory.NOT_FOUND)
+            if row["status"] in {JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value}:
+                raise AdapterError("Job is already finished", FailureCategory.CONFLICT)
+            connection.execute("UPDATE jobs SET cancel_requested = 1, updated_at = ? WHERE id = ?", (_utc_now(), str(job_id)))
+        return UUID(row["project_id"]), row["batch_status"] == BatchStatus.QUEUED.value
+
+    def cancel_requested(self, job_id: UUID) -> bool:
+        """True when the worker should stop this job: cancelled, asked to be, or deleted meanwhile."""
+        with self._connection() as connection:
+            row = connection.execute("SELECT status, cancel_requested FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
+        return row is None or bool(row["cancel_requested"]) or row["status"] == JobStatus.CANCELLED.value
+
+    def job_project(self, job_id: UUID) -> UUID | None:
+        with self._connection() as connection:
+            row = connection.execute("SELECT project_id FROM jobs WHERE id = ?", (str(job_id),)).fetchone()
+        return UUID(row["project_id"]) if row else None
+
+    def requeue_separation(self, project_id: UUID, owner_id: str) -> UUID:
+        """«Разделить»: a cancelled or failed project whose source audio is stored goes back into the queue, in a
+        batch of its own (its first batch may hold finished jobs); the worker separates the stored audio."""
+        now = _utc_now()
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT j.id, j.status, j.input_type FROM projects p JOIN jobs j ON j.project_id = p.id "
+                "WHERE p.id = ? AND p.owner_id = ?",
+                (str(project_id), owner_id),
+            ).fetchone()
+            if row is None:
+                raise AdapterError("Project was not found", FailureCategory.NOT_FOUND)
+            if row["status"] not in {JobStatus.CANCELLED.value, JobStatus.FAILED.value}:
+                raise AdapterError("Project is not stopped", FailureCategory.CONFLICT)
+            if not connection.execute(
+                "SELECT 1 FROM media_assets WHERE job_id = ? AND asset_type = ?",
+                (row["id"], MediaAssetType.SOURCE_AUDIO.value),
+            ).fetchone():
+                raise AdapterError("Project has no stored source audio", FailureCategory.CONFLICT)
+            batch_id = str(uuid4())
+            connection.execute(
+                "INSERT INTO batches (id, owner_id, submission_method, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (batch_id, owner_id, row["input_type"], BatchStatus.QUEUED.value, now, now),
+            )
+            connection.execute(
+                "UPDATE jobs SET batch_id = ?, status = ?, current_stage = NULL, error_summary = NULL, cancel_requested = 0, "
+                "progress = 0, updated_at = ? WHERE id = ?",
+                (batch_id, JobStatus.QUEUED.value, now, row["id"]),
+            )
+            connection.execute(
+                "INSERT INTO job_events (id, batch_id, job_id, name, occurred_at, details_json, actor_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (str(uuid4()), batch_id, row["id"], "job_requeued", now, json.dumps({"status": JobStatus.QUEUED.value}), owner_id),
+            )
+        return UUID(row["id"])
+
     def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None:
         with self._connection() as connection:
             result = connection.execute(
@@ -727,7 +789,8 @@ class SqliteMetadataStore:
             ).fetchone()
             if row is None:
                 raise AdapterError("Project was not found", FailureCategory.NOT_FOUND)
-            if row["batch_status"] == BatchStatus.PROCESSING.value:
+            # The worker is done with a cancelled job even while the rest of its batch goes on.
+            if row["batch_status"] == BatchStatus.PROCESSING.value and row["job_status"] != JobStatus.CANCELLED.value:
                 raise AdapterError("Project batch is currently processing", FailureCategory.CONFLICT)
             if connection.execute(
                 "SELECT 1 FROM analyses WHERE project_id = ? AND kind = 'upgrade' AND status IN ('queued', 'running')",

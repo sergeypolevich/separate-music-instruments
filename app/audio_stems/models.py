@@ -20,6 +20,10 @@ class FailureCategory(Enum):
     DISK_FULL = "disk_full"
 
 
+class OperationCancelled(Exception):
+    """The user cancelled the work: an adapter stops and removes what it had started (raised from a progress callback)."""
+
+
 class AdapterError(Exception):
     """Expected, categorized failure raised by an adapter boundary."""
 

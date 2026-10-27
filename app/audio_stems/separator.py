@@ -131,22 +131,27 @@ def run_with_progress(command: list[str], passes: int, progress: Callable[[float
     )
     done, last, reported, pending, tail = 0, 0.0, None, b"", b""
     assert process.stderr is not None
-    while chunk := process.stderr.read1(4096):
-        tail = (tail + chunk)[-4096:]
-        *lines, pending = re.split(rb"[\r\n]", pending + chunk)
-        # tqdm writes "\r<bar>", so the newest bar is the unterminated tail; it is read again once complete.
-        for line in (*lines, pending):
-            match = _TQDM.search(line)
-            if not match or float(match[2]) <= 0:
-                continue
-            fraction = min(1.0, float(match[1]) / float(match[2]))
-            if fraction < last - 0.5:  # a new bar: the next model pass started
-                done += 1
-            last = fraction
-            value = min(1.0, (done + fraction) / passes)
-            if progress is not None and value != reported:
-                reported = value
-                progress(value)
+    try:
+        while chunk := process.stderr.read1(4096):
+            tail = (tail + chunk)[-4096:]
+            *lines, pending = re.split(rb"[\r\n]", pending + chunk)
+            # tqdm writes "\r<bar>", so the newest bar is the unterminated tail; it is read again once complete.
+            for line in (*lines, pending):
+                match = _TQDM.search(line)
+                if not match or float(match[2]) <= 0:
+                    continue
+                fraction = min(1.0, float(match[1]) / float(match[2]))
+                if fraction < last - 0.5:  # a new bar: the next model pass started
+                    done += 1
+                last = fraction
+                value = min(1.0, (done + fraction) / passes)
+                if progress is not None and value != reported:
+                    reported = value
+                    progress(value)
+    except BaseException:  # a cancel raised by the progress callback (or Ctrl+C): the model must not run on alone
+        process.kill()
+        process.wait()
+        raise
     if process.wait():
         logger.error("Separator failed: %s", tail.decode("utf-8", "replace")[-1500:], extra={"event": "separation_failed"})
         raise subprocess.CalledProcessError(process.returncode, command, stderr=tail)

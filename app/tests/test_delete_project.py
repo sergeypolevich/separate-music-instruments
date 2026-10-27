@@ -377,3 +377,50 @@ def test_upgrade_route_refuses_the_best_model_and_unfinished_projects(tmp_path):
     unfinished = request("POST", f"/api/v1/projects/{running.project_id}/upgrade")
     assert unfinished.status_code == 409 and unfinished.json()["error"]["code"] == "source_unavailable"
 
+
+
+def test_cancelling_a_song_that_has_not_started_deletes_it_and_a_finished_one_is_refused(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    queued, receipt, files = add_project(repository, storage, "Queued", completed=False)
+    done, done_receipt, _ = add_project(repository, storage, "Done")
+
+    cancelled = request("POST", f"/api/v1/jobs/{receipt.job_ids[0]}/cancel")
+    refused = request("POST", f"/api/v1/jobs/{done_receipt.job_ids[0]}/cancel")
+
+    assert cancelled.status_code == 200 and cancelled.json() == {"state": "deleted"}
+    assert repository.get_project(queued.project_id, "local") is None and not any(path.exists() for path in files)
+    assert repository.get_batch(receipt.batch_id, "local").status == BatchStatus.CANCELLED.value
+    assert refused.status_code == 409 and refused.json()["error"]["code"] == "job_finished"
+    assert request("POST", f"/api/v1/jobs/{uuid4()}/cancel").status_code == 404
+
+
+def test_cancelling_one_song_of_a_waiting_batch_leaves_it_to_the_worker(tmp_path):
+    request, repository, _storage = make_delete_client(tmp_path)
+    receipt = repository.create_batch(
+        "local", [SourceRequest(SourceKind.SEARCH_QUERY, "First"), SourceRequest(SourceKind.SEARCH_QUERY, "Second")]
+    )
+
+    response = request("POST", f"/api/v1/jobs/{receipt.job_ids[0]}/cancel")
+
+    assert response.json() == {"state": "cancelling"}
+    assert repository.cancel_requested(receipt.job_ids[0]) and not repository.cancel_requested(receipt.job_ids[1])
+
+
+def test_separate_requeues_a_cancelled_project_with_its_audio_in_a_batch_of_its_own(tmp_path):
+    request, repository, storage = make_delete_client(tmp_path)
+    project, receipt, _ = add_project(repository, storage, "Stopped", completed=False)
+    job_id = receipt.job_ids[0]
+    repository.transition_batch(receipt.batch_id, BatchStatus.PROCESSING)
+    repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
+    repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
+    repository.transition_job(job_id, JobStatus.CANCELLED, stage="separation")
+    done, _, _ = add_project(repository, storage, "Done")
+
+    response = request("POST", f"/api/v1/projects/{project.project_id}/separate")
+    refused = request("POST", f"/api/v1/projects/{done.project_id}/separate")
+
+    assert response.status_code == 202 and response.json() == {"job_id": str(job_id)}
+    job = repository.get_job(job_id, "local")
+    assert job.status is JobStatus.QUEUED and job.batch_id != receipt.batch_id and not repository.cancel_requested(job_id)
+    assert repository.claim_next_batch().receipt.job_ids == (job_id,)
+    assert refused.status_code == 409 and refused.json()["error"]["code"] == "not_separable"
