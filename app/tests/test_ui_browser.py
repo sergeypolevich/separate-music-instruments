@@ -613,12 +613,21 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Home")
             # Metronome: the first press detects beats (progress on the button), then it clicks on them.
             metronome = page.locator(".footer-toggle").first
-            assert metronome.text_content() == "Метроном" and metronome.get_attribute("aria-pressed") == "false"
+            # An icon only; the name is the tooltip and the accessible name.
+            assert metronome.text_content() == "" and metronome.locator("svg").count() == 1
+            assert metronome.get_attribute("aria-label") == metronome.get_attribute("title") == "Метроном"
+            assert metronome.get_attribute("aria-pressed") == "false"
+            off_background = metronome.evaluate("el => getComputedStyle(el).backgroundColor")
             assert page.locator('[data-control="metronome-volume"]').input_value() == "50"
             metronome.click()
-            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Метроном · 30%'")
-            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Метроном' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Метроном · 30%'")
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Метроном' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
             assert metronome.get_attribute("aria-pressed") == "true" and beats_polls[0].endswith("/project-0/beats")
+            # On: filled with the accent, the icon in the accent's ink (clearly different from off).
+            on_style = metronome.evaluate("el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]")
+            accent = page.evaluate("""() => { const probe = document.createElement('i'); probe.style.color = 'var(--accent)'; document.body.append(probe);
+                const color = getComputedStyle(probe).color; probe.remove(); return color; }""")
+            assert on_style[0] == accent != off_background
             assert metronome.evaluate("el => el.style.getPropertyValue('--job-progress')") == ""  # no leftover fill
             # The song's tempo next to the metronome, from the analysis (every four beats), one decimal, no ".0".
             bpm = page.locator(".metronome-bpm")
@@ -662,6 +671,30 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                         [...speed.querySelectorAll('.speed-scale span')].map((s) => s.textContent)]; }""")
             assert all(abs(offset) <= 1 for offset in marks[:3]), marks
             assert marks[3] == ["25%", "100%", "150%"]
+            # A turtle left of the scale and a hare right of it; no «Скорость» and no value beside it — the value is a
+            # tooltip over the thumb while hovering; the scale's labels stay inside the speed block.
+            speed_layout = page.evaluate("""() => {
+                const wrap = document.querySelector('.footer-speed'), fader = wrap.querySelector('.speed-fader').getBoundingClientRect();
+                const ends = [...wrap.querySelectorAll('.speed-end')].map((e) => e.getBoundingClientRect());
+                const box = wrap.getBoundingClientRect(), labels = [...wrap.querySelectorAll('.speed-scale span')].map((s) => s.getBoundingClientRect());
+                return {ends: ends.length, left: ends[0].right <= fader.left, right: ends[1].left >= fader.right,
+                        inside: labels.every((l) => l.top >= box.top && l.bottom <= box.bottom),
+                        tip: getComputedStyle(wrap.querySelector('.footer-speed-value')).opacity, text: wrap.innerText}; }""")
+            assert speed_layout["ends"] == 2 and speed_layout["left"] and speed_layout["right"] and speed_layout["inside"], speed_layout
+            assert speed_layout["tip"] == "0" and "Скорость" not in speed_layout["text"]
+            page.locator(".speed-fader").hover()
+            page.wait_for_function("getComputedStyle(document.querySelector('.footer-speed-value')).opacity === '1'")
+            tip = page.evaluate("""() => { const t = document.querySelector('.footer-speed-value').getBoundingClientRect();
+                const r = document.querySelector('[data-control="speed"]').getBoundingClientRect();
+                return [t.left + t.width / 2 - (r.left + 6 + (r.width - 12) * 0.6), t.bottom <= r.top]; }""")
+            assert abs(tip[0]) <= 1 and tip[1] and page.locator(".footer-speed-value").text_content() == "100%", tip
+            page.mouse.move(0, 0)
+            if viewport[0] < 600:  # on a phone the rows of the footer are as far apart as the footer's top padding
+                gaps = page.evaluate("""() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
+                    const pad = parseFloat(getComputedStyle(document.querySelector('.project-footer')).paddingTop);
+                    return [box('[data-action="upgrade"]').top - box('.metronome-toggle').bottom,
+                            box('.footer-speed').top - box('[data-action="upgrade"]').bottom, pad]; }""")
+                assert abs(gaps[0] - gaps[2]) <= 1 and abs(gaps[1] - gaps[2]) <= 1, gaps
             # Preparing the stems shows a translucent fill with the share done, gone when ready.
             page.evaluate("""() => { window.speedFills = []; const wrap = document.querySelector('.footer-speed');
                 new MutationObserver(() => window.speedFills.push([wrap.style.getPropertyValue('--job-progress'), wrap.querySelector('.footer-speed-value').textContent]))
@@ -753,7 +786,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("window.oldStems.every(a => a.paused && !a.hasAttribute('src'))")
             # No steady beat found: the metronome, its volume and ▶4 say so and stay off.
             page.locator(".footer-toggle").first.click()
-            page.wait_for_function("document.querySelector('.footer-toggle').textContent === 'Ритм не найден'")
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Ритм не найден'")
+            assert page.locator(".metronome-bpm").text_content() == "Ритм не найден"  # visible next to the icon
             assert page.evaluate("['.footer-toggle', '[data-control=\"metronome-volume\"]', '[data-action=\"count-in\"]'].every(s => document.querySelector(s).disabled)")
             assert page.locator(".footer-toggle").first.get_attribute("aria-pressed") == "false"
             page.locator('.project-tab[data-project-id="project-0"]').click()

@@ -70,6 +70,9 @@ const transportIcons = {
   guitar: '<path d="M11 23v-8M14 23v-8"/><path d="M11 15 10 3.6C9.9 2.2 10.9 1.3 12.4 1.6l3.8.8c1.6.4 2 1.9 1 3.1L15 8.7 14 15"/><g fill="currentColor" stroke="none"><circle cx="7" cy="3.4" r="1"/><circle cx="7" cy="5.8" r="1"/><circle cx="7" cy="8.2" r="1"/><circle cx="7" cy="10.6" r="1"/><circle cx="7" cy="13" r="1"/><circle cx="7" cy="15.4" r="1"/></g>',
   piano: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M7 20v-6M12 20v-6M17 20v-6"/><path d="M5.5 4v10h3V4M10.5 4v10h3V4M15.5 4v10h3V4" fill="currentColor"/>',
   other: '<path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/>',
+  turtle: '<path d="m12 10 2 4v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3a8 8 0 1 0-16 0v3a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-3l2-4h4z"/><path d="M4.82 7.9 8 10"/><path d="M15.18 7.9 12 10"/><path d="M16.93 10H20a2 2 0 0 1 0 4H2"/>',
+  rabbit: '<path d="M13 16a3 3 0 0 1 2.24 5"/><path d="M18 12h.01"/><path d="M18 21h-8a4 4 0 0 1-4-4 7 7 0 0 1 7-7h.2L9.6 6.4a1 1 0 1 1 2.8-2.8L15.8 7h.2c3.3 0 6 2.7 6 6v1a2 2 0 0 1-2 2h-1a3 3 0 0 0-3 3"/><path d="M20 8.54V4a2 2 0 1 0-4 0v3"/><path d="M7.612 12.524a3 3 0 1 0-1.6 4.3"/>',
+  sparkles: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
   speaker: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>',
 };
 
@@ -645,10 +648,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const metronome = new Metronome(audioContext, metronomeBus);
     let metronomeOn = false;
     let songTempo = null;  // [[time, bpm], ...] from the analysis, shown next to the metronome
+    let noRhythm = false;  // said where the tempo would be: the icon-only button has no room for it
     const bpmLabel = document.createElement("span");
     bpmLabel.className = "metronome-bpm";
     const showTempo = (seconds) => {
-      const text = formatBpm(tempoAt(songTempo, seconds), metronome.rate);
+      const text = noRhythm ? "Ритм не найден" : formatBpm(tempoAt(songTempo, seconds), metronome.rate);
       if (bpmLabel.textContent !== text) bpmLabel.textContent = text;  // changes at most every four beats
     };
     const transport = new SynchronizedTransport(tracks, {
@@ -847,10 +851,15 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     footer.className = "project-footer";
     const metronomeButton = document.createElement("button");
     metronomeButton.type = "button";
-    metronomeButton.className = "footer-toggle";
+    metronomeButton.className = "footer-toggle metronome-toggle";
     metronomeButton.setAttribute("aria-pressed", "false");
-    metronomeButton.innerHTML = `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${transportIcons.metronome}</svg><span>Метроном</span>`;
-    const metronomeLabel = metronomeButton.querySelector("span");
+    setIcon(metronomeButton, "metronome");
+    // Icon only: the name (and the analysis progress, also shown as the fill) is the tooltip.
+    const nameMetronome = (text) => {
+      metronomeButton.title = text;
+      metronomeButton.setAttribute("aria-label", text);
+    };
+    nameMetronome("Метроном");
     const volumeWrap = document.createElement("div");
     volumeWrap.className = "mixer-fader footer-fader";
     const volume = document.createElement("input");
@@ -879,9 +888,12 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // a 4-minute song, released with the project) and plays them through Signalsmith Stretch.
     const speedWrap = document.createElement("div");
     speedWrap.className = "footer-speed";
-    const speedLabel = document.createElement("span");
-    speedLabel.className = "footer-speed-label";
-    speedLabel.textContent = "Скорость";
+    const slower = document.createElement("span");
+    slower.className = "speed-end";
+    slower.innerHTML = iconSvg("turtle");
+    const faster = document.createElement("span");
+    faster.className = "speed-end";
+    faster.innerHTML = iconSvg("rabbit");
     const speedFader = document.createElement("div");
     speedFader.className = "mixer-fader speed-fader";
     const speed = document.createElement("input");
@@ -893,14 +905,15 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     speed.dataset.control = "speed";
     speed.tabIndex = -1;
     speed.setAttribute("aria-label", "Скорость воспроизведения");
-    const speedValue = document.createElement("span");
+    const speedValue = document.createElement("span");  // a tooltip over the thumb (hover, drag, preparing)
     speedValue.className = "footer-speed-value";
+    speedValue.setAttribute("aria-hidden", "true");  // the slider itself reports its value
     const scale = document.createElement("div");
     scale.className = "speed-scale";
     scale.setAttribute("aria-hidden", "true");
     scale.innerHTML = [25, 100, 150].map((value) => `<span style="left: ${((value - 25) / 125) * 100}%">${value}%</span>`).join("");
-    speedFader.append(scale, speed);
-    speedWrap.append(speedLabel, speedFader, speedValue);
+    speedFader.append(scale, speed, speedValue);
+    speedWrap.append(slower, speedFader, faster);
     let stretchLoading = null;
     const loadStretch = () => {
       stretchLoading = stretchLoading || (async () => {
@@ -938,6 +951,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     };
     const showSpeed = () => {
       speed.style.setProperty("--fill", `${((Number(speed.value) - 25) / 125) * 100}%`);
+      speedFader.style.setProperty("--share", String((Number(speed.value) - 25) / 125));
       if (!speedWrap.dataset.loading) speedValue.textContent = `${speed.value}%`;
     };
     const applySpeed = async () => {
@@ -968,6 +982,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     upgradeButton.type = "button";
     upgradeButton.className = "footer-toggle footer-upgrade";
     upgradeButton.dataset.action = "upgrade";
+    upgradeButton.innerHTML = `${iconSvg("sparkles")}<span></span>`;
+    const upgradeText = upgradeButton.querySelector("span");
     const showUpgrade = (state) => {
       const busy = state.status === "queued" || state.status === "running";
       upgradeButton.disabled = Boolean(state.best) || busy;
@@ -978,10 +994,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (busy) upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
       else upgradeButton.style.removeProperty("--job-progress");
       const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · осталось ${formatMinutes(state.eta_seconds)}` : "";
-      if (state.best) upgradeButton.textContent = "Улучшенное качество разделения";
-      else if (state.status === "queued") upgradeButton.textContent = `Улучшение в очереди${left}`;
-      else if (state.status === "running") upgradeButton.textContent = `Улучшаем · ${Math.round(state.progress * 100)}%${left}`;
-      else upgradeButton.textContent = `Улучшить качество${state.estimate_seconds ? ` · ${formatMinutes(state.estimate_seconds)}` : ""}`;
+      if (state.best) upgradeText.textContent = "Улучшенное качество разделения";
+      else if (state.status === "queued") upgradeText.textContent = `Улучшение в очереди${left}`;
+      else if (state.status === "running") upgradeText.textContent = `Улучшаем · ${Math.round(state.progress * 100)}%${left}`;
+      else upgradeText.textContent = `Улучшить качество${state.estimate_seconds ? ` · ${formatMinutes(state.estimate_seconds)}` : ""}`;
     };
     const followUpgrade = async (state) => {
       while (state.status === "queued" || state.status === "running") {
@@ -1031,17 +1047,19 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           if (setupId !== playbackSetupId) return null;
           metronomeButton.dataset.analyzing = "true";
           metronomeButton.style.setProperty("--job-progress", `${Math.round(state.progress * 100)}%`);
-          metronomeLabel.textContent = `Метроном · ${Math.round(state.progress * 100)}%`;
+          nameMetronome(`Метроном · ${Math.round(state.progress * 100)}%`);
           await new Promise((resolve) => window.setTimeout(resolve, 1000));
           state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/beats`);
         }
         delete metronomeButton.dataset.analyzing;
         metronomeButton.style.removeProperty("--job-progress");
-        metronomeLabel.textContent = "Метроном";
+        nameMetronome("Метроном");
         if (state.status !== "done") throw new Error(state.error || "Не удалось определить доли");
         if (!rhythmFound(state.result)) {
           setMetronome(false);
-          metronomeLabel.textContent = "Ритм не найден";
+          nameMetronome("Ритм не найден");
+          noRhythm = true;
+          showTempo(transport.currentTime);
           metronomeButton.disabled = volume.disabled = countIn.disabled = true;
           return null;
         }
@@ -1053,7 +1071,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         beatsRequest = null;
         delete metronomeButton.dataset.analyzing;
         metronomeButton.style.removeProperty("--job-progress");
-        metronomeLabel.textContent = "Метроном";
+        nameMetronome("Метроном");
         error.textContent = reason.message;
         setMetronome(false);
         return null;

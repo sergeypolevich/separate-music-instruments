@@ -147,11 +147,15 @@ h1, h2, h3, p { margin-top: 0; }
 .metronome-bpm:empty { display: none; }
 .footer-toggle[aria-pressed="true"] { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); color: var(--text); background-color: color-mix(in srgb, var(--accent) 14%, var(--tab-bg)); }
 .footer-toggle:not([data-analyzing]) { --job-progress: 0%; }
+/* The metronome is an icon: a square button, filled with the accent when on (like a pressed S or M). */
+.footer-toggle.metronome-toggle { min-width: 0; width: 42px; justify-content: center; padding: 0; }
+.footer-toggle.metronome-toggle[aria-pressed="true"]:not([data-analyzing]) { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 /* Two classes: a single one loses to the later .mixer-fader mark (100 of 150). */
 .mixer-fader.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
 /* «Улучшить качество» sits midway between the metronome and the speed: equal free space on both sides. */
 .footer-upgrade { margin-inline: auto; }
-.footer-speed { display: inline-flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
+/* Top padding: the 25/100/150 labels over the fader stay inside the block. */
+.footer-speed { display: inline-flex; align-items: center; gap: 10px; padding: 15px 8px 4px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
 /* While the stems are prepared for a speed change: a translucent fill, so it never looks frozen. */
 .footer-speed[data-loading] { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress)); }
 .mixer-fader.speed-fader { --mark: 75 / 125; width: min(240px, 46vw); }
@@ -159,8 +163,11 @@ h1, h2, h3, p { margin-top: 0; }
 .speed-fader::after { position: absolute; top: 50%; left: 6px; right: 5px; height: 7px; background: linear-gradient(to right, var(--line) 1px, transparent 1px) 0 0 / calc((100% - 1px) / 25) 100% repeat-x; transform: translateY(-50%); pointer-events: none; content: ""; }
 .speed-scale { position: absolute; left: 6px; right: 6px; bottom: calc(50% + 7px); height: 11px; color: var(--muted); font-size: 9px; line-height: 11px; pointer-events: none; }
 .speed-scale span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
-.footer-speed-value { min-width: 64px; color: var(--text); font-variant-numeric: tabular-nums; }
-.footer-speed[data-loading] .footer-speed-value { color: var(--muted); }
+.speed-end { display: inline-flex; color: var(--muted); }
+.speed-end .icon { width: 20px; height: 20px; }
+/* The value as a tooltip over the thumb: while hovering or dragging, and while the stems are prepared. */
+.footer-speed-value { position: absolute; z-index: 2; bottom: calc(50% + 21px); left: calc(6px + (100% - 12px) * var(--share, .6)); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; transform: translateX(-50%); pointer-events: none; transition: opacity .15s; }
+.speed-fader:hover .footer-speed-value, .speed-fader:active .footer-speed-value, .footer-speed[data-loading] .footer-speed-value { opacity: 1; }
 .job-progress-label { margin: 6px 0 0; color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 .job-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .job-progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .8s linear; }
@@ -322,6 +329,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .mixer-name { gap: 4px; }
   .mixer-switches { gap: 6px; }
   .mixer-row, .mixer-master { min-height: 57px; }
+  .project-footer { row-gap: 16px; }  /* the same as the footer's top padding */
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
   .playback-buttons { grid-template-columns: repeat(3, minmax(0, 50px)); gap: 5px; }
