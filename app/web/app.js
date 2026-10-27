@@ -47,6 +47,8 @@ const accentHueField = document.querySelector("#accent-hue");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const settingsOverlay = document.querySelector("#settings-overlay");
 const helpOverlay = document.querySelector("#help-overlay");
+const queueTrigger = document.querySelector("#queue-trigger");
+const queuePopover = document.querySelector("#queue-popover");
 let pollingTimer = null;
 let activeTransport = null;
 let activeMixer = null;
@@ -59,6 +61,7 @@ let playbackKey = "";
 let pendingResume = null;
 let selectedProjectId = null;
 let selectedProjectTitle = "";
+let selectedJobId = null;
 
 // Icons are drawn in the same 24px grid as the static SVG icons in index.html (lucide style, ISC). The stem icons
 // are our own solid silhouettes (the user's reference: a Stratocaster headstock); holes by even-odd.
@@ -244,6 +247,93 @@ function closeHelp() {
   document.body.classList.remove("search-open");
 }
 
+// The queue: what the worker does and what waits (GET /api/v1/queue), with a cancel button for each task.
+const workingStates = new Set(["searching", "downloading", "separating", "running"]);
+let queueTimer = null;
+
+function queueText(item) {
+  const percent = workingStates.has(item.status) ? ` · ${Math.round((item.progress || 0) * 100)}%` : "";
+  const left = item.eta_seconds !== null && item.eta_seconds !== undefined ? ` · осталось ${formatMinutes(item.eta_seconds)}` : "";
+  if (item.kind === "upgrade") return `Улучшение качества${item.status === "queued" ? " · в очереди" : percent}${left}`;
+  return `${stateDescriptions[item.status] || item.status}${percent}${left}`;
+}
+
+function renderQueue(items) {
+  queueTrigger.hidden = !items.length;
+  if (!items.length) closeQueue();
+  const current = items.find((item) => workingStates.has(item.status) && item.progress > 0);
+  if (current) {
+    queueTrigger.dataset.share = "true";
+    queueTrigger.style.setProperty("--queue-progress", String(Math.max(2, Math.round(current.progress * 100))));
+  } else {
+    delete queueTrigger.dataset.share;
+    queueTrigger.style.removeProperty("--queue-progress");
+  }
+  const label = items.length === 1 ? "Очередь: 1 задача" : `Очередь: ${items.length} ${items.length < 5 ? "задачи" : "задач"}`;
+  queueTrigger.setAttribute("aria-label", label);
+  queueTrigger.title = label;
+  document.querySelector("#queue-list").replaceChildren(...items.map((item) => {
+    const row = document.createElement("div");
+    row.className = "queue-item";
+    row.dataset.kind = item.kind;
+    const title = document.createElement("span");
+    title.className = "queue-title";
+    title.textContent = item.title;
+    title.title = item.title;
+    const meta = document.createElement("span");
+    meta.className = "queue-meta";
+    meta.textContent = queueText(item);
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "icon-button";
+    cancel.dataset.action = "cancel-task";
+    cancel.setAttribute("aria-label", `Отменить: ${item.title}`);
+    cancel.title = "Отменить";
+    cancel.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    cancel.addEventListener("click", () => cancelTask(item));
+    row.append(title, meta, cancel);
+    return row;
+  }));
+}
+
+async function refreshQueue() {
+  window.clearTimeout(queueTimer);
+  let items = [];
+  try {
+    items = await requestJson("/api/v1/queue");
+  } catch (_error) { /* the API is restarting: the next look shows it */ }
+  renderQueue(items);
+  queueTimer = window.setTimeout(refreshQueue, items.length ? 2000 : 10000);
+}
+
+// A task that runs loses its progress when cancelled, so that one asks first.
+async function cancelTask(item) {
+  const what = item.kind === "upgrade" ? `улучшение «${item.title}»` : `«${item.title}»`;
+  if (workingStates.has(item.status) && !window.confirm(`Отменить ${what}?`)) return;
+  try {
+    if (item.kind === "upgrade") {
+      await requestJson(`/api/v1/projects/${encodeURIComponent(item.project_id)}/upgrade`, { method: "DELETE" });
+    } else {
+      await requestJson(`/api/v1/jobs/${encodeURIComponent(item.job_id)}/cancel`, { method: "POST" });
+    }
+  } catch (error) {
+    detailError.textContent = error.message;
+    detailError.hidden = false;
+  }
+  await refreshQueue();
+  await loadProjects();
+}
+
+function openQueue() {
+  queuePopover.hidden = false;
+  queueTrigger.setAttribute("aria-expanded", "true");
+}
+
+function closeQueue() {
+  queuePopover.hidden = true;
+  queueTrigger.setAttribute("aria-expanded", "false");
+}
+
 function activateScreen(name) {
   if (name === "settings") {
     openSettings();
@@ -313,8 +403,16 @@ function renderJobProgress(state) {
     bar.setAttribute("aria-valuemin", "0");
     bar.setAttribute("aria-valuemax", "100");
     bar.append(document.createElement("span"));
-    if (activeControls) playbackPanel.prepend(label, bar);  // over the original audio, which plays meanwhile
-    else playbackPanel.replaceChildren(label, bar);
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "quiet-button job-cancel";
+    cancel.dataset.action = "cancel-job";
+    cancel.textContent = "Отменить";
+    cancel.addEventListener("click", () => cancelTask({
+      kind: "job", job_id: selectedJobId, title: selectedProjectTitle, status: selectedJobState?.job_status || "searching" }));
+    playbackPanel.querySelector(".separate-again")?.remove();  // «Разделить» was pressed: progress again
+    if (activeControls) playbackPanel.prepend(label, bar, cancel);  // over the original audio, which plays meanwhile
+    else playbackPanel.replaceChildren(label, bar, cancel);
     playbackPanel.hidden = false;
   }
   const percent = Math.round((state.progress || 0) * 100);
@@ -517,6 +615,34 @@ function renderMissingFiles(project, missing) {
   playbackPanel.hidden = false;
 }
 
+const sourceAudio = (project) => project.assets.find((asset) => asset.asset_type === "source_audio" && asset.available);
+
+function renderSeparateAgain(project) {
+  const box = document.createElement("div");
+  box.className = "separate-again";
+  const note = document.createElement("p");
+  note.className = "playback-message";
+  note.textContent = project.job.status === "cancelled" ? "Разделение отменено." : "Разделить не удалось.";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "primary-button";
+  button.dataset.action = "separate";
+  button.textContent = "Разделить";
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await requestJson(`/api/v1/projects/${encodeURIComponent(project.project_id)}/separate`, { method: "POST" });
+      await loadProjects();
+      refreshQueue();
+    } catch (error) {
+      note.textContent = error.message;
+      button.disabled = false;
+    }
+  });
+  box.append(note, button);
+  playbackPanel.prepend(box);
+}
+
 function renderProject(project) {
   // Re-rendering the same project (tab click, job-finished refresh) must not restart playback;
   // rebuild only when the project or its stem files change.
@@ -525,6 +651,7 @@ function renderProject(project) {
   if (rebuild) cleanupPlayback();
   selectedProjectId = project.project_id;
   selectedProjectTitle = project.title || project.input_value;
+  selectedJobId = project.job.job_id;
   projectEmpty.hidden = true;
   projectDetail.hidden = false;
   detailTitle.textContent = selectedProjectTitle;
@@ -543,8 +670,11 @@ function renderProject(project) {
       const known = selectedJobState && selectedJobState.project_id === project.project_id ? selectedJobState : null;
       renderJobProgress(known || { job_status: project.job.status, progress: 0 });
       // Downloaded: one track, «Original», to check it is the right song while it is separated.
-      const source = project.assets.find((asset) => asset.asset_type === "source_audio" && asset.available);
+      const source = sourceAudio(project);
       if (source) setupProjectPlayback([{ ...source, asset_type: "stem", stem_name: "original" }], ++playbackSetupId, 0, project, true);
+    } else if (["cancelled", "failed"].includes(project.job.status) && sourceAudio(project)) {
+      // Stopped before its stems: listen to the song and separate it again («Разделить»).
+      setupProjectPlayback([{ ...sourceAudio(project), asset_type: "stem", stem_name: "original" }], ++playbackSetupId, 0, project, true);
     } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
     } else {
@@ -1033,8 +1163,20 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     upgradeButton.dataset.action = "upgrade";
     upgradeButton.innerHTML = `${iconSvg("sparkles")}<span></span>`;
     const upgradeText = upgradeButton.querySelector("span");
+    const upgradeCancel = document.createElement("button");  // only while the upgrade waits or runs
+    upgradeCancel.type = "button";
+    upgradeCancel.className = "icon-button upgrade-cancel";
+    upgradeCancel.dataset.action = "cancel-upgrade";
+    upgradeCancel.setAttribute("aria-label", "Отменить улучшение");
+    upgradeCancel.title = "Отменить улучшение";
+    upgradeCancel.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    upgradeCancel.hidden = true;
+    let upgradeStatus = "none";
+    upgradeCancel.addEventListener("click", () => cancelTask({ kind: "upgrade", project_id: projectId, title: selectedProjectTitle, status: upgradeStatus }));
     const showUpgrade = (state) => {
       const busy = state.status === "queued" || state.status === "running";
+      upgradeStatus = state.status;
+      upgradeCancel.hidden = !busy;
       upgradeButton.disabled = Boolean(state.best) || busy;
       if (busy) upgradeButton.dataset.analyzing = "true";
       else delete upgradeButton.dataset.analyzing;
@@ -1080,7 +1222,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     showUpgrade(upgrade);
     if (upgrade.status === "queued" || upgrade.status === "running") followSafely(upgrade);
 
-    footer.append(metronomeButton, bpmLabel, volumeWrap, upgradeButton, speedWrap);
+    footer.append(metronomeButton, bpmLabel, volumeWrap, upgradeButton, upgradeCancel, speedWrap);
 
     const setMetronome = (on) => {
       metronomeOn = on;
@@ -1213,7 +1355,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       },
     };
     tracks.forEach((audio) => audio.load());
-    if (original) renderJobProgress(selectedJobState || { job_status: project.job.status, progress: 0 });
+    if (original && finishedStates.has(project.job.status)) renderSeparateAgain(project);
+    else if (original) renderJobProgress(selectedJobState || { job_status: project.job.status, progress: 0 });
   } catch (reason) {
     console.error("Playback setup failed", reason);
     heading.textContent = "Не удалось подготовить синхронное воспроизведение в этом браузере.";
@@ -1503,6 +1646,10 @@ searchOverlay.addEventListener("click", (event) => {
 });
 document.querySelector("#close-settings").addEventListener("click", closeSettings);
 document.querySelector("#help-trigger").addEventListener("click", openHelp);
+queueTrigger.addEventListener("click", () => (queuePopover.hidden ? openQueue() : closeQueue()));
+document.addEventListener("click", (event) => {
+  if (!queuePopover.hidden && !queuePopover.contains(event.target) && !queueTrigger.contains(event.target)) closeQueue();
+});
 document.querySelector("#close-help").addEventListener("click", closeHelp);
 helpOverlay.addEventListener("click", (event) => {
   if (event.target === helpOverlay) closeHelp();
@@ -1530,6 +1677,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !settingsOverlay.hidden) {
     closeSettings();
+    return;
+  }
+  if (event.key === "Escape" && !queuePopover.hidden) {
+    closeQueue();
     return;
   }
   if (event.key === "Escape" && !helpOverlay.hidden) {
@@ -1640,4 +1791,5 @@ deleteAllButton.addEventListener("click", deleteAllProjects);
 
 loadProjects();
 loadModels();
+refreshQueue();
 if (location.hash === "#settings") openSettings();

@@ -1,6 +1,8 @@
 """Local Playwright checks for the desktop and mobile UI layout."""
 from __future__ import annotations
 
+import time
+
 import io
 import os
 import json
@@ -44,6 +46,14 @@ def _projects():
         }
         for index in range(14)
     ]
+
+
+def _wait_until(condition, seconds=10):
+    """Wait for something the page makes the fake server record (a request it sent)."""
+    deadline = time.monotonic() + seconds
+    while not condition():
+        assert time.monotonic() < deadline, "the page did not send the expected request"
+        time.sleep(0.05)
 
 
 def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missing=()):
@@ -134,6 +144,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     batch_id = "batch-created"
     new_job_id = "job-created"
     submitted = []
+    queue_items = []  # what GET /api/v1/queue answers
+    actions = []  # cancels and «Разделить» the page asked for
     uploaded = []
     deleted = []
     running_detail = {}
@@ -177,6 +189,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                     detail["assets"] = [{"asset_id": f"source-{project_id}", "asset_type": "source_audio", "stem_name": None,
                                          "media_format": "wav", "byte_size": 64_000, "available": True}] if project_id in running_source else []
                 self._json(detail)
+            elif path == "/api/v1/queue":
+                self._json(queue_items)
             elif path == "/api/v1/models":
                 self._json([
                     {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True,
@@ -228,6 +242,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json({"batch_id": batch_id, "status": "queued", "job_ids": [f"job-upload-{len(uploaded)}"], "jobs": []}, 202)
                 return
             body = json.loads(self.rfile.read(length) or b"{}")
+            if self.path.endswith("/cancel") or self.path.endswith("/separate"):
+                actions.append(self.path)
+                if self.path.endswith("/separate"):  # back in the queue
+                    running_detail["project-6"] = "queued"
+                    running_source.add("project-6")
+                    projects[6].update(job_status="queued", progress=0.0)
+                self._json({"state": "cancelling"} if self.path.endswith("/cancel") else {"job_id": "job-6"})
+                return
             if self.path.endswith("/upgrade"):
                 upgrade_polls.append(self.path)
                 self._json({"status": "queued", "progress": 0.0, "error": None, "best": False, "estimate_seconds": 1380, "eta_seconds": 1380}, 202)
@@ -338,11 +360,53 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
             page.keyboard.press("Space")
             page.wait_for_function("document.querySelector('#playback-panel audio').paused")
+            # «Отменить» next to the progress: a running task asks first, then the server is told.
+            page.once("dialog", lambda dialog: dialog.accept())
+            page.locator('[data-action="cancel-job"]').click()
+            _wait_until(lambda: actions and actions[-1] == f"/api/v1/jobs/{projects[6]['job_id']}/cancel")
+            # Cancelled after the download: the song stays, with «Разделить», which puts it back in the queue.
+            running_detail["project-6"] = "cancelled"
+            projects[6].update(job_status="cancelled", progress=0.3)
+            page.locator('.project-tab[data-project-id="project-0"]').click()
+            page.locator('.project-tab[data-project-id="project-6"]').click()
+            page.wait_for_function("document.querySelector('[data-action=\"separate\"]') && document.querySelectorAll('.mixer-row').length === 1")
+            assert page.locator(".separate-again .playback-message").text_content() == "Разделение отменено."
+            page.locator('[data-action="separate"]').click()
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('В очереди')", timeout=15000)
+            assert actions[-1] == "/api/v1/projects/project-6/separate" and page.locator(".separate-again").count() == 0
             running_detail.pop("project-6")
             running_source.discard("project-6")
             projects[6].update(job_status="completed", progress=1.0, eta_seconds=None)
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 6 && document.querySelectorAll('.project-footer').length === 1", timeout=15000)
             assert page.locator(".job-progress").count() == 0
+            # The queue: a ring in the header while there is work, with the running task's share; its list cancels.
+            assert page.locator("#queue-trigger").is_hidden()
+            queue_items[:] = [
+                {"kind": "job", "job_id": "job-q1", "project_id": "project-q1", "title": "Running song", "status": "separating",
+                 "progress": 0.4, "eta_seconds": 300},
+                {"kind": "upgrade", "job_id": "job-0", "project_id": "project-0", "title": "Track 0", "status": "queued",
+                 "progress": 0.0, "eta_seconds": 1380},
+            ]
+            page.wait_for_function("!document.querySelector('#queue-trigger').hidden", timeout=15000)
+            ring = page.locator("#queue-trigger")
+            assert ring.get_attribute("data-share") == "true" and ring.get_attribute("aria-label") == "Очередь: 2 задачи"
+            assert ring.bounding_box()["x"] + ring.bounding_box()["width"] <= page.locator("#help-trigger").bounding_box()["x"]
+            ring.click()
+            assert page.locator("#queue-popover").is_visible()
+            assert page.evaluate("[...document.querySelectorAll('.queue-item')].map(r => [r.querySelector('.queue-title').textContent, r.querySelector('.queue-meta').textContent])") == [
+                ["Running song", "Разделяем дорожки · 40% · осталось ~5 мин"], ["Track 0", "Улучшение качества · в очереди · осталось ~23 мин"]]
+            page.locator('.queue-item[data-kind="upgrade"] [data-action="cancel-task"]').click()  # waiting: no question
+            _wait_until(lambda: deleted and deleted[-1] == "/api/v1/projects/project-0/upgrade")
+            assert page.locator("#queue-popover").is_visible()  # the list stays open for the next one
+            asked = []
+            page.once("dialog", lambda dialog: (asked.append(dialog.message), dialog.accept()))
+            queue_items[:] = queue_items[:1]  # the upgrade is gone
+            page.locator('.queue-item[data-kind="job"] [data-action="cancel-task"]').click()
+            _wait_until(lambda: actions and actions[-1] == "/api/v1/jobs/job-q1/cancel")
+            assert asked == ["Отменить «Running song»?"]
+            queue_items.clear()  # the worker stopped it: nothing left, the ring goes away
+            page.wait_for_function("document.querySelector('#queue-trigger').hidden", timeout=15000)
+            assert page.locator("#queue-popover").is_hidden()
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
 
@@ -437,7 +501,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             )
 
             for icon_sel, host_sel in (
-                (".settings-link .icon", ".settings-link"),
+                (".settings-link[href] .icon", ".settings-link[href]"), ("#help-trigger .icon", "#help-trigger"),
                 ('[data-action="toggle"] .icon', '[data-action="toggle"]'),
                 ('[data-action="reset"] .icon', '[data-action="reset"]'),
                 ("#delete-project .icon", "#delete-project"),
@@ -757,6 +821,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # moves to the new stems at the same position and plays on; the button then says it is done.
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Улучшить качество · ~23 мин" and upgrade.is_enabled()
+            assert page.locator('[data-action="cancel-upgrade"]').is_hidden()
             if viewport[0] > 1000:  # midway between the metronome volume and the speed block
                 gaps = page.evaluate("""() => { const v = document.querySelector('.footer-fader').getBoundingClientRect(),
                     u = document.querySelector('.footer-upgrade').getBoundingClientRect(), s = document.querySelector('.footer-speed').getBoundingClientRect();
@@ -768,12 +833,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             upgrade.click()
             page.wait_for_function("document.querySelector('[data-action=\"upgrade\"]').textContent.startsWith('Улучшаем · 40%')", timeout=5000)
             assert upgrade.text_content() == "Улучшаем · 40% · осталось ~14 мин" and not page.evaluate(paused)
+            assert page.locator('[data-action="cancel-upgrade"]').is_visible()  # × beside it while it runs
             before_switch = page.evaluate(position)
             page.wait_for_function("[...document.querySelectorAll('#playback-panel audio')].every(a => a.src.includes('-sw'))", timeout=10000)
             page.wait_for_function(f"!{paused}", timeout=10000)
             assert page.evaluate(position) >= before_switch - 0.3
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Улучшенное качество разделения" and upgrade.is_disabled()
+            assert page.locator('[data-action="cancel-upgrade"]').is_hidden()
             assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # no leftover progress fill once done
             page.keyboard.press("Space")
             page.wait_for_function(paused)
