@@ -96,6 +96,13 @@ button { cursor: pointer; }
 .top-nav a:hover { color: var(--accent); }
 .settings-link { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; font-size: 19px !important; }
 .settings-link:hover { background: var(--panel-soft); }
+.help-link { padding: 0; border: 0; background: transparent; color: var(--muted); }
+.help-link:hover { color: var(--accent); }
+.hotkey-list { display: grid; gap: 0; margin: 0; }
+.hotkey-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-top: 1px solid var(--line); }
+.hotkey-list dt { color: var(--text-soft); font-size: 13px; }
+.hotkey-list dd { margin: 0; color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+.hotkey-list kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-soft); color: var(--text); font: 600 11px/1.5 'DM Sans', system-ui, sans-serif; text-align: center; }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */
 .project-tabs-shell { padding: 10px 16px 0; }

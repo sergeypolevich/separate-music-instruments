@@ -46,6 +46,7 @@ const themeButtons = document.querySelectorAll("[data-theme-choice]");
 const accentHueField = document.querySelector("#accent-hue");
 const themeColorMeta = document.querySelector('meta[name="theme-color"]');
 const settingsOverlay = document.querySelector("#settings-overlay");
+const helpOverlay = document.querySelector("#help-overlay");
 let pollingTimer = null;
 let activeTransport = null;
 let activeMixer = null;
@@ -207,6 +208,39 @@ function closeSettings() {
   settingsOverlay.hidden = true;
   document.body.classList.remove("search-open");
   history.replaceState(null, "", "#project");
+}
+
+// What the keydown handler below does, for the help window («?» in the header). Keep the two in step.
+const HOTKEYS = [
+  ["Воспроизвести / пауза", "Пробел, Enter"],
+  ["Назад / вперёд на 5 секунд", "←, →"],
+  ["В начало", "Home"],
+  ["В начало и пауза", "Backspace"],
+  ["В конец", "End"],
+  ["Дорожка выше / ниже", "↑, ↓"],
+  ["Следующая / предыдущая дорожка по кругу", "Tab, Shift+Tab"],
+  ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"],
+  ["Solo выбранной дорожки", "S"],
+  ["Mute выбранной дорожки", "M"],
+  ["Громкость выбранной дорожки +10 % / −10 %", "+, −"],
+  ["Открыть файл или найти песню", /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘F" : "Ctrl+F"],
+  ["Ещё одна строка в поле поиска", "Shift+Enter"],
+  ["Закрыть окно", "Esc"],
+];
+
+function openHelp() {
+  const list = document.querySelector("#hotkey-list");
+  if (!list.childElementCount) {
+    list.innerHTML = HOTKEYS.map(([action, keys]) => `<div><dt>${action}</dt><dd>${keys.split(", ").map((key) => `<kbd>${key}</kbd>`).join(", ")}</dd></div>`).join("");
+  }
+  helpOverlay.hidden = false;
+  document.body.classList.add("search-open");
+}
+
+function closeHelp() {
+  if (helpOverlay.hidden) return;
+  helpOverlay.hidden = true;
+  document.body.classList.remove("search-open");
 }
 
 function activateScreen(name) {
@@ -1456,6 +1490,11 @@ searchOverlay.addEventListener("click", (event) => {
   if (event.target === searchOverlay) closeSearch();
 });
 document.querySelector("#close-settings").addEventListener("click", closeSettings);
+document.querySelector("#help-trigger").addEventListener("click", openHelp);
+document.querySelector("#close-help").addEventListener("click", closeHelp);
+helpOverlay.addEventListener("click", (event) => {
+  if (event.target === helpOverlay) closeHelp();
+});
 settingsOverlay.addEventListener("click", (event) => {
   if (event.target === settingsOverlay) closeSettings();
 });
@@ -1481,15 +1520,19 @@ document.addEventListener("keydown", (event) => {
     closeSettings();
     return;
   }
+  if (event.key === "Escape" && !helpOverlay.hidden) {
+    closeHelp();
+    return;
+  }
   // Tab never walks the focus (and its focus rings) outside dialogs; in a project it picks the next track.
-  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
+  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
     event.preventDefault();
     if (activeControls && !event.ctrlKey && !event.metaKey && !event.altKey) {
       activeControls.cycleSelection(event.shiftKey ? -1 : 1);
     }
     return;
   }
-  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || deleteDialog.open) return;
+  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || deleteDialog.open) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
   const controls = activeControls;
   const actions = {

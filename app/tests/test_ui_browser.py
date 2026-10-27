@@ -923,6 +923,23 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.locator("#settings-overlay").is_visible()  # the reload kept #settings
             page.locator("#close-settings").click()
             assert not page.locator("#settings-overlay").is_visible()
+            # «?» left of the settings: what each key does, several keys separated by commas.
+            help_box, settings_box = page.locator("#help-trigger").bounding_box(), page.locator(".settings-link[href]").bounding_box()
+            assert help_box["x"] + help_box["width"] <= settings_box["x"]
+            page.locator("#help-trigger").click()
+            assert page.locator("#help-overlay").is_visible()
+            rows = page.evaluate("[...document.querySelectorAll('#hotkey-list > div')].map(r => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])")
+            assert rows[0] == ["Воспроизвести / пауза", "Пробел, Enter"] and rows[3] == ["В начало и пауза", "Backspace"]
+            assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
+            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 14
+            was_paused = page.evaluate(paused)
+            page.keyboard.press("Space")  # hotkeys sleep while the help is open
+            assert page.evaluate(paused) == was_paused and page.locator("#help-overlay").is_visible()
+            page.keyboard.press("Escape")
+            assert not page.locator("#help-overlay").is_visible()
+            page.locator("#help-trigger").click()
+            page.mouse.click(2, 2)  # a click outside closes it too
+            assert not page.locator("#help-overlay").is_visible()
             # After the reload above the project list loads asynchronously.
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
             # A four-stem project shows four rows, and the playhead spans exactly them.

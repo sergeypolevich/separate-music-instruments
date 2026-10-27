@@ -29,6 +29,7 @@
           <span id="search-preview">Открыть аудиофайл или найти песню…</span>
         </button>
         <nav class="top-nav" aria-label="Навигация">
+          <button id="help-trigger" class="settings-link help-link" type="button" aria-haspopup="dialog" aria-controls="help-overlay" aria-label="Горячие клавиши" title="Горячие клавиши"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
           <a href="#settings" data-screen="settings" class="settings-link" aria-label="Настройки" title="Настройки"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></a>
         </nav>
       </div>
@@ -132,6 +133,16 @@
           <p id="updates-message" class="empty-state" role="status" aria-live="polite">Проверка выполняется только по запросу.</p>
           <div id="release-list" class="release-list"></div>
         </section>
+      </section>
+    </div>
+
+    <div id="help-overlay" class="search-overlay" hidden>
+      <section class="search-dialog settings-dialog help-dialog" role="dialog" aria-modal="true" aria-labelledby="help-title">
+        <div class="search-dialog-heading">
+          <h1 id="help-title">Горячие клавиши</h1>
+          <button id="close-help" class="icon-button" type="button" aria-label="Закрыть справку" title="Закрыть"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <dl id="hotkey-list" class="hotkey-list"></dl>
       </section>
     </div>
 
