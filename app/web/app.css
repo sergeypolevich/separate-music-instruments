@@ -39,22 +39,24 @@
   --accent: hsl(var(--accent-h) 60% 50%);  /* chosen by the user with sliders over a real project (version 16) */
   --accent-hover: hsl(var(--accent-h) 88% 53%);
   --accent-ink: #fff;
-  --bg: #f3f5f1;
+  /* Variant A2 chosen by the user (version 17): near-white, light lines, filled buttons without borders. */
+  --bg: #fafbfa;
   --panel: #ffffff;
-  --panel-soft: #e9eee7;
-  --surface-input: #ffffff;
-  --line: #d3dbd1;
-  --line-strong: #aebaad;
-  --line-soft: rgba(40, 60, 45, .1);
-  --header-line: rgba(40, 60, 45, .12);
+  --panel-soft: #f3f5f3;
+  --surface-input: #eef1ee;
+  --button-bg: #eef1ee;
+  --line: #e4e8e4;
+  --line-strong: #cad1cb;
+  --line-soft: rgba(40, 60, 45, .06);
+  --header-line: rgba(40, 60, 45, .07);
   --text: #17201b;
   --text-soft: #26332b;
   --muted: #56655c;
   --faint: #6f7d74;
   --placeholder: #8a968e;
-  --tab-bg: rgba(255, 255, 255, .85);
+  --tab-bg: #eef1ee;
   --card-bg: #ffffff;
-  --waveform-bg: rgba(30, 50, 35, .06);
+  --waveform-bg: rgba(30, 50, 35, .025);
   --overlay: rgba(20, 30, 24, .45);
   --shadow: rgba(0, 0, 0, .15);
   --ok: #3f9a1e;
@@ -311,6 +313,13 @@ button:disabled { opacity: .55; cursor: wait; }
 .confirm-card > p:not(.eyebrow):not(.detail-error) { margin: 8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .confirm-actions button { min-height: 36px; }
+
+/* Light theme: no accent glow on the page, and buttons that are filled need no border (:where keeps the
+   specificity low, so pressed S/M, the metronome and hover states still win;
+   after the components' own rules, which have the same specificity). */
+:root[data-theme="light"] body { background: var(--bg); }
+:where(:root[data-theme="light"]) :is(.transport-button, .project-tab, .footer-toggle, .mixer-toggle, .quiet-button, .search-trigger) {
+  border-color: transparent; background-color: var(--button-bg); }
 
 @media (max-width: 600px) {
   .shell { width: min(calc(100% - 28px), 760px); }

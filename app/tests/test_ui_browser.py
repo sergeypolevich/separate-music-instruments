@@ -904,6 +904,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 ["", "Ночная тема", True], ["", "Дневная тема", True]]
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
+            # Light theme (A2): no accent glow on the page; filled buttons carry no border.
+            light = page.evaluate("""() => { const b = getComputedStyle(document.querySelector('.quiet-button'));
+                return [getComputedStyle(document.body).backgroundImage, b.borderTopColor, b.backgroundColor]; }""")
+            assert light == ["none", "rgba(0, 0, 0, 0)", "rgb(238, 241, 238)"], light
             assert page.locator('[data-theme-choice="light"]').get_attribute("aria-pressed") == "true"
             page.locator("#accent-hue").evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             other_accent = page.evaluate(swatch)
