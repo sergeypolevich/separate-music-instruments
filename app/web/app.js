@@ -816,7 +816,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
+    const { BufferEngine, MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -1221,8 +1221,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     speedFader.append(scale, speed, speedValue);
     speedWrap.append(slower, speedFader, faster);
     let stretchLoading = null;
-    const loadStretch = () => {
+    // plain: without AudioWorklet (a page over http from another device) the decoded mode plays at 100 % only.
+    const loadStretch = ({ plain = false } = {}) => {
       stretchLoading = stretchLoading || (async () => {
+        if (!audioContext.audioWorklet && !plain) throw new Error("по http с другого устройства браузер её не даёт, только на самом компьютере или по https");
         // Three steps per stem (downloaded, decoded, handed to its node), shown as a fill on the block.
         let steps = 0;
         const step = () => {
@@ -1234,7 +1236,6 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         speedWrap.dataset.loading = "true";
         speedWrap.style.setProperty("--job-progress", "0%");
         speedValue.textContent = "подготовка 0%";
-        const { default: createStretch } = await import("./vendor/signalsmith-stretch-1.3.2.mjs");
         const decoded = await Promise.all(tracks.map(async (audio) => {
           const response = await fetch(audio.currentSrc || audio.src);
           const data = await response.arrayBuffer();
@@ -1243,7 +1244,14 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           step();
           return buffer;
         }));
-        transport.stretch = await StretchEngine.create(audioContext, createStretch, decoded, gainNodes, step);
+        if (audioContext.audioWorklet) {
+          const { default: createStretch } = await import("./vendor/signalsmith-stretch-1.3.2.mjs");
+          transport.stretch = await StretchEngine.create(audioContext, createStretch, decoded, gainNodes, step);
+        } else {
+          transport.stretch = new BufferEngine(audioContext, decoded, gainNodes);
+          speed.disabled = true;
+          speedWrap.title = "Смена скорости: только на самом компьютере или по https";
+        }
         delete speedWrap.dataset.loading;
         speedWrap.style.removeProperty("--job-progress");
       })().catch((reason) => {
@@ -1291,7 +1299,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     if (new URLSearchParams(location.search).get("engine") === "decoded") {
       const started = performance.now();
       decodedNote.textContent = "Декодированный режим: подготовка…";
-      decodedReady = loadStretch().then(() => {
+      decodedReady = loadStretch({ plain: true }).then(() => {
         if (setupId !== playbackSetupId) return;
         transport.alwaysStretch = true;
         if (!transport.playing) transport.seek(transport.currentTime);  // the engine takes the paused position

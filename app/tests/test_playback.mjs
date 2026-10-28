@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, PlayheadClock, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
+import { BufferEngine, Metronome, MixerSession, PlayheadClock, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -279,6 +279,30 @@ test("the stretch engine gives every stem node the same schedule", () => {
   assert.ok(nodes.every((node) => node.schedules.at(-1).active === false));
   engine.seek(20);
   assert.equal(engine.position, 20);
+});
+
+test("the buffer engine starts every stem at one clock time and stops them on pause", () => {
+  const started = [];
+  const context = {
+    currentTime: 5,
+    createBufferSource() {
+      const source = { connect: (output) => { source.output = output; }, disconnect() {}, start: (when, offset) => started.push({ source, when, offset }), stop() { source.stopped = true; } };
+      return source;
+    },
+  };
+  const engine = new BufferEngine(context, [{ duration: 200 }, { duration: 200 }], ["vocals", "drums"]);
+  engine.pause();  // paused before play: nothing to stop
+  engine.play(12);
+  assert.deepEqual(started.map(({ source, when, offset }) => [source.output, when, offset]), [["vocals", 5, 12], ["drums", 5, 12]]);
+  context.currentTime = 8;
+  assert.equal(engine.pause(), 15);
+  assert.ok(started.every(({ source }) => source.stopped));
+  context.currentTime = 20;
+  assert.equal(engine.position, 15);  // paused: the clock does not move it
+  engine.seek(30);
+  assert.equal(started.length, 2);  // a paused seek starts nothing
+  engine.play(30);
+  assert.deepEqual(started.slice(2).map(({ when, offset }) => [when, offset]), [[20, 30], [20, 30]]);
 });
 
 test("the stretch position is what is heard, not the worklet's reported input time", () => {

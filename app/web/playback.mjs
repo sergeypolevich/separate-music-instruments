@@ -350,6 +350,61 @@ export class StretchEngine {
   }
 }
 
+// The decoded stems as plain buffer sources started at one AudioContext time: what a page over plain http
+// can do (no AudioWorklet there, so no stretch). 100 % only; same interface as StretchEngine.
+export class BufferEngine {
+  constructor(context, buffers, outputs) {
+    this.context = context;
+    this.buffers = buffers;
+    this.outputs = outputs;
+    this.rate = 1;
+    this.playing = false;
+    this.paused = 0;
+    this.sources = [];
+  }
+
+  get position() {
+    if (!this.playing) return this.paused;
+    return this.segment.input + Math.max(0, this.context.currentTime - this.segment.output);
+  }
+
+  play(input) {
+    this.playing = true;
+    this.seek(input);
+  }
+
+  seek(input) {
+    this.paused = input;
+    if (!this.playing) return;
+    this.stopSources();
+    const when = this.context.currentTime;
+    this.segment = { input, output: when };
+    this.sources = this.buffers.map((buffer, index) => {
+      const source = this.context.createBufferSource();
+      source.buffer = buffer;
+      source.connect(this.outputs[index]);
+      source.start(when, Math.min(input, buffer.duration));
+      return source;
+    });
+  }
+
+  pause() {
+    const position = this.position;
+    this.playing = false;
+    this.paused = position;
+    this.stopSources();
+    return position;
+  }
+
+  stopSources() {
+    for (const source of this.sources) {
+      try { source.stop(); } catch (_error) { /* already ended */ }
+      source.disconnect();
+    }
+    this.sources = [];
+  }
+}
+
 // Metronome volume: 50 % is about as loud as the project, 100 % twice as loud.
 export function metronomeGain(percent) {
   return (Math.min(100, Math.max(0, Number(percent) || 0)) / 50) * 0.5;
