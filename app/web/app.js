@@ -1132,6 +1132,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         updateTransportButton(false);
         return;
       }
+      if (decodedReady) {
+        await decodedReady;
+        if (setupId !== playbackSetupId) return;
+      }
       try {
         await transport.play();
         updateTransportButton(transport.playing);
@@ -1278,6 +1282,27 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     });
     showSpeed();
 
+    // ?engine=decoded, a trial for Safari on iPhone (it resumes streamed stems one after another, so they drift
+    // apart after a pause): the decoded stems through the stretch engine at every speed, all on the AudioContext
+    // clock. Prepared at once; ▶ and ▶4 wait for it; if it fails the stems stream as usual.
+    const decodedNote = document.createElement("p");
+    decodedNote.className = "playback-message decoded-note";
+    let decodedReady = null;
+    if (new URLSearchParams(location.search).get("engine") === "decoded") {
+      const started = performance.now();
+      decodedNote.textContent = "Декодированный режим: подготовка…";
+      decodedReady = loadStretch().then(() => {
+        if (setupId !== playbackSetupId) return;
+        transport.alwaysStretch = true;
+        if (!transport.playing) transport.seek(transport.currentTime);  // the engine takes the paused position
+        speedWrap.dataset.engine = "stretch";
+        decodedNote.textContent = `Декодированный режим: готово за ${((performance.now() - started) / 1000).toFixed(1).replace(".", ",")} с`;
+      }).catch(() => {
+        decodedReady = null;
+        decodedNote.textContent = "Декодированный режим не включился: дорожки играют как обычно.";
+      });
+    }
+
     // «Улучшить качество»: the worker separates the song again with the best model while this project
     // keeps playing; when the new stems are ready the player switches to them at the same position.
     const upgradeButton = document.createElement("button");
@@ -1402,6 +1427,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         await togglePlayback();  // a second press stops, like ▶
         return;
       }
+      if (decodedReady) await decodedReady;  // the clicks are timed for a start that will not wait
       const beats = metronome.beats.length ? metronome.beats : await loadBeats();
       if (!beats || setupId !== playbackSetupId) return;
       await audioContext.resume();
@@ -1448,6 +1474,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     mixerRows.append(playheadLayer);
     if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
     else playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
+    if (decodedNote.textContent) mixerRows.after(decodedNote);
     playbackPanel.hidden = false;
     selectStem(0);
     // After an upgrade the new player picks up where the old one was.

@@ -493,3 +493,29 @@ test("the playhead runs on between the media clock's steps, never back, and jump
   assert.equal(clock.position(5, 2020, true), 5);  // back as well
   assert.equal(clock.position(5.01, 3000, false), 5.01);  // paused: exactly the reading
 });
+
+test("with alwaysStretch the stretch engine plays at 100 % too: play, pause and seek on its clock, the streams silent", async () => {
+  const tracks = [new FakeAudio(30), new FakeAudio(30)];
+  const transport = new SynchronizedTransport(tracks, { startOffset: 1, requestFrame: () => 1, cancelFrame: () => {} });
+  const clock = { currentTime: 0 };
+  transport.stretch = new StretchEngine(clock, [new FakeStretchNode(), new FakeStretchNode()]);
+  assert.ok(!transport.stretching);  // attached, but 100 % streams unless asked
+  transport.alwaysStretch = true;
+  assert.ok(transport.stretching);
+  transport.seek(4);
+  await transport.play();
+  assert.ok(tracks.every((audio) => audio.paused));
+  assert.deepEqual(transport.stretch.nodes.map((node) => node.schedules.at(-1)), transport.stretch.nodes.map(() => ({ outputTime: 0, active: true, input: 5, rate: 1 })));
+  clock.currentTime = 3;
+  assert.equal(transport.currentTime, 7);
+  transport.pause();
+  clock.currentTime = 10;  // paused: the position stays
+  assert.equal(transport.currentTime, 7);
+  await transport.play();  // resumed: every node from the same input at the same clock time
+  assert.ok(transport.stretch.nodes.every((node) => node.schedules.at(-1).input === 8 && node.schedules.at(-1).outputTime === 10));
+  transport.seek(20);
+  assert.ok(transport.stretch.nodes.every((node) => node.schedules.at(-1).input === 21));
+  await transport.setPlaybackRate(0.5);
+  await transport.setPlaybackRate(1);
+  assert.ok(transport.stretching && tracks.every((audio) => audio.paused));  // back at 100 %: still the engine
+});

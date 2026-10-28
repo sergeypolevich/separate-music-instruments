@@ -97,6 +97,8 @@ export class SynchronizedTransport {
     // Speeds other than 100 % play the same stems through Signalsmith Stretch (see StretchEngine).
     this.rate = 1;
     this.stretch = null;
+    // The stretch engine at 100 % too, once attached: Safari on iPhone resumes streamed stems one after another.
+    this.alwaysStretch = false;
     this.frameId = null;
     this.playing = false;
     // File seconds while paused: Safari may move a paused stem later on its own (a position from before the
@@ -117,7 +119,7 @@ export class SynchronizedTransport {
   }
 
   get stretching() {
-    return this.rate !== 1 && this.stretch !== null;
+    return this.stretch !== null && (this.rate !== 1 || this.alwaysStretch);
   }
 
   // The position heard: the median of the stems that are actually playing, so one stem still loading (whose time

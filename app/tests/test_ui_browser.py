@@ -1244,6 +1244,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not page.locator("#drop-overlay").is_visible()
             page.locator('.project-tab[data-project-id="project-upload-2"]').wait_for(state="visible")
             assert uploaded[-1][:2] == ("dropped.flac", b"fLaC")
+            # ?engine=decoded (the iPhone trial): the decoded stems through the stretch engine at 100 % too; the
+            # note says how long preparing took; pause and play keep the position; the streams stay silent.
+            page.goto(f"http://127.0.0.1:{server.server_port}/?engine=decoded", wait_until="load")
+            page.wait_for_function("document.querySelector('.decoded-note')?.textContent.startsWith('Декодированный режим: готово за')", timeout=30000)
+            assert page.evaluate("document.querySelector('.footer-speed').dataset.engine") == "stretch"
+            assert page.locator('[data-control="speed"]').input_value() == "100"
+            page.keyboard.press("Space")
+            page.wait_for_timeout(1500)
+            page.keyboard.press("Space")
+            first = page.evaluate(position)
+            assert 1.0 < first < 2.0, first  # about 1.5 song seconds at 100 %
+            assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
+            page.wait_for_timeout(500)
+            assert page.evaluate(position) == first  # paused: it stays
+            page.keyboard.press("Space")
+            page.wait_for_timeout(1000)
+            page.keyboard.press("Space")
+            assert 0.7 < page.evaluate(position) - first < 1.3  # resumed from where it paused
             assert not errors, f"Browser errors: {errors}"
     finally:
         server.shutdown()
