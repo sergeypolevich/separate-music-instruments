@@ -841,6 +841,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                     u = document.querySelector('.footer-upgrade').getBoundingClientRect(), s = document.querySelector('.footer-speed').getBoundingClientRect();
                     return [u.left - v.right, s.left - u.right]; }""")
                 assert abs(gaps[0] - gaps[1]) <= 2, gaps
+            else:  # wrapped rows all start at the left edge
+                lefts = page.evaluate("['.metronome-toggle', '.footer-upgrade', '.footer-speed'].map(s => document.querySelector(s).getBoundingClientRect().left)")
+                assert max(lefts) - min(lefts) <= 1, lefts
+            assert upgrade.get_attribute("data-icon") == "sparkles"
             page.keyboard.press("Home")
             page.keyboard.press("Space")
             page.wait_for_function(f"!{paused}")
@@ -854,6 +858,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate(position) >= before_switch - 0.3
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Улучшенное качество разделения" and upgrade.is_disabled()
+            assert upgrade.get_attribute("data-icon") == "check" and upgrade.locator("svg path").count() == 1
             assert page.locator('[data-action="cancel-upgrade"]').is_hidden()
             assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # no leftover progress fill once done
             page.keyboard.press("Space")

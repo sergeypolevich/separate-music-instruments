@@ -82,6 +82,7 @@ const transportIcons = {
   rabbit: '<path d="M13 16a3 3 0 0 1 2.24 5"/><path d="M18 12h.01"/><path d="M18 21h-8a4 4 0 0 1-4-4 7 7 0 0 1 7-7h.2L9.6 6.4a1 1 0 1 1 2.8-2.8L15.8 7h.2c3.3 0 6 2.7 6 6v1a2 2 0 0 1-2 2h-1a3 3 0 0 0-3 3"/><path d="M20 8.54V4a2 2 0 1 0-4 0v3"/><path d="M7.612 12.524a3 3 0 1 0-1.6 4.3"/>',
   sparkles: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
   original: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
   speaker: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>',
 };
 
@@ -1196,6 +1197,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (busy) upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
       else upgradeButton.style.removeProperty("--job-progress");
       const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · осталось ${formatMinutes(state.eta_seconds)}` : "";
+      const icon = state.best ? "check" : "sparkles";  // done: a check mark instead of the sparkles
+      if (upgradeButton.dataset.icon !== icon) {
+        upgradeButton.dataset.icon = icon;
+        upgradeButton.querySelector("svg").outerHTML = iconSvg(icon);
+      }
       if (state.best) upgradeText.textContent = "Улучшенное качество разделения";
       else if (state.status === "queued") upgradeText.textContent = `Улучшение в очереди${left}`;
       else if (state.status === "running") upgradeText.textContent = `Улучшаем · ${Math.round(state.progress * 100)}%${left}`;

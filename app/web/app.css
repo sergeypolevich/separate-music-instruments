@@ -378,6 +378,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .waveform-preview { height: 42px; }
   .playback-buttons { grid-template-columns: repeat(3, 44px); gap: 5px; }
   .transport-button { height: 46px; font-size: 24px; }
+  .footer-upgrade { margin-inline: 0; }  /* wrapped under the metronome: left, like the other footer rows */
   /* No room for the title beside the buttons: buttons and timer on the first line, the title under them;
      the master volume level with the buttons. */
   #detail-title { order: 1; flex-basis: 100%; }
