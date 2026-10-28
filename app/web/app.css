@@ -159,11 +159,11 @@ button { cursor: pointer; }
 .project-detail { --columns: minmax(150px, 190px) minmax(0, 1fr); --column-gap: 12px; position: relative; width: 100%; min-width: 0; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); align-items: center; padding: 8px 16px 58px; }
 .project-detail > * { grid-column: 1 / -1; }
 .project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
-/* Title on the left of the waveform column, timer pushed to its right edge. */
-.project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+/* Over the waveform column: ▶ ▶4 ⏮, the title, the timer at the right edge; a title with no room goes under the buttons. */
+.project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
 .detail-time { flex: none; color: var(--text); font: 300 15px/1.2 Manrope, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
 h1, h2, h3, p { margin-top: 0; }
-#detail-title { min-width: 0; max-height: 2.4em; margin: 0; overflow: hidden; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+#detail-title { flex: 1 1 140px; min-width: 0; max-height: 2.4em; margin: 0; overflow: hidden; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
 /* Cut after two lines: the first line stays whole, the second fades out toward its end. */
 #detail-title[data-clipped] { mask: linear-gradient(#000, #000) top / 100% 50% no-repeat, linear-gradient(to right, #000 55%, transparent) bottom / 100% 50% no-repeat; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
@@ -206,7 +206,8 @@ h1, h2, h3, p { margin-top: 0; }
 .job-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .job-progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .8s linear; }
 /* Three transport buttons share the left column and shrink with it on narrow screens. */
-.playback-buttons { display: grid; grid-template-columns: repeat(3, minmax(0, 57px)); gap: 6px; width: 100%; }
+.detail-transport { flex: none; }
+.playback-buttons { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
 .transport-button { width: 100%; min-width: 0; height: 51px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); color: var(--text); font-size: 27px; }
 .transport-button:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
 .playback-panel audio {
@@ -252,7 +253,8 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader input::-moz-range-track, .accent-slider input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
 .mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 .mixer-fader input::-moz-range-thumb, .accent-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
-.mixer-master { grid-column: 1 / -1; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid var(--line); }
+.mixer-master { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
+.mixer-master .mixer-fader { flex: 1; min-width: 0; }
 .mixer-fader.master-fader::before { display: none; }  /* no 100 % mark: 100 is the end of this fader */
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
@@ -370,12 +372,17 @@ button:disabled { opacity: .55; cursor: wait; }
   .mixer-label::after { font-size: 15px; content: attr(data-short); }
   .mixer-name { gap: 4px; }
   .mixer-switches { gap: 6px; }
-  .mixer-row, .mixer-master { min-height: 57px; }
+  .mixer-row { min-height: 57px; }
   .project-footer { row-gap: 16px; }  /* the same as the footer's top padding */
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
-  .playback-buttons { grid-template-columns: repeat(3, minmax(0, 50px)); gap: 5px; }
+  .playback-buttons { grid-template-columns: repeat(3, 44px); gap: 5px; }
   .transport-button { height: 46px; font-size: 24px; }
+  /* No room for the title beside the buttons: buttons and timer on the first line, the title under them;
+     the master volume level with the buttons. */
+  #detail-title { order: 1; flex-basis: 100%; }
+  .detail-time { margin-left: auto; }
+  .project-detail > .detail-controls { align-self: start; height: 46px; }
   .search-overlay { padding: 14px 10px; }
   .search-dialog { min-height: calc(100dvh - 28px); padding: 20px 16px; border-radius: 13px; }
   .search-dialog-heading { margin-bottom: 22px; }

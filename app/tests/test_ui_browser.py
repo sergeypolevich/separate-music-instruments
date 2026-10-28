@@ -529,11 +529,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             time_box = page.locator("#detail-time").bounding_box()
             first_wave = page.locator(".mixer-waveform").first.bounding_box()
             assert abs((time_box["x"] + time_box["width"]) - (first_wave["x"] + first_wave["width"])) <= 1
-            name_font = page.locator(".mixer-name").first.evaluate("el => getComputedStyle(el).fontSize")
+            name_font = page.locator(".mixer-row .mixer-name").first.evaluate("el => getComputedStyle(el).fontSize")
             assert page.locator("#detail-time").evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == [name_font, "300"]
             assert page.locator("#detail-controls .playback-time, #detail-controls #detail-time").count() == 0
             # Borderless volume slider with a 1px mark under the thumb position for 100 %.
-            fader_geometry = page.locator(".mixer-fader").first.evaluate("""el => {
+            fader_geometry = page.locator(".mixer-row .mixer-fader").first.evaluate("""el => {
                 const input = el.querySelector('input'), r = input.getBoundingClientRect(), f = el.getBoundingClientRect();
                 const mark = getComputedStyle(el, '::before');
                 return {thumb100: r.left + 6 + (r.width - 12) * 100 / 150, mark: f.left + parseFloat(mark.left) + 0.5,
@@ -545,18 +545,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs(fader_geometry["thumb100"] - fader_geometry["mark"]) <= 1
             assert fader_geometry["markWidth"] == "1px" and fader_geometry["markHeight"] == "12px"
             assert fader_geometry["markColor"] == "rgb(43, 57, 51)" and fader_geometry["trackColor"] == "#2b3933"
-            # The title sits over the waveform column; the transport buttons are 1.5x larger.
+            # The buttons start the row over the waveform column (the title follows them); they are 1.5x larger.
             waves = [w.bounding_box() for w in page.locator(".mixer-waveform").all()]
-            assert abs(page.locator("#detail-title").bounding_box()["x"] - waves[0]["x"]) <= 0.5
+            assert abs(page.locator("#detail-transport").bounding_box()["x"] - waves[0]["x"]) <= 0.5
             assert page.locator('[data-action="toggle"]').bounding_box()["height"] >= 46
             # S and M share the stem-name line and are pushed to the right edge of the controls column.
-            name_box = page.locator(".mixer-name").first.bounding_box()
+            name_box = page.locator(".mixer-row .mixer-name").first.bounding_box()
             mute_box = page.locator('[data-control="mute"]').first.bounding_box()
             fader_box = page.locator('[data-control="gain"]').first.bounding_box()
             assert abs((name_box["y"] + name_box["height"] / 2) - (mute_box["y"] + mute_box["height"] / 2)) <= 1
             assert abs((mute_box["x"] + mute_box["width"]) - (fader_box["x"] + fader_box["width"])) <= 1
             assert mute_box["height"] == 22
-            assert page.locator(".mixer-name").first.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == ["15px", "400"]
+            assert page.locator(".mixer-row .mixer-name").first.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == ["15px", "400"]
             # Every stem name starts with its own icon; a narrow screen shows the icon and the first letter only.
             names = page.evaluate("""() => [...document.querySelectorAll('.mixer-row .mixer-name')].map(n => [n.textContent,
                 n.querySelector('svg')?.innerHTML, getComputedStyle(n.querySelector('.mixer-label'), '::after').content])""")
@@ -672,11 +672,22 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 page.keyboard.press("Minus")
             assert vocal_gain.input_value() == "100"
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1
-            # «Общая» under the stems: 0-100 % for the whole mix, remembered for the project; not a stem row.
-            master_row = page.locator(".mixer-master")
+            # The master volume: in the header over the mixer column, where ▶ ⏮ were; 0-100 % for the whole mix,
+            # remembered for the project; not a stem row. ▶ ▶4 ⏮ moved right, before the title.
+            master_row = page.locator("#detail-controls .mixer-master")
             # A speaker icon, no word (the stems are named in English); the fader carries the name.
             assert master_row.locator(".mixer-name").text_content() == "" and master_row.locator(".mixer-name svg").count() == 1
-            assert master_row.bounding_box()["y"] >= page.locator(".mixer-row").last.bounding_box()["y"] + 20
+            master_box, first_row = master_row.bounding_box(), page.locator(".mixer-row").first.bounding_box()
+            assert master_box["y"] + master_box["height"] <= first_row["y"] and abs(master_box["x"] - first_row["x"]) <= 1
+            assert page.locator("#playback-panel .mixer-master").count() == 0
+            buttons_box = page.locator("#detail-transport .playback-buttons").bounding_box()
+            title_box = page.locator("#detail-title").bounding_box()
+            assert buttons_box["x"] >= page.locator(".playhead-layer").bounding_box()["x"] - 1
+            assert abs((master_box["y"] + master_box["height"] / 2) - (buttons_box["y"] + buttons_box["height"] / 2)) <= 2
+            if viewport[0] >= 600:  # beside the buttons; on a phone under them
+                assert title_box["x"] >= buttons_box["x"] + buttons_box["width"]
+            else:
+                assert title_box["y"] >= buttons_box["y"] + buttons_box["height"] - 1
             master = page.locator('[data-control="master-volume"]')
             assert master.input_value() == "100" and page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "1"
             master.evaluate("el => { el.value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); }")

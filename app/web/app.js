@@ -28,7 +28,8 @@ const detailTitle = document.querySelector("#detail-title");
 // At most two lines (CSS); a longer title fades out at the end of the second line instead of scrolling.
 const markClippedTitle = () => { detailTitle.toggleAttribute("data-clipped", detailTitle.scrollHeight > detailTitle.clientHeight + 1); };
 new ResizeObserver(markClippedTitle).observe(detailTitle);
-const detailControls = document.querySelector("#detail-controls");
+const detailControls = document.querySelector("#detail-controls");  // the master volume, over the mixer column
+const detailTransport = document.querySelector("#detail-transport");  // ▶ ▶4 ⏮, before the title
 const detailTime = document.querySelector("#detail-time");
 const detailError = document.querySelector("#detail-error");
 const playbackPanel = document.querySelector("#playback-panel");
@@ -572,6 +573,7 @@ function cleanupPlayback() {
   playbackPanel.replaceChildren();
   playbackPanel.hidden = true;
   detailControls.replaceChildren();
+  detailTransport.replaceChildren();
   detailTime.textContent = "";
   playbackKey = "";
 }
@@ -966,18 +968,12 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       mixerRows.append(row);
     });
 
-    // The master row under the stems: 0-100 % for the whole mix, remembered for this project.
+    // The master volume in the header over the mixer column: 0-100 % for the whole mix, remembered for this project.
     const masterRow = document.createElement("div");
     masterRow.className = "mixer-master";  // not a .mixer-row: the stem rows are counted and selected by that class
-    masterRow.style.gridRow = String(stems.length + 1);
-    const masterLeft = document.createElement("div");
-    masterLeft.className = "mixer-left";
-    const masterHeading = document.createElement("div");
-    masterHeading.className = "mixer-heading";
     const masterName = document.createElement("span");
     masterName.className = "mixer-name";
     masterName.innerHTML = iconSvg("speaker");  // the fader carries the name «Общая громкость»
-    masterHeading.append(masterName);
     const masterFader = document.createElement("div");
     masterFader.className = "mixer-fader master-fader";
     const master = document.createElement("input");
@@ -1003,9 +999,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       storeSetting(masterKey, master.value);
     });
     masterFader.append(master);
-    masterLeft.append(masterHeading, masterFader);
-    masterRow.append(masterLeft, document.createElement("div"));
-    mixerRows.append(masterRow);
+    masterRow.append(masterName, masterFader);
 
     let countInTimer = null;
     const cancelCountIn = () => {
@@ -1331,7 +1325,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         }
       }
     }));
-    detailControls.replaceChildren(buttons);
+    detailControls.replaceChildren(masterRow);
+    detailTransport.replaceChildren(buttons);
     playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
     if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
