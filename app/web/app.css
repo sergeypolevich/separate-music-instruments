@@ -118,10 +118,13 @@ button { cursor: pointer; }
 .separate-again .playback-message { margin: 0; }
 .upgrade-cancel { width: 30px; min-width: 30px; height: 30px; margin-left: -8px; }
 .help-link:hover { color: var(--accent); }
-.hotkey-list { display: grid; gap: 0; margin: 0; }
-.hotkey-list > div { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 9px 0; border-top: 1px solid var(--line); }
+/* A list: the keys right after their action, no rules between the rows. */
+.search-dialog.help-dialog { width: min(100%, 520px); min-height: 0; }  /* over .search-dialog, declared later */
+.hotkey-list { margin: 0; }
+.hotkey-list > div { padding: 5px 0; }
+.hotkey-list dt, .hotkey-list dd { display: inline; }
 .hotkey-list dt { color: var(--text-soft); font-size: 13px; }
-.hotkey-list dd { margin: 0; color: var(--muted); font-size: 12px; text-align: right; white-space: nowrap; }
+.hotkey-list dd { margin: 0 0 0 8px; color: var(--muted); font-size: 12px; white-space: nowrap; }
 .hotkey-list kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-soft); color: var(--text); font: 600 11px/1.5 'DM Sans', system-ui, sans-serif; text-align: center; }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */

@@ -54,7 +54,7 @@ def test_project_skill_requires_visible_playwright_browser_gate():
     requirements = (root / "requirements-test.txt").read_text(encoding="utf-8")
     runtime_requirements = (root / "requirements.txt").read_text(encoding="utf-8")
 
-    assert "Before every commit" in skill
+    assert "The heavy gate" in skill and "Intermediate commits run only the tests that check what changed" in skill
     assert "Playwright" in skill
     assert "visible window" in skill
     assert "playwright" in requirements.lower()

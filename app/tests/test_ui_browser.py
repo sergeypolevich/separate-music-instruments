@@ -606,15 +606,12 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs(half["time"] / half["duration"] - 0.5) < 0.02
             page.locator('[data-control="seek"]').press("Home")
             assert position()["time"] == 0
-            page.locator('[data-control="seek"]').press("End")
-            assert abs(position()["time"] - half["duration"]) < 0.02
-            page.locator('[data-control="seek"]').press("Home")
 
             # Global hotkeys: they work without focusing anything in particular.
             audio_state = "() => { const a = document.querySelector('#playback-panel audio'); return {t: a.currentTime, d: a.duration, paused: a.paused}; }"
             page.evaluate("document.activeElement && document.activeElement.blur()")
-            page.keyboard.press("End")
-            assert abs(page.evaluate(audio_state)["t"] - page.evaluate(audio_state)["d"]) < 0.02
+            page.keyboard.press("End")  # not a hotkey any more
+            assert page.evaluate(audio_state)["t"] == 0
             page.keyboard.press("ArrowLeft")
             assert page.evaluate(audio_state)["t"] == 0
             page.keyboard.press("ArrowRight")
@@ -1031,7 +1028,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             rows = page.evaluate("[...document.querySelectorAll('#hotkey-list > div')].map(r => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])")
             assert rows[0] == ["Воспроизвести / пауза", "Пробел, Enter"] and rows[3] == ["В начало и пауза", "Backspace"]
             assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
-            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 14
+            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 13
+            assert ["Выбор дорожки: следующая / предыдущая", "↓, ↑"] in rows
+            assert not any("End" in keys or "В конец" in action for action, keys in rows)
+            # A list: no rules between the rows, the keys right after the action's text.
+            assert page.evaluate("getComputedStyle(document.querySelector('#hotkey-list > div')).borderTopStyle") == "none"
+            gaps = page.evaluate("""[...document.querySelectorAll('#hotkey-list > div')].map(r => {
+                const dt = r.querySelector('dt').getBoundingClientRect(), dd = r.querySelector('dd').getBoundingClientRect();
+                return dd.top >= dt.bottom - 1 ? 0 : dd.left - dt.right; })""")
+            assert all(0 <= gap < 20 for gap in gaps), gaps
             was_paused = page.evaluate(paused)
             page.keyboard.press("Space")  # hotkeys sleep while the help is open
             assert page.evaluate(paused) == was_paused and page.locator("#help-overlay").is_visible()
