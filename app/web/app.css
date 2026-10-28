@@ -113,7 +113,6 @@ button { cursor: pointer; }
 .queue-title { overflow: hidden; color: var(--text); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
 .queue-meta { grid-column: 1; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
 .queue-item .icon-button { grid-row: 1 / span 2; grid-column: 2; width: 28px; min-width: 28px; height: 28px; }
-.job-cancel { margin-top: 10px; }
 .separate-again { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-bottom: 12px; }
 .separate-again .playback-message { margin: 0; }
 .upgrade-cancel { width: 30px; min-width: 30px; height: 30px; margin-left: -8px; }
@@ -210,12 +209,16 @@ h1, h2, h3, p { margin-top: 0; }
 /* The value as a tooltip over the thumb: while hovering or dragging, and while the stems are prepared. */
 .footer-speed-value { position: absolute; z-index: 2; bottom: calc(50% + 21px); left: calc(6px + (100% - 12px) * var(--share, .6)); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; transform: translateX(-50%); pointer-events: none; transition: opacity .15s; }
 .speed-fader:hover .footer-speed-value, .speed-fader:active .footer-speed-value, .footer-speed[data-loading] .footer-speed-value { opacity: 1; }
+.job-status { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 6px 12px; margin-top: 12px; }
+.job-status .job-progress-label { grid-column: 1; margin: 0; }
+.job-status .job-progress { grid-column: 1; }
+.job-status .job-cancel { grid-column: 2; grid-row: 2; width: 32px; min-width: 32px; height: 32px; }
 .job-progress-label { margin: 6px 0 0; color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 .job-progress { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .job-progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width .8s linear; }
 /* Three transport buttons share the left column and shrink with it on narrow screens. */
 .detail-transport { flex: none; }
-.playback-buttons { display: grid; grid-template-columns: repeat(3, 52px); gap: 6px; }
+.playback-buttons { display: grid; grid-auto-flow: column; grid-auto-columns: 52px; gap: 6px; }  /* as many columns as visible buttons: 4▶ is hidden on «Original» */
 .transport-button { width: 100%; min-width: 0; height: 51px; display: inline-flex; justify-content: center; align-items: center; padding: 0; border: 1px solid var(--line); border-radius: 11px; background: var(--panel-soft); color: var(--text); font-size: 27px; }
 .transport-button:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); color: var(--accent); }
 .playback-panel audio {
@@ -385,7 +388,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .project-footer { row-gap: 16px; }  /* the same as the footer's top padding */
   .mixer-row[data-selected="true"]::before { left: -7px; }
   .waveform-preview { height: 42px; }
-  .playback-buttons { grid-template-columns: repeat(3, 44px); gap: 5px; }
+  .playback-buttons { grid-auto-columns: 44px; gap: 5px; }
   .transport-button { height: 46px; font-size: 24px; }
   .footer-upgrade { margin-inline: 0; }  /* wrapped under the metronome: left, like the other footer rows */
   /* No room for the title beside the buttons: buttons and timer on the first line, the title under them;

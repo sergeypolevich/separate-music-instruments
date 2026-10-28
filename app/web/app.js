@@ -84,6 +84,7 @@ const transportIcons = {
   sparkles: '<path d="M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/><path d="M20 3v4"/><path d="M22 5h-4"/>',
   original: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
+  close: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
   speaker: '<path d="M11 4.7a.7.7 0 0 0-1.2-.5L6.4 7.6A1.4 1.4 0 0 1 5.4 8H3a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2.4a1.4 1.4 0 0 1 1 .4l3.4 3.4a.7.7 0 0 0 1.2-.5z"/><path d="M16 9a5 5 0 0 1 0 6"/><path d="M19.4 18.4a9 9 0 0 0 0-12.8"/>',
 };
 
@@ -410,14 +411,21 @@ function renderJobProgress(state) {
     bar.append(document.createElement("span"));
     const cancel = document.createElement("button");
     cancel.type = "button";
-    cancel.className = "quiet-button job-cancel";
+    cancel.className = "icon-button job-cancel";
     cancel.dataset.action = "cancel-job";
-    cancel.textContent = "Отменить";
+    cancel.setAttribute("aria-label", "Отменить");
+    cancel.title = "Отменить";
+    setIcon(cancel, "close");
     cancel.addEventListener("click", () => cancelTask({
       kind: "job", job_id: selectedJobId, title: selectedProjectTitle, status: selectedJobState?.job_status || "searching" }));
+    // The stage over the bar, ✕ right of it; under the tracks (the original audio plays meanwhile), alone before them.
+    const status = document.createElement("div");
+    status.className = "job-status";
+    status.append(label, bar, cancel);
     playbackPanel.querySelector(".separate-again")?.remove();  // «Разделить» was pressed: progress again
-    if (activeControls) playbackPanel.prepend(label, bar, cancel);  // over the original audio, which plays meanwhile
-    else playbackPanel.replaceChildren(label, bar, cancel);
+    const mixer = playbackPanel.querySelector(".mixer-grid");
+    if (activeControls && mixer) mixer.after(status);
+    else playbackPanel.replaceChildren(status);
     playbackPanel.hidden = false;
   }
   const percent = Math.round((state.progress || 0) * 100);

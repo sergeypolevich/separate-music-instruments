@@ -358,6 +358,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-6"]').click()
             page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Загружаем аудио')")
             assert page.locator(".mixer-row").count() == 0
+            # No tracks yet: the progress right under the header, ✕ right of the bar and level with it.
+            def status_boxes():
+                return {name: page.locator(selector).bounding_box() for name, selector in
+                        (("bar", ".job-progress"), ("cancel", '[data-action="cancel-job"]'), ("label", ".job-progress-label"))}
+            boxes = status_boxes()
+            assert boxes["bar"]["y"] > page.locator(".detail-titlebar").bounding_box()["y"]
+            assert boxes["label"]["y"] + boxes["label"]["height"] <= boxes["bar"]["y"]
+            assert boxes["cancel"]["x"] >= boxes["bar"]["x"] + boxes["bar"]["width"]
+            assert abs((boxes["cancel"]["y"] + boxes["cancel"]["height"] / 2) - (boxes["bar"]["y"] + boxes["bar"]["height"] / 2)) <= 2
+            assert page.locator('[data-action="cancel-job"]').text_content() == "" and page.locator('[data-action="cancel-job"] svg').count() == 1
             running_source.add("project-6")
             running_detail["project-6"] = "separating"
             projects[6].update(job_status="separating", progress=0.3)
@@ -366,7 +376,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Разделяем дорожки · 30%')")
             assert page.evaluate("""() => [document.querySelector('[data-action="count-in"]').hidden, document.querySelectorAll('.project-footer').length,
                 document.querySelector('.mixer-row .waveform-preview').childElementCount,
-                document.querySelector('.job-progress').compareDocumentPosition(document.querySelector('.mixer-grid, .mixer-row')) & 4]""") == [True, 0, 0, 4]
+                document.querySelector('.mixer-grid').compareDocumentPosition(document.querySelector('.job-progress')) & 4]""") == [True, 0, 0, 4]
+            # The track first, the progress under it, ✕ still right of the bar.
+            boxes = status_boxes()
+            original_row = page.locator(".mixer-row").bounding_box()
+            if viewport[0] >= 600:  # 4▶ hidden: no empty column between ⏮ and the title
+                buttons_box = page.locator(".playback-buttons").bounding_box()
+                assert page.locator("#detail-title").bounding_box()["x"] - (buttons_box["x"] + buttons_box["width"]) <= 20
+            assert boxes["label"]["y"] >= original_row["y"] + original_row["height"]
+            assert boxes["cancel"]["x"] >= boxes["bar"]["x"] + boxes["bar"]["width"]
+            assert abs((boxes["cancel"]["y"] + boxes["cancel"]["height"] / 2) - (boxes["bar"]["y"] + boxes["bar"]["height"] / 2)) <= 2
             page.keyboard.press("Space")  # it plays
             page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
             page.keyboard.press("Space")
