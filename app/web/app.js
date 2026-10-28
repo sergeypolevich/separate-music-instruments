@@ -703,7 +703,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 
   try {
-    const { MixerSession, SynchronizedTransport, Metronome, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
+    const { MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -764,14 +764,31 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const playhead = document.createElement("span");
     playhead.className = "playhead";
     playheadLayer.append(playhead);
+    // One screen pixel wide, on whole screen pixels: at 125-150 % scaling a 1px line at a fractional position was
+    // drawn one or two pixels wide by turns (it flickered). A transform moves it without a layout.
+    const playheadClock = new PlayheadClock();
+    let playheadRatio = 0;
+    let layerBox = { left: 0, width: 0 };
+    const drawPlayhead = () => {
+      const scale = window.devicePixelRatio || 1;
+      const x = Math.round((layerBox.left + playheadRatio * layerBox.width) * scale) / scale - layerBox.left;
+      playhead.style.width = `${1 / scale}px`;
+      playhead.style.transform = `translateX(${x}px)`;
+    };
+    new ResizeObserver(() => {
+      const box = playheadLayer.getBoundingClientRect();
+      layerBox = { left: box.left + window.scrollX, width: box.width };
+      drawPlayhead();
+    }).observe(playheadLayer);
     let duration = 0;
     const formatTime = (seconds) => {
       const safe = Math.max(0, Math.floor(seconds || 0));
       return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
     };
-    const updateTime = (seconds) => {
-      const ratio = duration > 0 ? Math.min(1, Math.max(0, seconds / duration)) : 0;
-      playbackPanel.style.setProperty("--progress", String(ratio));
+    const updateTime = (seconds, playing = false, rate = 1) => {
+      const shown = playheadClock.position(seconds, performance.now(), playing, rate);
+      playheadRatio = duration > 0 ? Math.min(1, Math.max(0, shown / duration)) : 0;
+      drawPlayhead();
       playheadLayer.setAttribute("aria-valuenow", seconds.toFixed(1));
       playheadLayer.setAttribute("aria-valuetext", formatTime(seconds));
       time.textContent = `${formatTime(seconds)} / ${formatTime(duration)}`;
@@ -837,7 +854,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     };
     const transport = new SynchronizedTransport(tracks, {
       onTimeUpdate: (seconds) => {
-        updateTime(seconds);
+        updateTime(seconds, transport.playing, transport.rate);
         showTempo(seconds);
         if (metronomeOn && transport.playing) metronome.update(seconds);
         else metronome.reset();
@@ -1318,7 +1335,6 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     detailControls.replaceChildren(buttons);
     playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
-    playbackPanel.style.setProperty("--progress", "0");
     if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
     else playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
     playbackPanel.hidden = false;

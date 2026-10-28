@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Metronome, MixerSession, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
+import { Metronome, MixerSession, PlayheadClock, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -479,4 +479,17 @@ test("a paused stem that moves on its own (Safari applying a late position) neve
   assert.equal(transport.currentTime, 0);
   await transport.play();
   assert.deepEqual(tracks.map((track) => track.currentTime), [0, 0, 0, 0, 0, 0]);  // all start together at 0
+});
+
+test("the playhead runs on between the media clock's steps, never back, and jumps on a seek or a pause", () => {
+  const clock = new PlayheadClock();
+  assert.equal(clock.position(10, 0, true), 10);
+  assert.ok(Math.abs(clock.position(10, 100, true) - 10.1) < 1e-9);  // currentTime has not moved yet
+  assert.ok(Math.abs(clock.position(10, 200, true, 1.5) - 10.3) < 1e-9);  // at the playback rate
+  assert.equal(clock.position(10.25, 250, true), 10.3);  // a reading a little behind: no step back
+  assert.ok(Math.abs(clock.position(10.25, 350, true) - 10.35) < 1e-9);
+  assert.ok(Math.abs(clock.position(10.25, 2000, true) - 10.55) < 1e-9);  // a stalled clock: at most 0.3 s ahead
+  assert.equal(clock.position(42, 2010, true), 42);  // a seek
+  assert.equal(clock.position(5, 2020, true), 5);  // back as well
+  assert.equal(clock.position(5.01, 3000, false), 5.01);  // paused: exactly the reading
 });

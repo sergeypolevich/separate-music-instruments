@@ -471,4 +471,26 @@ export class Metronome {
   }
 }
 
+// Where to draw the playhead: Chrome moves a media element's currentTime in steps of up to a quarter second,
+// so between them the line runs on by the frame clock at the playback rate. It never steps back (the next
+// reading may be a little behind the guess), except on a seek or a pause, and guesses at most 0.3 s ahead.
+export class PlayheadClock {
+  constructor() {
+    this.anchor = null;  // {reported, at}: the last new reading and when it came
+    this.shown = 0;
+  }
+
+  position(reported, now, playing, rate = 1) {
+    if (!playing || this.anchor === null || Math.abs(reported - this.shown) > 0.5) {
+      this.anchor = playing ? { reported, at: now } : null;
+      this.shown = reported;
+      return reported;
+    }
+    if (reported !== this.anchor.reported) this.anchor = { reported, at: now };
+    const elapsed = Math.min(0.3, (now - this.anchor.at) / 1000);
+    this.shown = Math.max(this.shown, this.anchor.reported + elapsed * rate);
+    return this.shown;
+  }
+}
+
 export { STEM_ORDER };

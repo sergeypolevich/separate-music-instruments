@@ -305,7 +305,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             browser, launch_error = _launch_browser(playwright)
             if browser is None:
                 pytest.skip(f"No browser for Playwright: {launch_error}")
-            page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
+            # The phone size at 1.5 device pixels per CSS pixel, as Windows at 150 %: the playhead must stay one screen pixel.
+            scale = 1.5 if viewport[0] < 600 else 1
+            page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=scale)
             if SOFT_CHECKS:
                 page.set_default_timeout(10_000)  # a failed wait costs 10 s, not 30, when the run goes on past it
                 page.set_default_navigation_timeout(30_000)  # the first load really takes longer
@@ -586,7 +588,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
 
             assert page.locator(".playhead").count() == 1
             line = page.locator(".playhead").bounding_box()
-            assert line["width"] == 1
+            assert abs(line["width"] - 1 / scale) < 0.02  # one screen pixel (Chrome lays out in 1/64 px)
             assert abs(line["y"] - waves[0]["y"]) <= 1
             assert abs(line["y"] + line["height"] - (waves[-1]["y"] + waves[-1]["height"])) <= 1
             assert abs(position()["x"] - seek_box["x"]) <= 1
@@ -594,6 +596,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.mouse.click(waves[0]["x"] + waves[0]["width"] * 0.25, waves[0]["y"] + waves[0]["height"] / 2)
             quarter = position()
             assert abs(quarter["time"] / quarter["duration"] - 0.25) < 0.02
+            assert abs(quarter["x"] * scale - round(quarter["x"] * scale)) < 0.05  # on a whole screen pixel
             assert abs(quarter["x"] - (seek_box["x"] + seek_box["width"] * quarter["time"] / quarter["duration"])) <= 1
             assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => Math.abs(a.currentTime - document.querySelector('#playback-panel audio').currentTime) < 0.01)")
 
