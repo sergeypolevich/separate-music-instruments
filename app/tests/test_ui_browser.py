@@ -1058,7 +1058,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             rows = page.evaluate("[...document.querySelectorAll('#hotkey-list > div')].map(r => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])")
             assert rows[0] == ["Воспроизвести / пауза", "Пробел, Enter"] and rows[3] == ["В начало и пауза", "Backspace"]
             assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
-            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 13
+            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 15
+            assert ["Открыть вкладку 1–9", "1–9"] in rows and ["Вкладка: предыдущая / следующая", "Q, W"] in rows
             assert ["Выбор дорожки: следующая / предыдущая", "↓, ↑"] in rows
             assert not any("End" in keys or "В конец" in action for action, keys in rows)
             # A list: no rules between the rows, the keys right after the action's text.
@@ -1076,6 +1077,24 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.mouse.click(2, 2)  # a click outside closes it too
             assert not page.locator("#help-overlay").is_visible()
             # After the reload above the project list loads asynchronously.
+            page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
+            # Tabs by key: 1-9 open tabs 1-9, Q the previous and W the next, round the ends.
+            selected_tab = "() => [...document.querySelectorAll('.project-tab')].findIndex(t => t.getAttribute('aria-selected') === 'true')"
+            tab_count = page.locator(".project-tab").count()
+            page.keyboard.press("3")
+            page.wait_for_function(f"({selected_tab})() === 2")
+            page.keyboard.press("w")
+            page.wait_for_function(f"({selected_tab})() === 3")
+            page.keyboard.press("q")
+            page.keyboard.press("q")
+            page.wait_for_function(f"({selected_tab})() === 1")
+            page.keyboard.press("1")
+            page.wait_for_function(f"({selected_tab})() === 0")
+            page.keyboard.press("q")  # round the start: the last tab
+            page.wait_for_function(f"({selected_tab})() === {tab_count - 1}")
+            assert page.locator(".project-tab").last.evaluate("t => { const r = t.getBoundingClientRect(), s = t.parentElement.getBoundingClientRect(); return r.right <= s.right + 1; }")
+            page.keyboard.press("1")
+            page.wait_for_function(f"({selected_tab})() === 0")
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()

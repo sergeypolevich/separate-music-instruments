@@ -223,6 +223,8 @@ const HOTKEYS = [
   ["В начало и пауза", "Backspace"],
   ["Выбор дорожки: следующая / предыдущая", "↓, ↑"],
   ["Следующая / предыдущая дорожка по кругу", "Tab, Shift+Tab"],
+  ["Открыть вкладку 1–9", "1–9"],
+  ["Вкладка: предыдущая / следующая", "Q, W"],
   ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"],
   ["Solo выбранной дорожки", "S"],
   ["Mute выбранной дорожки", "M"],
@@ -1380,10 +1382,13 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 }
 
+let openingProjectId = null;  // the last tab asked for: a slower answer for an earlier one is dropped
 async function openProject(projectId) {
   if (projectId !== selectedProjectId) cleanupPlayback();
+  openingProjectId = projectId;
   try {
     const project = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`);
+    if (openingProjectId !== projectId) return;
     renderProject(project);
     renderProjects(await requestJson("/api/v1/projects"));
   } catch (error) {
@@ -1741,6 +1746,30 @@ document.addEventListener("keydown", (event) => {
       activeControls.cycleSelection(event.shiftKey ? -1 : 1);
     }
     return;
+  }
+  // Tabs, also while a project has no player yet: 1-9 open the first nine, Q and W the previous and next (by key
+  // position, so any layout works), round the ends.
+  if (searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !confirmDialog.open
+      && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextEntry(event.target)) {
+    const tabs = [...projectTabs.querySelectorAll(".project-tab")];
+    const digit = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
+    let target = null;
+    if (digit) {
+      target = tabs[Number(digit[1]) - 1];
+    } else if ((event.code === "KeyQ" || event.code === "KeyW") && tabs.length) {
+      const step = event.code === "KeyW" ? 1 : -1;
+      // From the tab last asked for: the project may still be loading (and a poll redraws the tabs meanwhile).
+      const current = tabs.findIndex((tab) => tab.dataset.projectId === (openingProjectId ?? selectedProjectId));
+      target = tabs[current < 0 ? (step > 0 ? 0 : tabs.length - 1) : (current + step + tabs.length) % tabs.length];
+    }
+    if (digit || target) {
+      event.preventDefault();
+      if (target && target.dataset.projectId !== (openingProjectId ?? selectedProjectId)) {
+        target.scrollIntoView({ block: "nearest", inline: "nearest" });
+        openProject(target.dataset.projectId);
+      }
+      return;
+    }
   }
   if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || confirmDialog.open) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
