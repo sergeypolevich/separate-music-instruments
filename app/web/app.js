@@ -1290,21 +1290,28 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     });
     showSpeed();
 
-    // ?engine=decoded, a trial for Safari on iPhone (it resumes streamed stems one after another, so they drift
-    // apart after a pause): the decoded stems through the stretch engine at every speed, all on the AudioContext
-    // clock. Prepared at once; ▶ and ▶4 wait for it; if it fails the stems stream as usual.
+    // Decoded playback on iPhone and iPad (Safari resumes streamed stems one after another, so they drift apart
+    // after a pause; iPadOS reports itself as a Mac with touch) or with ?engine=decoded anywhere: the decoded
+    // stems through the stretch engine at every speed, all on the AudioContext clock. Prepared at once; ▶ and ▶4
+    // wait for it; if it fails the stems stream as usual. Only the trial parameter keeps the "ready in N s" note.
     const decodedNote = document.createElement("p");
     decodedNote.className = "playback-message decoded-note";
     let decodedReady = null;
-    if (new URLSearchParams(location.search).get("engine") === "decoded") {
+    const decodedTrial = new URLSearchParams(location.search).get("engine") === "decoded";
+    const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+    if (decodedTrial || apple) {
       const started = performance.now();
-      decodedNote.textContent = "Декодированный режим: подготовка…";
+      decodedNote.textContent = decodedTrial ? "Декодированный режим: подготовка…" : "Подготовка дорожек…";
       decodedReady = loadStretch({ plain: true }).then(() => {
         if (setupId !== playbackSetupId) return;
         transport.alwaysStretch = true;
         if (!transport.playing) transport.seek(transport.currentTime);  // the engine takes the paused position
         speedWrap.dataset.engine = "stretch";
-        decodedNote.textContent = `Декодированный режим: готово за ${((performance.now() - started) / 1000).toFixed(1).replace(".", ",")} с`;
+        if (decodedTrial) decodedNote.textContent = `Декодированный режим: готово за ${((performance.now() - started) / 1000).toFixed(1).replace(".", ",")} с`;
+        else {
+          decodedNote.textContent = "";  // the panel may be rebuilt later: an empty note is not put back
+          decodedNote.remove();
+        }
       }).catch(() => {
         decodedReady = null;
         decodedNote.textContent = "Декодированный режим не включился: дорожки играют как обычно.";

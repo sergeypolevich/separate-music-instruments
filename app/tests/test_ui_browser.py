@@ -1263,6 +1263,23 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             assert 0.7 < page.evaluate(position) - first < 1.3  # resumed from where it paused
             assert not errors, f"Browser errors: {errors}"
+            # An iPhone over plain http (no AudioWorklet): decoded on its own, as buffer sources at 100 %, the
+            # speed fader off; no note once ready; pause and play keep the position.
+            iphone = browser.new_page(user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15")
+            iphone.add_init_script("Object.defineProperty(BaseAudioContext.prototype, 'audioWorklet', { get: () => undefined })")
+            iphone.on("pageerror", lambda error: errors.append(str(error)))
+            iphone.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
+            iphone.wait_for_function("document.querySelector('.footer-speed')?.dataset.engine === 'stretch'", timeout=30000)
+            assert iphone.locator(".decoded-note").count() == 0
+            assert iphone.locator('[data-control="speed"]').is_disabled()
+            iphone.keyboard.press("Space")
+            iphone.wait_for_timeout(1500)
+            iphone.keyboard.press("Space")
+            first = iphone.evaluate(position)
+            assert 1.0 < first < 2.0, first
+            assert iphone.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
+            assert not errors, f"Browser errors: {errors}"
+            iphone.close()
     finally:
         server.shutdown()
         server.server_close()
