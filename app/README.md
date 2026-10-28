@@ -203,7 +203,7 @@ if you customized it.
 ### Updates
 
 Settings → Обновления → **Проверить** reads the fixed public GitHub repository's stable releases (only on that
-click) and lists those newer than `app/VERSION` (tags `vNN`, newest first) with their notes. **Обновить до vNN**
+click) and lists those newer than `app/VERSION` (tags `vNN` or `vNN.N`, compared as numbers: v18 < v18.1 < v19; newest first) with their notes. **Обновить до vNN**
 asks for confirmation and is refused while a job or an upgrade runs (409 `busy`):
 
 - a ZIP copy downloads the release's archive from GitHub (`api.github.com/.../zipball/<tag>`, redirected to
@@ -217,7 +217,7 @@ asks for confirmation and is refused while a job or an upgrade runs (409 `busy`)
   with no local changes to tracked files and no local commits the release lacks; restart to use it.
 
 Releasing: when a version is pushed to main (with the user's consent), `app/VERSION` holds its number and a GitHub
-Release `vNN` is published with the version's notes.
+Release `vNN` (or `vNN.N` for a point version) is published with the version's notes.
 
 The separator offers two local models: `hdemucs_mmi` with shifts 2 (default, fast,
 four stems) and `bs_roformer_sw` (through audio-separator, overlap 1, six stems,

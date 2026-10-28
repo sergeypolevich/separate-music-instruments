@@ -26,7 +26,7 @@ Read this file and the linked project specification in `AGENTS.md` (repository r
 - **Commit messages carry no `Co-Authored-By` or other AI attribution lines** (the user's request).
 - **macOS checks go through a temporary `mac-check` branch.** A change that still needs the macOS GitHub Actions run is pushed to `mac-check` (force-pushing that branch is fine); main receives only commits that are already green there, and the branch is deleted afterwards. The workflow runs every check even after a failure and the browser test lists all failed checks with screenshots (`AUDIO_STEMS_SOFT_CHECKS`), so read the whole list before fixing.
 - **Ask about the push when the plan is done.** After the last step of the version's plan is committed, ask the user whether to push; push only after an explicit yes.
-- **Each version pushed to main is a GitHub Release** (since version 17; the in-app updater reads them): `app/VERSION` holds the version's number, and after the push a release `vNN` is published from that commit with the version's notes (from `DEVELOPMENT_STATUS.md`, in the user's language). Publishing is part of the push the user agreed to.
+- **Each version pushed to main is a GitHub Release** (since version 17; the in-app updater reads them): `app/VERSION` holds the version's number, and after the push a release `vNN` (`vNN.N` for a point version such as 18.1) is published from that commit with the version's notes (from `DEVELOPMENT_STATUS.md`, in the user's language). Publishing is part of the push the user agreed to.
 
 ## Logging contract
 
