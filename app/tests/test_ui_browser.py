@@ -404,11 +404,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert ring.bounding_box()["x"] + ring.bounding_box()["width"] <= page.locator("#help-trigger").bounding_box()["x"]
             ring.click()
             assert page.locator("#queue-popover").is_visible()
-            assert page.evaluate("[...document.querySelectorAll('.queue-item')].map(r => [r.querySelector('.queue-title').textContent, r.querySelector('.queue-meta').textContent])") == [
+            assert page.evaluate("[...document.querySelectorAll('#queue-list .queue-item')].map(r => [r.querySelector('.queue-title').textContent, r.querySelector('.queue-meta').textContent])") == [
                 ["Running song", "Разделяем дорожки · осталось ~5 мин"], ["Track 0", "Улучшение качества · в очереди · осталось ~23 мин"]]
             # No heading; the running row's background is filled with its share (40 %), the waiting one is not.
             assert page.locator("#queue-popover").inner_text().startswith("Running song")
-            assert page.evaluate("[...document.querySelectorAll('.queue-item')].map(r => r.style.getPropertyValue('--job-progress'))") == ["40%", ""]
+            assert page.evaluate("[...document.querySelectorAll('#queue-list .queue-item')].map(r => r.style.getPropertyValue('--job-progress'))") == ["40%", ""]
             page.locator('.queue-item[data-kind="upgrade"] [data-action="cancel-task"]').click()  # waiting: no question
             _wait_until(lambda: deleted and deleted[-1] == "/api/v1/projects/project-0/upgrade")
             assert page.locator("#queue-popover").is_visible()  # the list stays open for the next one
@@ -1096,6 +1096,46 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("1")
             page.wait_for_function(f"({selected_tab})() === 0")
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
+            # The button right of the tabs lists every project; a click opens one, ✕ deletes it after our question.
+            tabs_trigger = page.locator("#tabs-trigger")
+            assert tabs_trigger.bounding_box()["x"] >= page.locator("#project-tabs").bounding_box()["x"] + page.locator("#project-tabs").bounding_box()["width"]
+            tabs_trigger.click()
+            rows = page.locator("#tabs-list .tabs-item")
+            assert rows.count() == len(projects)
+            assert page.locator("#tabs-list .queue-title").first.text_content() == "Track 0"
+            assert rows.first.get_attribute("aria-current") == "true"
+            projects[3]["disk_bytes"] = 12 * 2 ** 20  # the list shows what the next poll or opening brings
+            rows.nth(2).click()
+            assert page.locator("#tabs-popover").is_hidden()
+            page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 2'")
+            tabs_trigger.click()
+            page.locator('#tabs-list [data-project-id="project-3"] [data-action="delete-project"]').click()
+            assert page.locator("#confirm-title").text_content() == "Удалить проект?"
+            assert "«Track 3»" in page.locator("#confirm-description").text_content() and "Освободится 12 МБ." in page.locator("#confirm-description").text_content()
+            before_deleted = len(deleted)
+            page.locator("#confirm-action").click()
+            _wait_until(lambda: deleted[before_deleted:] == ["/api/v1/projects/project-3"])
+            page.wait_for_function("!document.querySelector('#confirm-dialog').open")
+            assert page.locator("#tabs-popover").is_visible()  # the list stays open for the next one
+            # One still being worked on: cancelled first, deleted once the worker has stopped it.
+            projects[4].update(job_status="separating", progress=0.3)
+            page.keyboard.press("Escape")
+            assert page.locator("#tabs-popover").is_hidden()
+            page.evaluate("loadProjects()")
+            page.wait_for_function("document.querySelector('#tabs-list [data-project-id=\"project-4\"]').style.getPropertyValue('--job-progress') === '30%'")
+            tabs_trigger.click()
+            page.locator('#tabs-list [data-project-id="project-4"] [data-action="delete-project"]').click()
+            assert page.locator("#confirm-title").text_content() == "Отменить и удалить проект?"
+            page.locator("#confirm-action").click()
+            _wait_until(lambda: actions and actions[-1] == "/api/v1/jobs/job-4/cancel")
+            time.sleep(0.7)
+            assert deleted[-1] != "/api/v1/projects/project-4"  # still running: not deleted yet
+            projects[4].update(job_status="cancelled", progress=0.0)  # the worker stopped it
+            _wait_until(lambda: deleted[-1] == "/api/v1/projects/project-4")
+            page.wait_for_function("!document.querySelector('#confirm-dialog').open")
+            projects[4].update(job_status="completed", progress=0.0)
+            page.keyboard.press("Escape")
+            assert page.locator("#tabs-popover").is_hidden()
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")

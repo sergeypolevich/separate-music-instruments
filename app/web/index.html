@@ -47,6 +47,10 @@
           <div id="project-tabs" class="project-tabs" role="tablist" aria-label="Проекты">
             <p class="tabs-empty">Проекты появятся здесь</p>
           </div>
+          <button id="tabs-trigger" class="icon-button tabs-trigger" type="button" aria-haspopup="dialog" aria-controls="tabs-popover" aria-expanded="false" aria-label="Все проекты" title="Все проекты" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/></svg></button>
+          <div id="tabs-popover" class="queue-popover tabs-popover" role="dialog" aria-label="Все проекты" hidden>
+            <div id="tabs-list" class="queue-list"></div>
+          </div>
         </div>
         <section id="project-workspace" class="project-workspace" aria-live="polite">
           <div id="project-empty" class="workspace-empty">

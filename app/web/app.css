@@ -128,7 +128,15 @@ button { cursor: pointer; }
 .hotkey-list kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--panel-soft); color: var(--text); font: 600 11px/1.5 'DM Sans', system-ui, sans-serif; text-align: center; }
 
 /* Same side gutters as .project-workspace so tabs span the project card's width. */
-.project-tabs-shell { padding: 10px 16px 0; }
+/* The tabs, and right of them a button with the list of every project. */
+.project-tabs-shell { position: relative; display: flex; align-items: flex-start; gap: 8px; padding: 10px 16px 0; }
+.project-tabs-shell > .project-tabs { flex: 1; }
+.tabs-trigger { flex: none; width: 36px; min-width: 36px; height: 36px; }
+.tabs-popover { top: 50px; right: 16px; max-height: min(60vh, 520px); overflow-y: auto; }
+.tabs-item { padding-block: 4px; cursor: pointer; }
+.tabs-item .icon-button { grid-row: 1; }  /* one line: no meta row under the title */
+.tabs-item:hover .queue-title { color: var(--accent); }
+.tabs-item[aria-current="true"] .queue-title { color: var(--accent); }
 .project-tabs { display: flex; align-items: center; gap: 7px; min-width: 0; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 0 0 8px; }
 .project-tabs::-webkit-scrollbar { display: none; }
 .project-tabs.dragging { cursor: grabbing; user-select: none; }
@@ -365,6 +373,7 @@ button:disabled { opacity: .55; cursor: wait; }
   .top-nav { gap: 8px; }
   .top-nav a { font-size: 11px; }
   .project-tabs-shell { padding: 7px 9px 0; }
+  .tabs-popover { top: 47px; right: 9px; }
   .project-workspace { padding: 4px 0 0; }
   .project-detail { --columns: minmax(92px, 26%) minmax(0, 1fr); --column-gap: 7px; padding: 6px 9px 52px; }
   /* Icon + first letter (the stem's hotkey): the controls column can be narrower. */

@@ -49,6 +49,8 @@ const settingsOverlay = document.querySelector("#settings-overlay");
 const helpOverlay = document.querySelector("#help-overlay");
 const queueTrigger = document.querySelector("#queue-trigger");
 const queuePopover = document.querySelector("#queue-popover");
+const tabsTrigger = document.querySelector("#tabs-trigger");
+const tabsPopover = document.querySelector("#tabs-popover");
 let pollingTimer = null;
 let activeTransport = null;
 let activeMixer = null;
@@ -444,6 +446,7 @@ function followSelectedJob(projects) {
 function renderProjects(projects) {
   scheduleProjectPoll(projects);
   followSelectedJob(projects);
+  renderTabList(projects);
   const tabs = [...projectTabs.querySelectorAll(".project-tab")];
   // Same projects in the same order: update in place, so polling never resets hover, drag or scroll.
   if (tabs.length && tabs.length === projects.length && tabs.every((tab, index) => tab.dataset.projectId === projects[index].project_id)) {
@@ -476,6 +479,93 @@ function renderProjects(projects) {
     return button;
   }));
   updateTabFades();
+}
+
+// The list of every project (the button right of the tabs): a click opens one, ✕ deletes it after a question;
+// one still being worked on is cancelled first.
+function renderTabList(projects) {
+  tabsTrigger.hidden = !projects.length;
+  if (!projects.length) closeTabList();
+  document.querySelector("#tabs-list").replaceChildren(...projects.map((project) => {
+    const nameText = project.title || project.input_value;
+    const row = document.createElement("div");
+    row.className = "queue-item tabs-item";
+    row.dataset.projectId = project.project_id;
+    row.setAttribute("aria-current", String(project.project_id === selectedProjectId));
+    if (!finishedStates.has(project.job_status)) row.style.setProperty("--job-progress", `${Math.round((project.progress || 0) * 100)}%`);
+    const title = document.createElement("span");
+    title.className = "queue-title";
+    title.textContent = nameText;
+    title.title = nameText;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "icon-button";
+    remove.dataset.action = "delete-project";
+    remove.setAttribute("aria-label", `Удалить: ${nameText}`);
+    remove.title = "Удалить";
+    remove.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+    remove.addEventListener("click", (event) => {
+      event.stopPropagation();
+      askToDelete(project, nameText);
+    });
+    row.addEventListener("click", () => {
+      closeTabList();
+      openProject(project.project_id);
+    });
+    row.append(title, remove);
+    return row;
+  }));
+}
+
+function askToDelete(project, nameText) {
+  if (!finishedStates.has(project.job_status)) {
+    askConfirm({
+      title: "Отменить и удалить проект?",
+      text: `«${nameText}» ещё обрабатывается: обработка будет остановлена, проект и его файлы удалены.`,
+      action: "Отменить и удалить",
+      run: () => cancelAndDelete(project),
+    });
+    return;
+  }
+  const shared = project.shared_bytes
+    ? ` ${formatBytes(project.shared_bytes)} общих файлов останутся: их использует другой проект.` : "";
+  askConfirm({
+    title: "Удалить проект?",
+    text: `Проект «${nameText}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(project.disk_bytes || 0)}.${shared}`,
+    action: "Удалить",
+    run: () => deleteProject(project.project_id),
+  });
+}
+
+// A running job cannot be deleted: cancel it, wait until the worker has stopped it (cancelled while downloading,
+// the worker deletes the project itself), then delete what is left.
+async function cancelAndDelete(project) {
+  const answer = await requestJson(`/api/v1/jobs/${encodeURIComponent(project.job_id)}/cancel`, { method: "POST" });
+  for (let attempt = 0; answer.state !== "deleted" && attempt < 120; attempt += 1) {
+    const now = (await requestJson("/api/v1/projects")).find((item) => item.project_id === project.project_id);
+    if (!now) break;  // the worker deleted it
+    if (finishedStates.has(now.job_status)) return deleteProject(project.project_id);
+    await new Promise((resolve) => { window.setTimeout(resolve, 500); });
+  }
+  if (answer.state !== "deleted" && (await requestJson("/api/v1/projects")).some((item) => item.project_id === project.project_id)) {
+    throw new Error("Обработка ещё останавливается. Попробуйте удалить проект чуть позже.");
+  }
+  if (project.project_id === selectedProjectId) {
+    cleanupPlayback();
+    selectedProjectId = null;
+    selectedProjectTitle = "";
+  }
+  await loadProjects();
+}
+
+function openTabList() {
+  tabsPopover.hidden = false;
+  tabsTrigger.setAttribute("aria-expanded", "true");
+}
+
+function closeTabList() {
+  tabsPopover.hidden = true;
+  tabsTrigger.setAttribute("aria-expanded", "false");
 }
 
 // Fades mark the edges where more tabs are hidden.
@@ -1699,8 +1789,10 @@ searchOverlay.addEventListener("click", (event) => {
 document.querySelector("#close-settings").addEventListener("click", closeSettings);
 document.querySelector("#help-trigger").addEventListener("click", openHelp);
 queueTrigger.addEventListener("click", () => (queuePopover.hidden ? openQueue() : closeQueue()));
+tabsTrigger.addEventListener("click", () => (tabsPopover.hidden ? openTabList() : closeTabList()));
 document.addEventListener("click", (event) => {
   if (!queuePopover.hidden && !queuePopover.contains(event.target) && !queueTrigger.contains(event.target)) closeQueue();
+  if (!tabsPopover.hidden && !tabsPopover.contains(event.target) && !tabsTrigger.contains(event.target) && !confirmDialog.contains(event.target)) closeTabList();
 });
 document.querySelector("#close-help").addEventListener("click", closeHelp);
 helpOverlay.addEventListener("click", (event) => {
@@ -1733,6 +1825,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !queuePopover.hidden) {
     closeQueue();
+    return;
+  }
+  if (event.key === "Escape" && !tabsPopover.hidden && !confirmDialog.open) {
+    closeTabList();
     return;
   }
   if (event.key === "Escape" && !helpOverlay.hidden) {
