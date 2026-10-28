@@ -133,9 +133,9 @@ def test_ui_has_project_list_and_reopen_detail_controls():
     assert 'id="playback-panel"' in markup
     assert 'id="delete-project"' in markup
     assert 'method: "DELETE"' in source
-    assert 'id="delete-dialog"' in markup
-    assert "deleteDialog.showModal()" in source
-    assert "window.confirm" not in source.split("async function confirmProjectDeletion", 1)[1].split("searchTrigger.addEventListener", 1)[0]
+    assert 'id="confirm-dialog"' in markup
+    assert "confirmDialog.showModal()" in source
+    assert "window.confirm(" not in source and "window.alert(" not in source  # the app's own dialog everywhere
     assert "/api/v1/projects/" in source
     assert 'await import("./playback.mjs")' in source
     assert '!["wav", "flac"].includes(asset.media_format)' in source

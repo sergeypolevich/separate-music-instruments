@@ -55,7 +55,7 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     for removed in ('id="screen-help"', 'data-screen="help"', 'id="refresh-projects"', 'id="asset-list"',
                     'id="detail-input"', 'id="detail-model"'):
         assert removed not in page.text
-    assert 'id="delete-dialog"' in page.text
+    assert 'id="confirm-dialog"' in page.text
     assert "РАЗДЕЛЕНИЕ АУДИО" not in page.text
     assert "звучать по-новому" not in page.text
     assert 'rows="2"' in page.text
@@ -78,7 +78,7 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert "class SynchronizedTransport" in playback.text
     assert 'data-screen="settings"' in page.text
     assert "window.confirm" in script.text  # installing an update asks first
-    assert "deleteDialog.showModal()" in script.text
+    assert "confirmDialog.showModal()" in script.text
     assert "/api/v1/updates/apply" in script.text
     assert "install-update" in script.text  # the newest release can be installed (version 17)
     assert "http://" not in styles.text and "https://" not in styles.text
@@ -96,7 +96,7 @@ def test_ui_covers_persisted_job_states_and_renders_project_tabs_safely():
     assert "/waveform`" in source
     assert 'button.className = "project-tab"' in source
     assert 'button.dataset.status = statusBucket(project.job_status)' in source
-    assert 'deleteDialog.showModal()' in source
+    assert 'confirmDialog.showModal()' in source
 
 
 def test_failed_job_remains_visible_in_batch_api_beside_successful_sibling(tmp_path):

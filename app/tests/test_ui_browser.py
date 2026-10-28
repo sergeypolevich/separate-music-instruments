@@ -308,6 +308,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # The phone size at 1.5 device pixels per CSS pixel, as Windows at 150 %: the playhead must stay one screen pixel.
             scale = 1.5 if viewport[0] < 600 else 1
             page = browser.new_page(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=scale)
+            native_dialogs = []  # the page asks with its own dialog, never window.confirm/alert
+            page.on("dialog", lambda dialog: (native_dialogs.append(dialog.message), dialog.dismiss()))
+
+            def confirm_in_app():
+                """Presses the action in the app's confirmation dialog; returns its question."""
+                page.locator("#confirm-dialog").wait_for(state="visible")
+                question = page.locator("#confirm-title").text_content()
+                page.locator("#confirm-action").click()
+                return question
             if SOFT_CHECKS:
                 page.set_default_timeout(10_000)  # a failed wait costs 10 s, not 30, when the run goes on past it
                 page.set_default_navigation_timeout(30_000)  # the first load really takes longer
@@ -363,8 +372,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_function("document.querySelector('#playback-panel audio').paused")
             # «Отменить» next to the progress: a running task asks first, then the server is told.
-            page.once("dialog", lambda dialog: dialog.accept())
             page.locator('[data-action="cancel-job"]').click()
+            confirm_in_app()
             _wait_until(lambda: actions and actions[-1] == f"/api/v1/jobs/{projects[6]['job_id']}/cancel")
             # Cancelled after the download: the song stays, with «Разделить», which puts it back in the queue.
             running_detail["project-6"] = "cancelled"
@@ -403,10 +412,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.queue-item[data-kind="upgrade"] [data-action="cancel-task"]').click()  # waiting: no question
             _wait_until(lambda: deleted and deleted[-1] == "/api/v1/projects/project-0/upgrade")
             assert page.locator("#queue-popover").is_visible()  # the list stays open for the next one
-            asked = []
-            page.once("dialog", lambda dialog: (asked.append(dialog.message), dialog.accept()))
             queue_items[:] = queue_items[:1]  # the upgrade is gone
             page.locator('.queue-item[data-kind="job"] [data-action="cancel-task"]').click()
+            asked = [confirm_in_app()]
             _wait_until(lambda: actions and actions[-1] == "/api/v1/jobs/job-q1/cancel")
             assert asked == ["Отменить «Running song»?"]
             queue_items.clear()  # the worker stopped it: nothing left, the ring goes away
@@ -924,10 +932,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # The project's disk size sits next to the bin; the dialog says what deleting frees.
             assert page.locator("#detail-size").text_content() == "12 МБ"
             page.locator("#delete-project").click()
-            assert page.locator("#delete-dialog").is_visible()
-            assert "Освободится 12 МБ." in page.locator("#delete-description").text_content()
-            page.locator("#cancel-delete").click()
-            assert not page.locator("#delete-dialog").is_visible()
+            assert page.locator("#confirm-dialog").is_visible()
+            assert page.locator("#confirm-title").text_content() == "Удалить проект?"
+            assert "Освободится 12 МБ." in page.locator("#confirm-description").text_content()
+            page.locator("#confirm-cancel").click()
+            assert not page.locator("#confirm-dialog").is_visible()
+            was_playing = page.evaluate("!document.querySelector('#playback-panel audio').paused")
+            page.keyboard.press("Space")  # the hotkeys work again once it is closed
+            page.wait_for_function("was => !document.querySelector('#playback-panel audio').paused !== was", arg=was_playing)
+            page.keyboard.press("Space")
+            page.wait_for_function("was => !document.querySelector('#playback-panel audio').paused === was", arg=was_playing)
 
             gain = page.locator('[data-control="gain"]').first
             gain.evaluate("el => { el.value = '104'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
@@ -984,19 +998,19 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelectorAll('#disk-usage dd').length === 4")
             assert page.locator("#disk-usage dd").all_text_contents() == ["3,0 ГБ", "40 МБ", "10 МБ", "800 МБ"]
             assert page.locator("#clean-storage").text_content() == "Очистить 50 МБ"
-            page.once("dialog", lambda dialog: dialog.accept())
             page.locator("#clean-storage").click()
+            assert confirm_in_app() == "Очистить хранилище?"
             page.wait_for_function("document.querySelector('#disk-message').textContent === 'Освобождено 50 МБ.'")
             assert page.locator("#clean-storage").is_disabled()
             # «Удалить все проекты» asks once with the size, then deletes every project through the bin's route.
             delete_all = page.locator("#delete-all-projects")
             assert delete_all.text_content() == "Удалить все проекты (3,0 ГБ)" and delete_all.is_enabled()
-            questions = []
-            page.once("dialog", lambda dialog: (questions.append(dialog.message), dialog.accept()))
             before_deleted = len(deleted)
             delete_all.click()
+            questions = [confirm_in_app() + " " + page.locator("#confirm-description").text_content()]
             page.wait_for_function("document.querySelector('#disk-message').textContent.startsWith('Удалено проектов')")
             assert "3,0 ГБ" in questions[0] and f"({len(projects)})" in questions[0]
+            assert native_dialogs == []
             assert sorted(deleted[before_deleted:]) == sorted(f"/api/v1/projects/{p['project_id']}" for p in projects)
             # While a separation runs, neither cleanup nor deleting everything is offered.
             disk["busy"] = True

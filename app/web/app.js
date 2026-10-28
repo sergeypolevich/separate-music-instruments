@@ -36,10 +36,9 @@ const playbackPanel = document.querySelector("#playback-panel");
 const detailSize = document.querySelector("#detail-size");
 let selectedProjectBytes = { disk: 0, shared: 0 };
 const deleteProjectButton = document.querySelector("#delete-project");
-const deleteDialog = document.querySelector("#delete-dialog");
-const deleteDescription = document.querySelector("#delete-description");
-const deleteError = document.querySelector("#delete-error");
-const confirmDeleteButton = document.querySelector("#confirm-delete");
+const confirmDialog = document.querySelector("#confirm-dialog");
+const confirmError = document.querySelector("#confirm-error");
+const confirmButton = document.querySelector("#confirm-action");
 const updatesMessage = document.querySelector("#updates-message");
 const releaseList = document.querySelector("#release-list");
 const checkUpdatesButton = document.querySelector("#check-updates");
@@ -154,7 +153,7 @@ async function loadStorage() {
 }
 
 async function cleanStorage() {
-  const confirmed = window.confirm(`Удалить файлы без проекта и временные файлы (${formatBytes(cleanableBytes)})? Проекты не пострадают.`);
+  const confirmed = await askConfirm({ title: "Очистить хранилище?", text: `Файлы без проекта и временные файлы (${formatBytes(cleanableBytes)}) будут удалены. Проекты не пострадают.`, action: "Удалить" });
   if (!confirmed) return;
   cleanStorageButton.disabled = true;
   try {
@@ -182,7 +181,7 @@ async function deleteAllProjects() {
     return;
   }
   const freed = projectsBytes;
-  if (!window.confirm(`Удалить все проекты (${projects.length}) вместе с их аудио и дорожками — ${formatBytes(freed)}? Это нельзя отменить.`)) return;
+  if (!(await askConfirm({ title: `Удалить все проекты (${projects.length})?`, text: `Вместе с их аудио и дорожками — ${formatBytes(freed)}. Это нельзя отменить.`, action: "Удалить все" }))) return;
   deleteAllButton.disabled = cleanStorageButton.disabled = true;
   cleanupPlayback();  // Windows cannot delete a file the browser is still reading
   const failed = [];
@@ -311,7 +310,7 @@ async function refreshQueue() {
 // A task that runs loses its progress when cancelled, so that one asks first.
 async function cancelTask(item) {
   const what = item.kind === "upgrade" ? `улучшение «${item.title}»` : `«${item.title}»`;
-  if (workingStates.has(item.status) && !window.confirm(`Отменить ${what}?`)) return;
+  if (workingStates.has(item.status) && !(await askConfirm({ title: `Отменить ${what}?`, text: "То, что уже сделано, будет потеряно.", action: "Отменить задачу" }))) return;
   try {
     if (item.kind === "upgrade") {
       await requestJson(`/api/v1/projects/${encodeURIComponent(item.project_id)}/upgrade`, { method: "DELETE" });
@@ -1470,7 +1469,7 @@ function renderReleases(result) {
       apply.dataset.action = "install-update";
       apply.textContent = `Обновить до ${release.tag_name}`;
       apply.addEventListener("click", async () => {
-        if (!window.confirm(`Установить «${release.name || release.tag_name}»? Задачи в очереди должны закончиться. Ваши песни и настройки не затрагиваются. После установки приложение нужно запустить заново.`)) return;
+        if (!(await askConfirm({ title: `Установить «${release.name || release.tag_name}»?`, text: "Задачи в очереди должны закончиться. Ваши песни и настройки не затрагиваются. После установки приложение нужно запустить заново.", action: "Установить", danger: false }))) return;
         apply.disabled = true;
         updatesMessage.textContent = "Скачиваем обновление…";
         try {
@@ -1609,26 +1608,59 @@ function formatBytes(bytes) {
   return `${Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20))} МБ`;
 }
 
-async function confirmProjectDeletion() {
-  const projectId = deleteProjectButton.dataset.projectId;
-  if (!projectId) return;
-  confirmDeleteButton.disabled = true;
+// The app's own confirmation (not window.confirm): resolves true when the action's button is pressed, false on
+// «Отмена» or Esc. With run, the dialog stays open while it works and shows its error.
+let confirmPending = null;
+function askConfirm({ title, text, action, danger = true, run = null }) {
+  confirmPending?.resolve(false);
+  document.querySelector("#confirm-title").textContent = title;
+  document.querySelector("#confirm-description").textContent = text;
+  confirmButton.textContent = action;
+  confirmButton.className = danger ? "danger-action" : "primary-button";
+  confirmError.hidden = true;
+  if (!confirmDialog.open) confirmDialog.showModal();
+  return new Promise((resolve) => { confirmPending = { resolve, run }; });
+}
+
+confirmButton.addEventListener("click", async () => {
+  if (!confirmPending) return;
+  const pending = confirmPending;
+  if (pending.run) {
+    confirmButton.disabled = true;
+    confirmError.hidden = true;
+    try {
+      await pending.run();
+    } catch (error) {
+      confirmError.textContent = error.message;
+      confirmError.hidden = false;
+      return;
+    } finally {
+      confirmButton.disabled = false;
+    }
+  }
+  confirmPending = null;
+  confirmDialog.close("confirmed");
+  pending.resolve(true);
+});
+confirmDialog.addEventListener("close", () => {
+  confirmPending?.resolve(false);
+  confirmPending = null;
+});
+
+async function deleteProject(projectId) {
   // Stop the stems first: Windows cannot delete a file the browser is still reading.
-  cleanupPlayback();
-  deleteError.hidden = true;
+  if (projectId === selectedProjectId) cleanupPlayback();
   try {
     await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`, { method: "DELETE" });
-    deleteDialog.close("deleted");
+  } catch (error) {
+    if (projectId === selectedProjectId) openProject(projectId);  // the project stays: bring its player back
+    throw error;
+  }
+  if (projectId === selectedProjectId) {
     selectedProjectId = null;
     selectedProjectTitle = "";
-    await loadProjects();
-  } catch (error) {
-    deleteError.textContent = error.message;
-    deleteError.hidden = false;
-    openProject(projectId);  // the project stays: bring its player back
-  } finally {
-    confirmDeleteButton.disabled = false;
   }
+  await loadProjects();
 }
 
 // Appearance: theme and accent hue live on <html>; index.html re-applies the saved values on load.
@@ -1703,14 +1735,14 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   // Tab never walks the focus (and its focus rings) outside dialogs; in a project it picks the next track.
-  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !deleteDialog.open && !isTextEntry(event.target)) {
+  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !confirmDialog.open && !isTextEntry(event.target)) {
     event.preventDefault();
     if (activeControls && !event.ctrlKey && !event.metaKey && !event.altKey) {
       activeControls.cycleSelection(event.shiftKey ? -1 : 1);
     }
     return;
   }
-  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || deleteDialog.open) return;
+  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || confirmDialog.open) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
   const controls = activeControls;
   const actions = {
@@ -1791,14 +1823,18 @@ inputField.addEventListener("input", () => {
   inputField.style.height = `${Math.min(inputField.scrollHeight, window.innerHeight * 0.4)}px`;
 });
 deleteProjectButton.addEventListener("click", () => {
+  const projectId = deleteProjectButton.dataset.projectId;
+  if (!projectId) return;
   const shared = selectedProjectBytes.shared
     ? ` ${formatBytes(selectedProjectBytes.shared)} общих файлов останутся: их использует другой проект.` : "";
-  deleteDescription.textContent = `Проект «${selectedProjectTitle}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(selectedProjectBytes.disk)}.${shared}`;
-  deleteError.hidden = true;
-  deleteDialog.showModal();
+  askConfirm({
+    title: "Удалить проект?",
+    text: `Проект «${selectedProjectTitle}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(selectedProjectBytes.disk)}.${shared}`,
+    action: "Удалить",
+    run: () => deleteProject(projectId),
+  });
 });
-confirmDeleteButton.addEventListener("click", confirmProjectDeletion);
-document.querySelector("#cancel-delete").addEventListener("click", () => deleteDialog.close("cancel"));
+document.querySelector("#confirm-cancel").addEventListener("click", () => confirmDialog.close("cancel"));
 checkUpdatesButton.addEventListener("click", checkUpdates);
 cleanStorageButton.addEventListener("click", cleanStorage);
 deleteAllButton.addEventListener("click", deleteAllProjects);

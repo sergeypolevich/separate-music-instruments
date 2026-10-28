@@ -153,16 +153,15 @@
       </section>
     </div>
 
-    <dialog id="delete-dialog" class="confirm-dialog" aria-labelledby="delete-title">
+    <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description">
       <form method="dialog" class="confirm-card">
-        <p class="eyebrow">УДАЛЕНИЕ ПРОЕКТА</p>
-        <h2 id="delete-title">Удалить проект?</h2>
-        <p id="delete-description">Проект, исходное аудио и все дорожки будут удалены.</p>
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-description"></p>
         <div class="confirm-actions">
-          <button id="cancel-delete" class="quiet-button" value="cancel">Отмена</button>
-          <button id="confirm-delete" class="danger-action" type="button">Удалить</button>
+          <button id="confirm-cancel" class="quiet-button" value="cancel">Отмена</button>
+          <button id="confirm-action" class="danger-action" type="button"></button>
         </div>
-        <p id="delete-error" class="detail-error" role="alert" hidden></p>
+        <p id="confirm-error" class="detail-error" role="alert" hidden></p>
       </form>
     </dialog>
   </body>
