@@ -517,7 +517,7 @@ function renderTabList(projects) {
   }));
 }
 
-function askToDelete(project, nameText) {
+async function askToDelete(project, nameText) {
   if (!finishedStates.has(project.job_status)) {
     askConfirm({
       title: "Отменить и удалить проект?",
@@ -527,13 +527,25 @@ function askToDelete(project, nameText) {
     });
     return;
   }
-  const shared = project.shared_bytes
-    ? ` ${formatBytes(project.shared_bytes)} общих файлов останутся: их использует другой проект.` : "";
+  try {
+    // The list has no sizes; the project's own record has them, as for the bin.
+    const detail = await requestJson(`/api/v1/projects/${encodeURIComponent(project.project_id)}`);
+    askDeleteProject(project.project_id, nameText, { disk: detail.disk_bytes || 0, shared: detail.shared_bytes || 0 });
+  } catch (error) {
+    detailError.textContent = error.message;
+    detailError.hidden = false;
+  }
+}
+
+// The one deletion question, for the bin and for the project list.
+function askDeleteProject(projectId, nameText, bytes) {
+  const shared = bytes.shared
+    ? ` ${formatBytes(bytes.shared)} общих файлов останутся: их использует другой проект.` : "";
   askConfirm({
     title: "Удалить проект?",
-    text: `Проект «${nameText}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(project.disk_bytes || 0)}.${shared}`,
+    text: `Проект «${nameText}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(bytes.disk)}.${shared}`,
     action: "Удалить",
-    run: () => deleteProject(project.project_id),
+    run: () => deleteProject(projectId),
   });
 }
 
@@ -1949,15 +1961,7 @@ inputField.addEventListener("input", () => {
 });
 deleteProjectButton.addEventListener("click", () => {
   const projectId = deleteProjectButton.dataset.projectId;
-  if (!projectId) return;
-  const shared = selectedProjectBytes.shared
-    ? ` ${formatBytes(selectedProjectBytes.shared)} общих файлов останутся: их использует другой проект.` : "";
-  askConfirm({
-    title: "Удалить проект?",
-    text: `Проект «${selectedProjectTitle}», исходное аудио и все дорожки будут удалены. Освободится ${formatBytes(selectedProjectBytes.disk)}.${shared}`,
-    action: "Удалить",
-    run: () => deleteProject(projectId),
-  });
+  if (projectId) askDeleteProject(projectId, selectedProjectTitle, selectedProjectBytes);
 });
 document.querySelector("#confirm-cancel").addEventListener("click", () => confirmDialog.close("cancel"));
 checkUpdatesButton.addEventListener("click", checkUpdates);

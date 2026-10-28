@@ -1064,9 +1064,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert not any("End" in keys or "В конец" in action for action, keys in rows)
             # A list: no rules between the rows, the keys right after the action's text.
             assert page.evaluate("getComputedStyle(document.querySelector('#hotkey-list > div')).borderTopStyle") == "none"
+            # Against the action's last line: a long action wraps (wider fonts on macOS), its keys follow that line.
             gaps = page.evaluate("""[...document.querySelectorAll('#hotkey-list > div')].map(r => {
-                const dt = r.querySelector('dt').getBoundingClientRect(), dd = r.querySelector('dd').getBoundingClientRect();
-                return dd.top >= dt.bottom - 1 ? 0 : dd.left - dt.right; })""")
+                const lines = r.querySelector('dt').getClientRects(), dt = lines[lines.length - 1];
+                const dd = r.querySelector('dd').getClientRects()[0];
+                return Math.abs((dd.top + dd.bottom) / 2 - (dt.top + dt.bottom) / 2) > 8 ? 0 : dd.left - dt.right; })""")
             assert all(0 <= gap < 20 for gap in gaps), gaps
             was_paused = page.evaluate(paused)
             page.keyboard.press("Space")  # hotkeys sleep while the help is open
@@ -1104,12 +1106,12 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert rows.count() == len(projects)
             assert page.locator("#tabs-list .queue-title").first.text_content() == "Track 0"
             assert rows.first.get_attribute("aria-current") == "true"
-            projects[3]["disk_bytes"] = 12 * 2 ** 20  # the list shows what the next poll or opening brings
             rows.nth(2).click()
             assert page.locator("#tabs-popover").is_hidden()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 2'")
             tabs_trigger.click()
             page.locator('#tabs-list [data-project-id="project-3"] [data-action="delete-project"]').click()
+            page.locator("#confirm-dialog").wait_for(state="visible")  # after the project's record (its size) has come
             assert page.locator("#confirm-title").text_content() == "Удалить проект?"
             assert "«Track 3»" in page.locator("#confirm-description").text_content() and "Освободится 12 МБ." in page.locator("#confirm-description").text_content()
             before_deleted = len(deleted)
