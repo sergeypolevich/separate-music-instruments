@@ -25,20 +25,21 @@ _ARCHIVE_HOSTS = {"api.github.com", "codeload.github.com"}  # GitHub answers the
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
 _MAX_NOTES_LENGTH = 20_000
-_TAG = re.compile(r"v?(\d+)")
+_TAG = re.compile(r"v?(\d+(?:\.\d+)?)")  # v18 or v18.1; v3.0.0 and v18-beta are not app releases
 # Never replaced by an update: the environment, the local settings and git's own folder.
 _KEEP = (".git", "app/.venv", "app/.env")
 VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 
 
-def current_version() -> int:
-    """This copy's version (app/VERSION, the number of the release it was made for)."""
-    return int(VERSION_FILE.read_text(encoding="utf-8").strip())
+def current_version() -> str:
+    """This copy's version (app/VERSION, the number of the release it was made for: "18" or "18.1")."""
+    return VERSION_FILE.read_text(encoding="utf-8").strip()
 
 
-def release_number(tag: str) -> int | None:
+def release_number(tag: str) -> tuple[int, ...] | None:
+    """A release tag or version as a comparable number: "v18" -> (18,), "18.1" -> (18, 1)."""
     match = _TAG.fullmatch(tag)
-    return int(match[1]) if match else None
+    return tuple(int(part) for part in match[1].split(".")) if match else None
 
 
 class UpdateError(RuntimeError):
@@ -101,7 +102,7 @@ class GitHubReleaseClient:
 
 class Updater:
     def __init__(self, root: Path, staging: Path, releases: GitHubReleaseClient | None = None, *,
-                 open_url: Callable = urlopen, runner: Callable = subprocess.run, version: Callable[[], int] = current_version) -> None:
+                 open_url: Callable = urlopen, runner: Callable = subprocess.run, version: Callable[[], str] = current_version) -> None:
         self.root = root  # the folder with Start.bat and app/
         self.staging = staging  # in the data folder: never inside the app it replaces
         self.releases = releases or GitHubReleaseClient(open_url)
@@ -120,7 +121,8 @@ class Updater:
         except Exception as exc:
             raise UpdateCheckError("Release metadata could not be retrieved") from exc
         current = self.version()
-        newer = [r for r in releases if (number := release_number(r.tag_name)) is not None and number > current]
+        here = release_number(current) or (0,)
+        newer = [r for r in releases if (number := release_number(r.tag_name)) is not None and number > here]
         newer.sort(key=lambda r: release_number(r.tag_name), reverse=True)
         return {"current": current, "mode": self.mode, "releases": newer}
 
@@ -161,7 +163,7 @@ class Updater:
         shutil.rmtree(self.staging, ignore_errors=True)
         try:
             unpack_release(payload, target)
-            if release_number(tag) != int((target / "app" / "VERSION").read_text(encoding="utf-8").strip()):
+            if release_number(tag) != release_number((target / "app" / "VERSION").read_text(encoding="utf-8").strip()):
                 raise UpdateError("The release archive is for another version")
         except (OSError, ValueError, zipfile.BadZipFile) as exc:
             shutil.rmtree(self.staging, ignore_errors=True)

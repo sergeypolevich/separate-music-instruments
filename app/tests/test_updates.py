@@ -103,17 +103,31 @@ def test_release_client_rejects_untrusted_release_urls_and_invalid_payloads():
 
 
 def test_this_copy_knows_its_version_and_release_tags_are_numbers():
-    assert current_version() >= 17
-    assert [release_number(tag) for tag in ("v17", "18", "v3.0.0", "v18-beta")] == [17, 18, None, None]
+    assert release_number(current_version()) >= (17,)
+    assert [release_number(tag) for tag in ("v17", "18", "v18.1", "v3.0.0", "v18-beta")] == [(17,), (18,), (18, 1), None, None]
+    assert release_number("v18") < release_number("v18.1") < release_number("v19")
+
+
+def test_a_point_release_counts_between_its_neighbours_and_installs_from_its_archive(tmp_path):
+    root, staging = tmp_path / "Audio Stems", tmp_path / "update"
+    (root / "app").mkdir(parents=True)
+    open_url = github([release("v18"), release("v18.1"), release("v17")], release_zip("18.1"),
+                      "https://codeload.github.com/x/zip/refs/tags/v18.1")
+    found = Updater(root, staging, open_url=open_url, version=lambda: "18").check()
+    assert [r.tag_name for r in found["releases"]] == ["v18.1"] and found["current"] == "18"
+    assert Updater(root, staging, open_url=open_url, version=lambda: "18.1").check()["releases"] == []
+    assert Updater(root, staging, open_url=open_url, version=lambda: "17").check()["releases"][0].tag_name == "v18.1"
+    assert Updater(root, staging, open_url=open_url, version=lambda: "18").apply("v18.1") == "staged"
+    assert apply_staged_update(root, staging) == "v18.1" and (root / "app" / "VERSION").read_text() == "18.1\n"
 
 
 def test_check_lists_only_releases_newer_than_this_copy_newest_first(tmp_path):
     open_url = github([release("v16"), release("v19"), release("v17"), release("v18")])
-    updater = Updater(tmp_path, tmp_path / "update", open_url=open_url, version=lambda: 17)
+    updater = Updater(tmp_path, tmp_path / "update", open_url=open_url, version=lambda: "17")
 
     found = updater.check()
 
-    assert found["current"] == 17 and found["mode"] == "archive"
+    assert found["current"] == "17" and found["mode"] == "archive"
     assert [r.tag_name for r in found["releases"]] == ["v19", "v18"]
     with pytest.raises(UpdateError, match="newest"):
         updater.apply("v18")
@@ -126,7 +140,7 @@ def test_a_zip_copy_downloads_the_release_and_the_launcher_installs_it_on_the_ne
     (root / "app" / ".venv").mkdir()
     (root / "app" / ".venv" / "python.exe").write_text("the environment")
     (root / "app" / ".env").write_text("AUDIO_STEMS_API_HOST=0.0.0.0")
-    updater = Updater(root, staging, open_url=github([release("v18")], release_zip()), version=lambda: 17)
+    updater = Updater(root, staging, open_url=github([release("v18")], release_zip()), version=lambda: "17")
 
     assert updater.apply("v18") == "staged"
     assert (root / "app" / "audio_stems" / "api.py").read_text() == "# old api"  # nothing replaced while running
@@ -148,7 +162,7 @@ def test_a_bad_release_archive_is_refused_and_leaves_nothing_to_install(tmp_path
         (b"not a zip", "https://codeload.github.com/z", "could not be unpacked"),
     ]
     for archive, url, message in cases:
-        updater = Updater(tmp_path, staging, open_url=github([release("v18")], archive, url), version=lambda: 17)
+        updater = Updater(tmp_path, staging, open_url=github([release("v18")], archive, url), version=lambda: "17")
         with pytest.raises(UpdateError, match=message):
             updater.apply("v18")
         assert not (staging / "ready").exists()
@@ -173,7 +187,7 @@ def test_a_git_clone_fast_forwards_to_the_tag_only_when_clean_and_behind(tmp_pat
         return subprocess.CompletedProcess(command, 0, stdout="")
 
     status, fast_forward = [""], [True]
-    updater = Updater(tmp_path, tmp_path / "update", open_url=github([release("v18")]), runner=runner, version=lambda: 17)
+    updater = Updater(tmp_path, tmp_path / "update", open_url=github([release("v18")]), runner=runner, version=lambda: "17")
     assert updater.check()["mode"] == "git"
     assert updater.apply("v18") == "applied"
     assert commands == [["status", "--porcelain", "--untracked-files=no"], ["fetch", "--tags", "origin"],
@@ -201,11 +215,11 @@ def _api(tmp_path, updater):
 
 
 def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed_and_idle(tmp_path):
-    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: 17)
+    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: "17")
     request, repository = _api(tmp_path, updater)
 
     found = request("GET", "/api/v1/updates").json()
-    assert found["current"] == 17 and [r["tag_name"] for r in found["releases"]] == ["v18"]
+    assert found["current"] == "17" and [r["tag_name"] for r in found["releases"]] == ["v18"]
     assert found["releases"][0]["notes"] == "Bug fixes and improvements"
     assert request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": False}).json()["error"]["code"] == "confirmation_required"
     repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "a song")])  # a task waits
@@ -214,7 +228,7 @@ def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed_and_
 
 
 def test_the_update_api_stages_the_release_when_idle(tmp_path):
-    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: 17)
+    updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: "17")
     request, _repository = _api(tmp_path, updater)
 
     applied = request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": True})
@@ -227,6 +241,6 @@ def test_github_out_of_reach_is_a_stable_error(tmp_path):
     def offline(*_args, **_kwargs):
         raise OSError("offline")
 
-    request, _repository = _api(tmp_path, Updater(tmp_path, tmp_path / "update", open_url=offline, version=lambda: 17))
+    request, _repository = _api(tmp_path, Updater(tmp_path, tmp_path / "update", open_url=offline, version=lambda: "17"))
 
     assert request("GET", "/api/v1/updates").json()["error"]["code"] == "update_check_failed"
