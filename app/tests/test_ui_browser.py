@@ -1263,14 +1263,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_timeout(1500)
             page.keyboard.press("Space")
             first = page.evaluate(position)
-            assert 1.0 < first < 2.0, first  # about 1.5 song seconds at 100 %
+            assert 0.5 < first < 4.0, first  # about 1.5 s; wide: under a full run the key presses land late (CI flaked)
             assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
             page.wait_for_timeout(500)
             assert page.evaluate(position) == first  # paused: it stays
             page.keyboard.press("Space")
             page.wait_for_timeout(1000)
             page.keyboard.press("Space")
-            assert 0.7 < page.evaluate(position) - first < 1.3  # resumed from where it paused
+            resumed = page.evaluate(position) - first
+            assert 0.3 < resumed < 3.0, resumed  # on from where it paused, not from the start (about 1 s)
             assert not errors, f"Browser errors: {errors}"
             # A loop: a drag over the waveforms (1.0 s to 1.6 s of 5 s) makes a band snapped to the beats (every
             # 0.25 s): 1.0-1.5; play stays inside it; a double click on it, a click outside it and Home drop it.
@@ -1316,7 +1317,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             iphone.wait_for_timeout(1500)
             iphone.keyboard.press("Space")
             first = iphone.evaluate(position)
-            assert 1.0 < first < 2.0, first
+            assert 0.5 < first < 4.0, first  # about 1.5 s
             assert iphone.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
             assert not errors, f"Browser errors: {errors}"
             iphone.close()

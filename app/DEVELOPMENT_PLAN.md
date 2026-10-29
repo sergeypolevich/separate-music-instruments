@@ -42,6 +42,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 37. **Version 18.1 progress under the tracks:** release numbers like 18.1 in the updater; the job's progress under the tracks with a ✕ right of the bar. Plan: `~/.claude/plans/version-18-1.md`.
 38. **Version 18.2 decoded playback on iPhone and iPad:** stems decoded and played on the AudioContext clock on iOS/iPadOS (stretch engine, or buffer sources at 100 % on plain http without AudioWorklet), `?engine=decoded` as the trial elsewhere. Plan: `~/.claude/plans/version-18-2.md`.
 39. **Version 18.3 phone header and master volume:** no project title on phones (the tab names it); the master volume's icon over its fader like a stem's. Plan: `~/.claude/plans/version-18-3.md`.
+40. **Version 19 loop and easier install:** a loop dragged over the waveforms, snapped to the beats, played gapless through the decoded engine; launchers `Start Windows.bat` / `Start MacOS.command`; an app icon and a Windows desktop shortcut; release archives per system linked from the READMEs.
 27. **Version 9 project cleanup:** close test gaps and record coverage/performance baselines first; move everything except `Start.bat` (renamed), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/` into `app/`; remove single-implementation protocols, the unused idempotency key and Demucs parameters, placeholder settings and dead code — with identical UI and no performance regression.
 
 ## Stage gate
