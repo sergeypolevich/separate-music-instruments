@@ -234,6 +234,7 @@ const HOTKEYS = [
   ["Громкость выбранной дорожки +10 % / −10 %", "+, −"],
   ["Открыть файл или найти песню", /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘F" : "Ctrl+F"],
   ["Ещё одна строка в поле поиска", "Shift+Enter"],
+  ["Сбросить петлю", "Esc"],
   ["Закрыть окно", "Esc"],
 ];
 
@@ -1554,6 +1555,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       togglePlayback,
       seekBy: (seconds) => transport.seek(transport.currentTime + seconds),
       seekTo: (seconds) => (transport.loop ? transport.setLoop(null, seconds) : transport.seek(seconds)),  // Home drops a loop
+      dropLoop: () => { if (transport.loop) transport.setLoop(null, transport.currentTime); },
       moveSelection: (step) => selectStem(selectedStem + step),
       cycleSelection: (step) => selectStem((selectedStem + step + stems.length) % stems.length),
       selectStemByName: (name) => {
@@ -1981,6 +1983,7 @@ document.addEventListener("keydown", (event) => {
     ArrowLeft: () => controls.seekBy(-5),
     ArrowRight: () => controls.seekBy(5),
     Home: () => controls.seekTo(0),
+    Escape: () => controls.dropLoop(),  // with no window open (those close first, above)
     Backspace: () => controls.toStartAndPause(),  // the ⏮ button: back to the start, paused
     ArrowUp: () => controls.moveSelection(-1),
     ArrowDown: () => controls.moveSelection(1),

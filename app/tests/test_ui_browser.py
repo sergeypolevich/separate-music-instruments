@@ -1086,7 +1086,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             rows = page.evaluate("[...document.querySelectorAll('#hotkey-list > div')].map(r => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])")
             assert rows[0] == ["Воспроизвести / пауза", "Пробел, Enter"] and rows[3] == ["В начало и пауза", "Backspace"]
             assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
-            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 15
+            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 16 and ["Сбросить петлю", "Esc"] in rows
             assert ["Открыть вкладку 1–9", "1–9"] in rows and ["Вкладка: предыдущая / следующая", "Q, W"] in rows
             assert ["Выбор дорожки: следующая / предыдущая", "↓, ↑"] in rows
             assert not any("End" in keys or "В конец" in action for action, keys in rows)
@@ -1303,6 +1303,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             drag_loop()
             page.keyboard.press("Home")
             page.wait_for_function("document.querySelector('.loop-region').hidden")
+            drag_loop()
+            page.keyboard.press("Escape")  # Esc too, the playhead staying where it is
+            page.wait_for_function("document.querySelector('.loop-region').hidden")
+            assert 1.0 <= page.evaluate(position) < 1.5
             assert not errors, f"Browser errors: {errors}"
             # An iPhone over plain http (no AudioWorklet): decoded on its own, as buffer sources at 100 %, the
             # speed fader off; no note once ready; pause and play keep the position.
