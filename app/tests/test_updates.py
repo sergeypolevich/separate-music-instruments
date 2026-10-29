@@ -2,6 +2,7 @@ import asyncio
 from dataclasses import replace
 import io
 import json
+import os
 import subprocess
 import zipfile
 
@@ -55,7 +56,7 @@ def release_zip(version="18", extra=()):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
         top = "sergeypolevich-separate-music-instruments-abc1234/"
-        archive.writestr(top + "Start.bat", "@echo new")
+        archive.writestr(top + "Start Windows.bat", "@echo new")
         archive.writestr(top + "app/VERSION", f"{version}\n")
         archive.writestr(top + "app/audio_stems/__init__.py", "")
         archive.writestr(top + "app/audio_stems/api.py", "# new api")
@@ -140,17 +141,34 @@ def test_a_zip_copy_downloads_the_release_and_the_launcher_installs_it_on_the_ne
     (root / "app" / ".venv").mkdir()
     (root / "app" / ".venv" / "python.exe").write_text("the environment")
     (root / "app" / ".env").write_text("AUDIO_STEMS_API_HOST=0.0.0.0")
-    updater = Updater(root, staging, open_url=github([release("v18")], release_zip()), version=lambda: "17")
+    (root / "Start Windows.bat").write_text("@echo old")
+    archive = release_zip(extra=[("sergeypolevich-separate-music-instruments-abc1234/Start MacOS.command", "#!/bin/sh"),
+                                 ("sergeypolevich-separate-music-instruments-abc1234/AGENTS.md", "developers")])
+    updater = Updater(root, staging, open_url=github([release("v18")], archive), version=lambda: "17")
 
     assert updater.apply("v18") == "staged"
     assert (root / "app" / "audio_stems" / "api.py").read_text() == "# old api"  # nothing replaced while running
 
     assert apply_staged_update(root, staging) == "v18"
     assert (root / "app" / "audio_stems" / "api.py").read_text() == "# new api"
-    assert (root / "Start.bat").read_text() == "@echo new" and (root / "app" / "VERSION").read_text() == "18\n"
+    assert (root / "Start Windows.bat").read_text() == "@echo new" and (root / "app" / "VERSION").read_text() == "18\n"
     assert (root / "app" / ".venv" / "python.exe").read_text() == "the environment"
     assert (root / "app" / ".env").read_text() == "AUDIO_STEMS_API_HOST=0.0.0.0"
+    assert not (root / "Start MacOS.command").exists() and not (root / "AGENTS.md").exists()  # not in this copy before
     assert not staging.exists() and apply_staged_update(root, staging) is None
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Windows has no executable bit")
+def test_the_mac_launcher_stays_executable_after_an_update(tmp_path):
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        top = "sergeypolevich-separate-music-instruments-abc1234/"
+        launcher = zipfile.ZipInfo(top + "Start MacOS.command")
+        launcher.external_attr = 0o100755 << 16  # how git archive stores an executable
+        archive.writestr(launcher, "#!/bin/sh")
+        archive.writestr(top + "app/audio_stems/__init__.py", "")
+    unpack_release(buffer.getvalue(), tmp_path / "out")
+    assert os.access(tmp_path / "out" / "Start MacOS.command", os.X_OK)
 
 
 def test_a_bad_release_archive_is_refused_and_leaves_nothing_to_install(tmp_path):

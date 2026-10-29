@@ -34,16 +34,18 @@ Alles läuft auf Ihrem Computer; Ihre Musik verlässt ihn nicht. Die Oberfläche
 
 ## Herunterladen und starten
 
-1. Klicken Sie auf dieser Seite auf **Code → Download ZIP** und entpacken Sie das Archiv an einen beliebigen Ort,
-   zum Beispiel in Ihren Benutzerordner.
+1. Laden Sie das Archiv für Ihr System herunter — **[Audio Stems für Windows](https://github.com/sergeypolevich/separate-music-instruments/releases/latest/download/Audio-Stems-Windows.zip)** oder
+   **[Audio Stems für macOS](https://github.com/sergeypolevich/separate-music-instruments/releases/latest/download/Audio-Stems-macOS.zip)** — und entpacken Sie es an einen beliebigen Ort, zum Beispiel in Ihren
+   Benutzerordner (Windows: Rechtsklick → **Alle extrahieren**).
 2. Starten:
-   - **Windows**: Doppelklick auf `Start.bat`.
-   - **macOS**: Doppelklick auf `Start.command`. Beim ersten Mal meldet macOS *„Apple konnte nicht überprüfen,
-     ob "Start.command" frei von Schadsoftware ist“*. Das heißt nicht, dass Schadsoftware gefunden wurde: Die App
+   - **Windows**: Doppelklick auf `Start Windows.bat`. Beim ersten Start erscheint auf dem Desktop eine
+     Verknüpfung **Audio Stems**; danach können Sie die App darüber starten.
+   - **macOS**: Doppelklick auf `Start MacOS.command`. Beim ersten Mal meldet macOS *„Apple konnte nicht überprüfen,
+     ob "Start MacOS.command" frei von Schadsoftware ist“*. Das heißt nicht, dass Schadsoftware gefunden wurde: Die App
      ist nicht mit einem kostenpflichtigen Apple-Entwicklerzertifikat signiert, und macOS meldet das bei jeder
      unsignierten Datei aus dem Internet. Einmal erlauben: **Fertig** klicken, **Systemeinstellungen →
-     Datenschutz & Sicherheit** öffnen, unten bei *„"Start.command" wurde blockiert“* auf **Trotzdem öffnen**
-     klicken und mit dem Passwort bestätigen. (Vor macOS 15: Rechtsklick auf `Start.command` → **Öffnen** →
+     Datenschutz & Sicherheit** öffnen, unten bei *„"Start MacOS.command" wurde blockiert“* auf **Trotzdem öffnen**
+     klicken und mit dem Passwort bestätigen. (Vor macOS 15: Rechtsklick auf `Start MacOS.command` → **Öffnen** →
      **Öffnen**.) Danach genügt ein Doppelklick.
 3. Die App öffnet sich im Browser unter `http://127.0.0.1:8000`. Ein Konsolenfenster zeigt, was sie tut;
    schließen Sie dieses Fenster, um die App zu beenden.

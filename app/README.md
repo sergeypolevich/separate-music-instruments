@@ -3,10 +3,10 @@
 The user guide is the `README.md` in the repository root (also in Russian and German). This file is for
 development: how the launchers work, manual setup, the API and worker, tests, backup, maintenance and updates.
 
-## How `Start.bat` works (Windows)
+## How `Start Windows.bat` works (Windows)
 
 After downloading and extracting the GitHub folder, double-click
-`Start.bat`. It prepares Python 3.12 and the project environment
+`Start Windows.bat`. It prepares Python 3.12 and the project environment
 when needed, starts both the local API and background worker, waits for the API,
 and opens the app in your default browser. The first launch needs internet to
 install Python (if missing) and the runtime dependencies, including ffmpeg (from
@@ -23,9 +23,9 @@ The page must be opened from that local address. Opening `app/web/index.html`
 directly as a file cannot reach the API. For troubleshooting or development,
 the equivalent manual command is `py run.py --app`.
 
-## How `Start.command` works (macOS)
+## How `Start MacOS.command` works (macOS)
 
-Double-click `Start.command` (Apple Silicon; Intel Macs are not supported yet: PyTorch, NumPy 2 and onnxruntime no longer ship current Intel builds, see `app/DEVELOPMENT_STATUS.md`). macOS (Gatekeeper) blocks
+Double-click `Start MacOS.command` (Apple Silicon; Intel Macs are not supported yet: PyTorch, NumPy 2 and onnxruntime no longer ship current Intel builds, see `app/DEVELOPMENT_STATUS.md`). macOS (Gatekeeper) blocks
 unsigned scripts downloaded from the internet the first time with "Apple could not
 verify … is free of malware": allow it once in System Settings → Privacy & Security →
 Open Anyway (before macOS 15: right-click → Open), or run
@@ -33,14 +33,16 @@ Open Anyway (before macOS 15: right-click → Open), or run
 Removing the prompt for everyone needs an Apple Developer ID signature and
 notarization (paid), which the project does not have. If Python 3.12 is missing, the launcher installs it for your user only,
 without an administrator password, using a pinned and checksum-verified `uv`
-release; then it prepares `app/.venv` and starts the app exactly like `Start.bat`,
+release; then it prepares `app/.venv` and starts the app exactly like `Start Windows.bat`,
 including the fast start on later launches. Chrome and Safari 16.4 or newer are
 supported.
 
 ## Project layout
 
-The folder you download contains only `Start.bat` (Windows), `Start.command`
-(macOS), the user guides `README.md` (English), `README.ru.md` and `README.de.md`, the agent
+The release archives (`Audio-Stems-Windows.zip`, `Audio-Stems-macOS.zip`, attached to every GitHub Release by
+`.github/workflows/release.yml`) hold one launcher each — `Start Windows.bat` or `Start MacOS.command` (with the
+app icon set by the macOS runner) — the user guides, the licenses and `app/`. The repository itself contains both
+launchers, the user guides `README.md` (English), `README.ru.md` and `README.de.md`, the agent
 instructions (`AGENTS.md`, `CLAUDE.md`, `.claude/`) and the `app` folder with
 everything else: code, web UI, tests, docs, requirements and the `.venv`. Your
 songs, stems, database and logs are kept separately in `~/Audio Stems`.
@@ -211,7 +213,7 @@ asks for confirmation and is refused while a job or an upgrade runs (409 `busy`)
   (paths that would leave it are refused; the archive must hold the app and its `app/VERSION` must match the tag)
   and writes `ready` last. On the next start the launcher (`audio_stems.desktop`) copies it over the app before
   the services start — `app/.venv`, `app/.env` and `.git` are never replaced — and removes the folder. Unchanged
-  lock file: it starts the new code; changed: it exits with code 3 so `Start.bat`/`Start.command` installs the new
+  lock file: it starts the new code; changed: it exits with code 3 so `Start Windows.bat`/`Start MacOS.command` installs the new
   libraries first;
 - a git clone fast-forwards to the tag (`git fetch --tags origin`, `git merge --ff-only refs/tags/<tag>`), only
   with no local changes to tracked files and no local commits the release lacks; restart to use it.

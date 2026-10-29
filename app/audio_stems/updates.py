@@ -103,7 +103,7 @@ class GitHubReleaseClient:
 class Updater:
     def __init__(self, root: Path, staging: Path, releases: GitHubReleaseClient | None = None, *,
                  open_url: Callable = urlopen, runner: Callable = subprocess.run, version: Callable[[], str] = current_version) -> None:
-        self.root = root  # the folder with Start.bat and app/
+        self.root = root  # the folder with Start Windows.bat and app/
         self.staging = staging  # in the data folder: never inside the app it replaces
         self.releases = releases or GitHubReleaseClient(open_url)
         self.open_url = open_url
@@ -188,6 +188,9 @@ def unpack_release(payload: bytes, target: Path) -> None:
             destination.parent.mkdir(parents=True, exist_ok=True)
             with archive.open(name) as source, destination.open("wb") as output:
                 shutil.copyfileobj(source, output)
+            mode = (archive.getinfo(name).external_attr >> 16) & 0o777
+            if mode & 0o111:  # the Mac launcher and scripts stay executable (copy2 below copies the mode)
+                destination.chmod(mode)
     if not (target / "app" / "audio_stems" / "__init__.py").is_file():
         raise UpdateError("The release archive does not contain the app")
 
@@ -203,6 +206,10 @@ def apply_staged_update(root: Path, staging: Path) -> str | None:
     for path in sorted(source.rglob("*")):
         relative = path.relative_to(source).as_posix()
         if path.is_dir() or any(relative == keep or relative.startswith(keep + "/") for keep in _KEEP):
+            continue
+        # Next to app/ only what this copy already has: a copy from the Windows or macOS archive does not get the
+        # other system's launcher or the developer files from the repository's archive.
+        if "/" not in relative and not (root / relative).exists():
             continue
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)

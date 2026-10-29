@@ -33,14 +33,17 @@ Everything runs on your computer; your music never leaves it. The interface is i
 
 ## Download and start
 
-1. On this page click **Code → Download ZIP** and unpack the archive anywhere, for example into your user folder.
+1. Download the archive for your system — **[Audio Stems for Windows](https://github.com/sergeypolevich/separate-music-instruments/releases/latest/download/Audio-Stems-Windows.zip)** or
+   **[Audio Stems for macOS](https://github.com/sergeypolevich/separate-music-instruments/releases/latest/download/Audio-Stems-macOS.zip)** — and unpack it anywhere, for example into your user folder
+   (Windows: right-click → **Extract All**).
 2. Start it:
-   - **Windows**: double-click `Start.bat`.
-   - **macOS**: double-click `Start.command`. The first time macOS says *“Apple could not verify "Start.command"
+   - **Windows**: double-click `Start Windows.bat`. The first start puts an **Audio Stems** shortcut on the
+     desktop; from then on you can start the app from it.
+   - **macOS**: double-click `Start MacOS.command`. The first time macOS says *“Apple could not verify "Start MacOS.command"
      is free of malware”*. This does not mean malware was found: the app is not signed with a paid Apple developer
      certificate, and macOS shows this for every unsigned file downloaded from the internet. To allow it once:
-     click **Done**, open **System Settings → Privacy & Security**, scroll down to *“Start.command was blocked”*,
-     click **Open Anyway** and confirm with your password. (Before macOS 15: right-click `Start.command` →
+     click **Done**, open **System Settings → Privacy & Security**, scroll down to *“Start MacOS.command was blocked”*,
+     click **Open Anyway** and confirm with your password. (Before macOS 15: right-click `Start MacOS.command` →
      **Open** → **Open**.) Afterwards a double-click is enough.
 3. The app opens in your browser at `http://127.0.0.1:8000`. A console window shows what it is doing;
    close that window to stop the app.

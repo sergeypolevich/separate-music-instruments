@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parent
 VENV_DIR = ROOT / ".venv"
 # Every package with its exact version and hash, per platform; generated from requirements.txt.
 REQUIREMENTS = ROOT / ("requirements-windows.lock" if os.name == "nt" else "requirements-macos.lock")
-# A copy of the lock file last installed; Start.bat and Start.command skip all setup while it matches.
+# A copy of the lock file last installed; Start Windows.bat and Start MacOS.command skip all setup while it matches.
 INSTALLED_MARKER = VENV_DIR / "requirements.installed"
 WORKER = ("-m", "audio_stems.pipeline")
 API = ("-m", "audio_stems.api")

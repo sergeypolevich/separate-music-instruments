@@ -44,6 +44,29 @@ if (-not (Test-Python312 $pythonExe)) {
     }
 }
 
+# The first start puts an "Audio Stems" shortcut with the app's icon on the desktop: a .bat cannot have its own icon.
+# Once only (the marker stays in app/): a shortcut the user deleted is not put back.
+$shortcutMarker = Join-Path $projectRoot '.shortcut-created'
+if (-not (Test-Path -LiteralPath $shortcutMarker)) {
+    try {
+        $startFile = Join-Path (Split-Path -Parent $projectRoot) 'Start Windows.bat'
+        $desktop = [Environment]::GetFolderPath('Desktop')
+        $link = Join-Path $desktop 'Audio Stems.lnk'
+        if ($desktop -and (Test-Path -LiteralPath $startFile) -and -not (Test-Path -LiteralPath $link)) {
+            $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut($link)
+            $shortcut.TargetPath = $startFile
+            $shortcut.WorkingDirectory = Split-Path -Parent $startFile
+            $shortcut.IconLocation = (Join-Path $projectRoot 'icons\icon.ico') + ',0'
+            $shortcut.Description = 'Audio Stems'
+            $shortcut.Save()
+            Write-Host "Created the desktop shortcut $link"
+        }
+        Set-Content -LiteralPath $shortcutMarker -Value 'created'
+    } catch {
+        Write-Host "Could not create the desktop shortcut: $($_.Exception.Message)"
+    }
+}
+
 Write-Host 'Starting Audio Stems. First startup may download the application dependencies and Demucs runtime.'
 Push-Location $projectRoot
 try {

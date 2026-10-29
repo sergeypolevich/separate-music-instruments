@@ -1,0 +1,57 @@
+# Builds the archives users download: one for Windows, one for macOS (its launcher with the app icon, which only a
+# Mac can set and only ditto keeps in a zip). A published release gets them attached; a push to mac-check builds
+# them as a run artifact, to check before a release.
+name: Release archives
+
+on:
+  release:
+    types: [published]
+  push:
+    branches: [mac-check]
+
+permissions:
+  contents: write
+
+jobs:
+  archives:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the archives
+        run: |
+          set -e
+          dist="$RUNNER_TEMP/dist"
+          mkdir -p "$dist"
+          for system in Windows macOS; do
+            out="$RUNNER_TEMP/$system/Audio Stems"
+            mkdir -p "$out"
+            git archive HEAD | tar -x -C "$out"
+            rm -rf "$out/.github" "$out/.claude" "$out/AGENTS.md" "$out/CLAUDE.md"
+            if [ "$system" = Windows ]; then
+              rm "$out/Start MacOS.command"
+              (cd "$RUNNER_TEMP/$system" && zip -qr "$dist/Audio-Stems-Windows.zip" "Audio Stems")
+            else
+              rm "$out/Start Windows.bat"
+              icon="$out/app/icons/icon.png" launcher="$out/Start MacOS.command" osascript -l JavaScript -e '
+                ObjC.import("AppKit");
+                const env = $.NSProcessInfo.processInfo.environment;
+                const image = $.NSImage.alloc.initWithContentsOfFile(env.objectForKey("icon"));
+                if (!$.NSWorkspace.sharedWorkspace.setIconForFileOptions(image, env.objectForKey("launcher"), 0)) throw new Error("icon not set");'
+              test -x "$out/Start MacOS.command"
+              ditto -c -k --sequesterRsrc --keepParent "$out" "$dist/Audio-Stems-macOS.zip"
+            fi
+          done
+          ls -l "$dist"
+          unzip -l "$dist/Audio-Stems-Windows.zip" | grep -q "Audio Stems/Start Windows.bat"
+          unzip -l "$dist/Audio-Stems-macOS.zip" | grep -q "Audio Stems/Start MacOS.command"
+      - name: Attach them to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${{ github.event.release.tag_name }}" "$RUNNER_TEMP/dist/"*.zip --clobber
+      - name: Keep them as a run artifact
+        if: github.event_name != 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: archives
+          path: ${{ runner.temp }}/dist/*.zip

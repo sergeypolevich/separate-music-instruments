@@ -89,7 +89,7 @@ def test_supervisor_closes_api_if_worker_cannot_start(monkeypatch):
 def test_windows_one_click_launcher_uses_pinned_official_python_installer():
     root = Path(__file__).parents[1]
     bootstrap = (root / "Start-Audio-Stems.ps1").read_text(encoding="utf-8")
-    button = (root.parent / "Start.bat").read_text(encoding="utf-8")  # the launcher sits in the repository root
+    button = (root.parent / "Start Windows.bat").read_text(encoding="utf-8")  # the launcher sits in the repository root
 
     assert "python-3.12.10-amd64.exe" in bootstrap
     assert "python.org/ftp/python/3.12.10/" in bootstrap
@@ -101,7 +101,11 @@ def test_windows_one_click_launcher_uses_pinned_official_python_installer():
 
 
 def test_launcher_fast_path_skips_setup_only_while_installed_requirements_match():
-    button = (Path(__file__).parents[2] / "Start.bat").read_text(encoding="utf-8")
+    button = (Path(__file__).parents[2] / "Start Windows.bat").read_text(encoding="utf-8")
+    # The first setup makes a desktop shortcut with the app's icon, once (a .bat has no icon of its own).
+    setup = (Path(__file__).parents[1] / "Start-Audio-Stems.ps1").read_text(encoding="utf-8")
+    assert "'Start Windows.bat'" in setup and "icons\\icon.ico" in setup and ".shortcut-created" in setup
+    assert (Path(__file__).parents[1] / "icons" / "icon.ico").stat().st_size > 1000
 
     fast_check = button.index(r'fc /b "%APP%\requirements-windows.lock" "%APP%\.venv\requirements.installed"')
     assert fast_check < button.index("-m audio_stems.desktop") < button.index(":setup")
@@ -159,14 +163,14 @@ def test_services_start_from_the_project_root_with_package_modules():
 
 
 def _mac_tree(tmp_path, desktop_exit, *, marker=True):
-    """A fake checkout for Start.command: a Python stand-in that exits with `desktop_exit`, and a setup
+    """A fake checkout for Start MacOS.command: a Python stand-in that exits with `desktop_exit`, and a setup
     script that only records that it ran."""
     repo = Path(__file__).parents[2]
     root = tmp_path / "Audio Stems"
     app = root / "app"
     (app / ".venv" / "bin").mkdir(parents=True)
     # Git may check scripts out with CRLF on Windows; macOS gets LF from the repository.
-    (root / "Start.command").write_bytes((repo / "Start.command").read_bytes().replace(b"\r\n", b"\n"))
+    (root / "Start MacOS.command").write_bytes((repo / "Start MacOS.command").read_bytes().replace(b"\r\n", b"\n"))
     (app / "requirements-macos.lock").write_text("demucs==4.1.0\n", encoding="utf-8")
     if marker:
         (app / ".venv" / "requirements.installed").write_text("demucs==4.1.0\n", encoding="utf-8")
@@ -188,7 +192,7 @@ def test_mac_launcher_takes_the_fast_path_only_while_requirements_match(tmp_path
         pytest.skip("no POSIX shell here")
     root = _mac_tree(tmp_path, desktop_exit, marker=marker)
 
-    subprocess.run([sh, (root / "Start.command").as_posix()], check=False, timeout=30)
+    subprocess.run([sh, (root / "Start MacOS.command").as_posix()], check=False, timeout=30)
 
     assert (tmp_path / "log").read_text(encoding="utf-8").split("\n")[:-1] == expected
     assert (root / "app" / ".venv" / "requirements.installed").exists() is (marker and desktop_exit != 3)

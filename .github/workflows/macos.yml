@@ -1,4 +1,4 @@
-# Checks the app on a Mac: a first start from scratch through Start.command, the offline tests and
+# Checks the app on a Mac: a first start from scratch through Start MacOS.command, the offline tests and
 # the browser test in Chrome and WebKit (Safari's engine). The live YouTube test stays local:
 # YouTube often blocks downloads from CI servers.
 name: macOS
@@ -15,13 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: First start from scratch with Start.command
+      - name: First start from scratch with Start MacOS.command
         run: |
           export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop"
           export AUDIO_STEMS_STORAGE_ROOT="$RUNNER_TEMP/data/Music"
           export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
           export AUDIO_STEMS_LOG_FILE="$RUNNER_TEMP/data/logs/app.jsonl"
-          sh ./Start.command > "$RUNNER_TEMP/start.log" 2>&1 &
+          sh "./Start MacOS.command" > "$RUNNER_TEMP/start.log" 2>&1 &
           for attempt in $(seq 1 1200); do
             curl -sf http://127.0.0.1:8000/api/v1/health && break
             sleep 2
@@ -38,7 +38,7 @@ jobs:
         run: |
           export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop2"
           export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
-          sh ./Start.command > "$RUNNER_TEMP/start2.log" 2>&1 &
+          sh "./Start MacOS.command" > "$RUNNER_TEMP/start2.log" 2>&1 &
           for attempt in $(seq 1 120); do curl -sf http://127.0.0.1:8000/api/v1/health && break; sleep 1; done
           touch "$RUNNER_TEMP/stop2"
           wait
@@ -87,7 +87,7 @@ jobs:
         if: failure()
         run: tail -n 100 "$RUNNER_TEMP"/start*.log || true
 
-  # A Mac without Python 3.12: Start.command must install it for the user with the pinned uv.
+  # A Mac without Python 3.12: Start MacOS.command must install it for the user with the pinned uv.
   mac-without-python:
     runs-on: macos-14
     timeout-minutes: 60
@@ -106,7 +106,7 @@ jobs:
           export AUDIO_STEMS_OPEN_BROWSER=0 AUDIO_STEMS_STOP_FILE="$RUNNER_TEMP/stop"
           export AUDIO_STEMS_DATABASE_URL="sqlite:///$RUNNER_TEMP/data/audio_stems.db"
           export AUDIO_STEMS_STORAGE_ROOT="$RUNNER_TEMP/data/Music"
-          sh ./Start.command > "$RUNNER_TEMP/start.log" 2>&1 &
+          sh "./Start MacOS.command" > "$RUNNER_TEMP/start.log" 2>&1 &
           for attempt in $(seq 1 1200); do curl -sf http://127.0.0.1:8000/api/v1/health && break; sleep 2; done
           curl -sf http://127.0.0.1:8000/api/v1/health
           touch "$RUNNER_TEMP/stop"

@@ -21,7 +21,7 @@ API = ("-m", "audio_stems.api")
 WORKER = ("-m", "audio_stems.pipeline")
 # Checked by name only (find_spec, no import), so the check on every start costs milliseconds.
 RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn", "imageio_ffmpeg", "soundfile", "audio_separator", "beat_this")
-MISSING_DEPENDENCIES = 3  # exit code: Start.bat then runs the full dependency setup
+MISSING_DEPENDENCIES = 3  # exit code: Start Windows.bat then runs the full dependency setup
 
 
 def missing_runtime_modules() -> list[str]:

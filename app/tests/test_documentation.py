@@ -16,7 +16,7 @@ def test_readme_documents_windows_setup_runtime_processes_and_maintenance():
         "audio_stems.db",
         "Music",
         "RUN_LIVE_E2E",
-        "Start.bat",
+        "Start Windows.bat",
         "cd app",
         "py run.py --app",
     ):
@@ -35,12 +35,12 @@ def test_readme_describes_shared_api_worker_and_restart_limits():
 
 def test_user_readmes_explain_download_and_start_in_three_languages():
     root = Path(__file__).parents[2]
-    for name, words in (("README.md", ("Download ZIP", "Phones and tablets are not supported")),
-                        ("README.ru.md", ("Download ZIP", "Телефоны и планшеты не поддерживаются")),
-                        ("README.de.md", ("Download ZIP", "Smartphones und Tablets werden nicht unterstützt"))):
+    for name, words in (("README.md", ("Audio-Stems-Windows.zip", "Audio-Stems-macOS.zip", "Phones and tablets are not supported")),
+                        ("README.ru.md", ("Audio-Stems-Windows.zip", "Audio-Stems-macOS.zip", "Телефоны и планшеты не поддерживаются")),
+                        ("README.de.md", ("Audio-Stems-Windows.zip", "Audio-Stems-macOS.zip", "Smartphones und Tablets werden nicht unterstützt"))):
         text = (root / name).read_text(encoding="utf-8")
         others = {"README.md", "README.ru.md", "README.de.md"} - {name}  # links to the other languages
-        for required in ("Start.bat", "Start.command", "app/README.md", "(LICENSE)", *others, *words):
+        for required in ("Start Windows.bat", "Start MacOS.command", "app/README.md", "(LICENSE)", *others, *words):
             assert required in text, (name, required)
         assert "py run.py" not in text  # developer commands live in app/README.md
         for server in ("youtube.com", "pypi.org", "huggingface.co", "cloud.cp.jku.at", "api.github.com"):

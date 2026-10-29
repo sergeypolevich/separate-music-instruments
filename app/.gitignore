@@ -31,6 +31,9 @@ htmlcov/
 
 # Virtual environments
 .venv/
+
+# The launcher's note that it made the desktop shortcut once
+.shortcut-created
 venv/
 env/
 
