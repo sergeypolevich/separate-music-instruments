@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BufferEngine, Metronome, MixerSession, PlayheadClock, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
+import { BufferEngine, Metronome, snapLoop, MixerSession, PlayheadClock, StretchEngine, SynchronizedTransport, countInPlan, firstBeatAtOrAfter, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } from "../web/playback.mjs";
 
 class FakeAudio {
   constructor(duration = 10) {
@@ -272,7 +272,7 @@ test("the stretch engine gives every stem node the same schedule", () => {
   const engine = new StretchEngine(context, nodes);
   engine.rate = 0.5;
   engine.play(12);
-  assert.ok(nodes.every((node) => JSON.stringify(node.schedules[0]) === JSON.stringify({ outputTime: 5, active: true, input: 12, rate: 0.5 })));
+  assert.ok(nodes.every((node) => JSON.stringify(node.schedules[0]) === JSON.stringify({ outputTime: 5, active: true, input: 12, rate: 0.5, loopStart: 0, loopEnd: 0 })));
   context.currentTime = 8;  // 3 clock seconds at 50 % = 1.5 song seconds
   assert.equal(engine.position, 13.5);
   assert.equal(engine.pause(), 13.5);
@@ -316,7 +316,7 @@ test("the stretch position is what is heard, not the worklet's reported input ti
   context.currentTime = 12;  // 2 clock seconds at 25 % = 0.5 song seconds
   assert.equal(engine.position, 1.5);
   engine.seek(3);  // a seek while playing restarts the schedule from the clock's now
-  assert.deepEqual(nodes[0].schedules.at(-1), { outputTime: 12, input: 3, rate: 0.25 });
+  assert.deepEqual(nodes[0].schedules.at(-1), { outputTime: 12, input: 3, rate: 0.25, loopStart: 0, loopEnd: 0 });
   context.currentTime = 16;
   assert.equal(engine.position, 4);
   // The metronome on the same clock: beat 5.0 is one song second away, four clock seconds at 25 %.
@@ -529,7 +529,7 @@ test("with alwaysStretch the stretch engine plays at 100 % too: play, pause and 
   transport.seek(4);
   await transport.play();
   assert.ok(tracks.every((audio) => audio.paused));
-  assert.deepEqual(transport.stretch.nodes.map((node) => node.schedules.at(-1)), transport.stretch.nodes.map(() => ({ outputTime: 0, active: true, input: 5, rate: 1 })));
+  assert.deepEqual(transport.stretch.nodes.map((node) => node.schedules.at(-1)), transport.stretch.nodes.map(() => ({ outputTime: 0, active: true, input: 5, rate: 1, loopStart: 0, loopEnd: 0 })));
   clock.currentTime = 3;
   assert.equal(transport.currentTime, 7);
   transport.pause();
@@ -542,4 +542,66 @@ test("with alwaysStretch the stretch engine plays at 100 % too: play, pause and 
   await transport.setPlaybackRate(0.5);
   await transport.setPlaybackRate(1);
   assert.ok(transport.stretching && tracks.every((audio) => audio.paused));  // back at 100 %: still the engine
+});
+
+test("a dragged loop snaps both ends to the nearest beats, at least one beat long", () => {
+  const beats = [0, 0.5, 1, 1.5, 2, 2.5];
+  assert.deepEqual(snapLoop(0.55, 1.9, beats), { start: 0.5, end: 2 });  // a little past a beat: from that click
+  assert.deepEqual(snapLoop(1.9, 0.55, beats), { start: 0.5, end: 2 });  // dragged leftwards
+  assert.deepEqual(snapLoop(1.1, 1.2, beats), { start: 1, end: 1.5 });  // shorter than a beat: one beat
+  assert.deepEqual(snapLoop(2.4, 9, beats), { start: 2, end: 2.5 });  // past the last beat
+  assert.deepEqual(snapLoop(3, 1, []), { start: 1, end: 3 });  // no rhythm: as dragged
+});
+
+test("a loop plays round through the stretch engine; a seek out of it or the start drops it", async () => {
+  const tracks = [new FakeAudio(30), new FakeAudio(30)];
+  const changes = [];
+  const transport = new SynchronizedTransport(tracks, { startOffset: 1, onLoopChange: (loop) => changes.push(loop), requestFrame: () => 1, cancelFrame: () => {} });
+  const clock = { currentTime: 0 };
+  transport.stretch = new StretchEngine(clock, [new FakeStretchNode(), new FakeStretchNode()]);
+  transport.seek(20);
+  await transport.setLoop({ start: 4, end: 6 });  // outside it: to its start
+  assert.ok(transport.stretching && transport.currentTime === 4);
+  await transport.play();
+  assert.deepEqual(transport.stretch.nodes[0].schedules.at(-1), { outputTime: 0, active: true, input: 5, rate: 1, loopStart: 5, loopEnd: 7 });
+  clock.currentTime = 2.5;  // 2.5 s from 4 in a 2 s loop: 4.5
+  assert.equal(transport.currentTime, 4.5);
+  transport.seek(5);  // inside: a seek within it
+  assert.equal(transport.loop.start, 4);
+  transport.seek(10);  // outside: the loop goes, playback goes on from there
+  await Promise.resolve();
+  assert.equal(transport.loop, null);
+  assert.deepEqual(changes, [{ start: 4, end: 6 }, null]);
+  assert.equal(transport.stretch.nodes[0].schedules.at(-1).active, false);  // the engine stops, the streams play on
+  assert.ok(transport.playing && !transport.stretching);  // back to the streams at 100 %
+  await transport.setLoop({ start: 0, end: 2 });
+  transport.stop();  // ⏮ drops it even when it starts at 0
+  assert.equal(transport.loop, null);
+  assert.equal(transport.currentTime, 0);
+});
+
+test("the buffer engine loops its sources between the loop's ends", () => {
+  const sources = [];
+  const context = { currentTime: 0, createBufferSource() { const source = { connect() {}, disconnect() {}, start() {}, stop() {} }; sources.push(source); return source; } };
+  const engine = new BufferEngine(context, [{ duration: 60 }], ["out"]);
+  engine.loop = { start: 10, end: 12 };
+  engine.play(11);
+  assert.deepEqual([sources[0].loop, sources[0].loopStart, sources[0].loopEnd], [true, 10, 12]);
+  context.currentTime = 3.5;  // 11 + 3.5 in a 2 s loop: 10.5
+  assert.equal(engine.position, 10.5);
+});
+
+test("in a loop the metronome schedules the loop's first beats before the jump back, once", () => {
+  const context = new FakeContext();  // clock at 10
+  const metronome = new Metronome(context, {}, { lookahead: 0.12 });
+  metronome.setBeats([0, 0.5, 1, 1.5, 2, 2.5]);
+  metronome.loop = { start: 0.5, end: 1.5 };
+  metronome.update(0.5);  // the loop's first beat now
+  metronome.update(1.0);
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0, 0]);
+  metronome.update(1.45);  // 0.05 s before the end: the click at 0.5 goes 0.05 s ahead; never the beat at 1.5
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0, 0, 0.05]);
+  metronome.update(0.52);  // the jump back: nothing again for 0.5
+  metronome.update(0.95);  // the beat at 1.0 in 0.05 s
+  assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0, 0, 0.05, 0.05]);
 });

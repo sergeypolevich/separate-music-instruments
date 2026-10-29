@@ -816,7 +816,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 
   try {
-    const { BufferEngine, MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
+    const { BufferEngine, MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, snapLoop, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -876,7 +876,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     playheadLayer.setAttribute("aria-valuenow", "0");
     const playhead = document.createElement("span");
     playhead.className = "playhead";
-    playheadLayer.append(playhead);
+    // The loop: a light band over every stem between its ends (song time).
+    const loopRegion = document.createElement("span");
+    loopRegion.className = "loop-region";
+    loopRegion.hidden = true;
+    playheadLayer.append(loopRegion, playhead);
     // One screen pixel wide, on whole screen pixels: at 125-150 % scaling a 1px line at a fractional position was
     // drawn one or two pixels wide by turns (it flickered). A transform moves it without a layout.
     const playheadClock = new PlayheadClock();
@@ -977,27 +981,68 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         metronome.reset();
         updateTransportButton(false);
       },
+      onLoopChange: (loop) => {
+        metronome.loop = loop;
+        metronome.reset();  // clicks scheduled past the old loop's end
+        showLoop(loop);
+      },
       beforePlay: () => audioContext.resume(),
       startOffset,
     });
     activeTransport = transport;
-    const seekFromPointer = (event, element) => {
-      const rect = element.getBoundingClientRect();
-      const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
-      if (duration > 0) transport.seek(ratio * duration);
+    const showLoop = (loop) => {
+      loopRegion.hidden = !loop || !(duration > 0);
+      if (loopRegion.hidden) return;
+      loopRegion.style.left = `${(loop.start / duration) * 100}%`;
+      loopRegion.style.width = `${((loop.end - loop.start) / duration) * 100}%`;
+      loopRegion.dataset.start = String(loop.start);
+      loopRegion.dataset.end = String(loop.end);
     };
-    const attachPointerSeek = (element) => {
-      element.addEventListener("pointerdown", (event) => {
-        if (event.button !== 0) return;
-        element.setPointerCapture(event.pointerId);
-        seekFromPointer(event, element);
-      });
-      element.addEventListener("pointermove", (event) => {
-        if (element.hasPointerCapture(event.pointerId)) seekFromPointer(event, element);
-      });
+    const timeAt = (event) => {
+      const rect = playheadLayer.getBoundingClientRect();
+      return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * duration;
     };
-    // The layer covers the whole waveform column, gaps included, so a click anywhere there seeks.
-    attachPointerSeek(playheadLayer);
+    // A drag over the waveforms makes a loop, its ends on the nearest beats. The stems play it decoded (gapless,
+    // sample-locked), prepared on the first loop; beats not detected yet are detected then and the loop snaps.
+    let loopRequest = 0;
+    const makeLoop = async (from, to) => {
+      const request = ++loopRequest;
+      showLoop(snapLoop(from, to, metronome.beats));
+      try { await loadStretch({ plain: true }); } catch (_reason) { showLoop(transport.loop); return; }
+      if (request !== loopRequest || setupId !== playbackSetupId) return;
+      await transport.setLoop(snapLoop(from, to, metronome.beats));
+      if (metronome.beats.length || noRhythm) return;
+      const beats = await loadBeats();
+      if (beats && request === loopRequest && transport.loop) await transport.setLoop(snapLoop(from, to, beats));
+    };
+    // The layer covers the whole waveform column, gaps included: a click anywhere there seeks (out of a loop:
+    // drops it), a drag of more than 4 px makes a loop, a double click on the loop drops it.
+    let loopDrag = null;
+    playheadLayer.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0 || !(duration > 0)) return;
+      playheadLayer.setPointerCapture(event.pointerId);
+      loopRequest += 1;  // a loop still being prepared is forgotten
+      loopDrag = { x: event.clientX, from: timeAt(event), moved: false };
+      transport.seek(loopDrag.from);
+    });
+    playheadLayer.addEventListener("pointermove", (event) => {
+      if (!loopDrag || !playheadLayer.hasPointerCapture(event.pointerId)) return;
+      if (!loopDrag.moved && Math.abs(event.clientX - loopDrag.x) < 4) return;
+      loopDrag.moved = true;
+      const to = timeAt(event);
+      showLoop({ start: Math.min(loopDrag.from, to), end: Math.max(loopDrag.from, to) });
+    });
+    playheadLayer.addEventListener("pointerup", (event) => {
+      if (loopDrag && loopDrag.moved) makeLoop(loopDrag.from, timeAt(event));
+      loopDrag = null;
+    });
+    playheadLayer.addEventListener("pointercancel", () => {
+      loopDrag = null;
+      showLoop(transport.loop);
+    });
+    playheadLayer.addEventListener("dblclick", (event) => {
+      if (transport.inLoop(timeAt(event))) transport.setLoop(null, transport.currentTime);
+    });
 
     stems.forEach((asset, index) => {
       const row = document.createElement("div");
@@ -1508,7 +1553,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       snapshot: () => ({ projectId, position: transport.currentTime, playing: transport.playing, speed: speed.value, metronome: metronomeOn }),
       togglePlayback,
       seekBy: (seconds) => transport.seek(transport.currentTime + seconds),
-      seekTo: (seconds) => transport.seek(seconds),
+      seekTo: (seconds) => (transport.loop ? transport.setLoop(null, seconds) : transport.seek(seconds)),  // Home drops a loop
       moveSelection: (step) => selectStem(selectedStem + step),
       cycleSelection: (step) => selectStem((selectedStem + step + stems.length) % stems.length),
       selectStemByName: (name) => {

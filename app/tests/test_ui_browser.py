@@ -1272,6 +1272,37 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             assert 0.7 < page.evaluate(position) - first < 1.3  # resumed from where it paused
             assert not errors, f"Browser errors: {errors}"
+            # A loop: a drag over the waveforms (1.0 s to 1.6 s of 5 s) makes a band snapped to the beats (every
+            # 0.25 s): 1.0-1.5; play stays inside it; a double click on it, a click outside it and Home drop it.
+            layer = page.locator(".playhead-layer").bounding_box()
+            y = layer["y"] + layer["height"] / 2
+            at = lambda share: layer["x"] + layer["width"] * share
+
+            def drag_loop():
+                page.mouse.move(at(0.2), y)
+                page.mouse.down()
+                page.mouse.move(at(0.26), y, steps=4)
+                page.mouse.move(at(0.32), y, steps=4)
+                page.mouse.up()
+                page.wait_for_function("document.querySelector('.loop-region').dataset.end === '1.5' && !document.querySelector('.loop-region').hidden")
+            drag_loop()
+            assert page.evaluate("document.querySelector('.loop-region').dataset.start") == "1"
+            band = page.locator(".loop-region").bounding_box()
+            assert abs(band["x"] - at(0.2)) <= 2 and abs(band["width"] - layer["width"] * 0.1) <= 2
+            page.keyboard.press("Space")
+            page.wait_for_timeout(1300)  # longer than the loop: it went round
+            page.keyboard.press("Space")
+            assert 1.0 <= page.evaluate(position) < 1.5, page.evaluate(position)
+            page.mouse.dblclick(at(0.25), y)
+            page.wait_for_function("document.querySelector('.loop-region').hidden")
+            drag_loop()
+            page.mouse.click(at(0.7), y)  # outside: dropped, and the playhead goes there
+            page.wait_for_function("document.querySelector('.loop-region').hidden")
+            assert abs(page.evaluate(position) - 3.5) < 0.1
+            drag_loop()
+            page.keyboard.press("Home")
+            page.wait_for_function("document.querySelector('.loop-region').hidden")
+            assert not errors, f"Browser errors: {errors}"
             # An iPhone over plain http (no AudioWorklet): decoded on its own, as buffer sources at 100 %, the
             # speed fader off; no note once ready; pause and play keep the position.
             iphone = browser.new_page(user_agent="Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15")

@@ -67,6 +67,7 @@ export class SynchronizedTransport {
     cancelFrame = (id) => cancelAnimationFrame(id),
     onTimeUpdate = () => {},
     onEnded = () => {},
+    onLoopChange = () => {},
     beforePlay = () => Promise.resolve(),
     driftTolerance = 0.08,
     startOffset = 0,
@@ -99,6 +100,9 @@ export class SynchronizedTransport {
     this.stretch = null;
     // The stretch engine at 100 % too, once attached: Safari on iPhone resumes streamed stems one after another.
     this.alwaysStretch = false;
+    // {start, end} in song time while a loop plays: always through the decoded engine (gapless, sample-locked).
+    this.loop = null;
+    this.onLoopChange = onLoopChange;
     this.frameId = null;
     this.playing = false;
     // File seconds while paused: Safari may move a paused stem later on its own (a position from before the
@@ -119,7 +123,24 @@ export class SynchronizedTransport {
   }
 
   get stretching() {
-    return this.stretch !== null && (this.rate !== 1 || this.alwaysStretch);
+    return this.stretch !== null && (this.rate !== 1 || this.alwaysStretch || this.loop !== null);
+  }
+
+  inLoop(position) {
+    return this.loop !== null && position >= this.loop.start && position < this.loop.end;
+  }
+
+  // Sets or drops the loop (song time; the stretch engine must be attached). A position outside it moves to its
+  // start; `at` is where to go when dropping it. Playing goes on through the engine change, like a speed change.
+  async setLoop(loop, at = null) {
+    const position = at ?? this.currentTime;
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+    this.loop = loop;
+    if (this.stretch) this.stretch.loop = loop && { start: loop.start + this.startOffset, end: loop.end + this.startOffset };
+    this.seek(loop && !this.inLoop(position) ? loop.start : position);
+    this.onLoopChange(loop);
+    if (wasPlaying) await this.play();
   }
 
   // The position heard: the median of the stems that are actually playing, so one stem still loading (whose time
@@ -139,6 +160,10 @@ export class SynchronizedTransport {
   seek(seconds) {
     const requested = Number.isFinite(Number(seconds)) ? Number(seconds) : 0;
     const position = Math.min(Math.max(0, requested), this.duration || Math.max(0, requested));
+    if (this.loop && !this.inLoop(position)) {  // a seek out of the loop drops it
+      this.setLoop(null, position).catch(() => {});
+      return position;
+    }
     // While playing, the stems stop for the seek and start again together once each has data there (syncFrame);
     // otherwise those already loaded ran ahead while the others loaded, and were pulled back afterwards.
     if (this.playing && !this.stretching) {
@@ -221,7 +246,8 @@ export class SynchronizedTransport {
 
   stop() {
     this.pause();
-    this.seek(0);
+    if (this.loop) this.setLoop(null, 0);
+    else this.seek(0);
   }
 
   waitToResume() {
@@ -299,6 +325,7 @@ export class StretchEngine {
     this.rate = 1;
     this.playing = false;
     this.paused = 0;
+    this.loop = null;  // {start, end} in file seconds
   }
 
   // decoded: AudioBuffers in stem order; outputs: the mixer's gain nodes, so S/M and faders still apply.
@@ -321,7 +348,12 @@ export class StretchEngine {
   // second at low speeds) and only updates every 20 ms, so it put the clicks early.
   get position() {
     if (!this.playing) return this.paused;
-    return this.segment.input + Math.max(0, this.context.currentTime - this.segment.output) * this.rate;
+    return wrapLoop(this.segment.input + Math.max(0, this.context.currentTime - this.segment.output) * this.rate, this.loop);
+  }
+
+  // The nodes jump back from loopEnd to loopStart themselves; loopEnd 0 is no loop.
+  get loopFields() {
+    return { loopStart: this.loop ? this.loop.start : 0, loopEnd: this.loop ? this.loop.end : 0 };
   }
 
   play(input) {
@@ -330,7 +362,7 @@ export class StretchEngine {
     // outputTime (not the README's `output`) is the field this release reads for the start time.
     const when = this.context.currentTime;
     this.segment = { input, output: when };
-    this.nodes.forEach((node) => node.schedule({ outputTime: when, active: true, input, rate: this.rate }));
+    this.nodes.forEach((node) => node.schedule({ outputTime: when, active: true, input, rate: this.rate, ...this.loopFields }));
   }
 
   seek(input) {
@@ -338,7 +370,7 @@ export class StretchEngine {
     if (!this.playing) return;
     const when = this.context.currentTime;
     this.segment = { input, output: when };
-    this.nodes.forEach((node) => node.schedule({ outputTime: when, input, rate: this.rate }));
+    this.nodes.forEach((node) => node.schedule({ outputTime: when, input, rate: this.rate, ...this.loopFields }));
   }
 
   pause() {
@@ -348,6 +380,34 @@ export class StretchEngine {
     this.nodes.forEach((node) => node.schedule({ active: false, input: position }));
     return position;
   }
+}
+
+// A position played on past a loop's end, folded back into the loop (it repeats from its start).
+function wrapLoop(position, loop) {
+  if (!loop || position < loop.end) return position;
+  return loop.start + ((position - loop.start) % (loop.end - loop.start));
+}
+
+// A loop dragged over the waveform with its ends moved to the nearest beats, so it starts and ends on a click;
+// at least one beat long. Without beats it stays as dragged. Song time.
+export function snapLoop(from, to, beats) {
+  const start = Math.min(from, to);
+  const end = Math.max(from, to);
+  if (!beats || beats.length < 2) return { start, end };
+  const nearest = (time) => {
+    const index = firstBeatAtOrAfter(beats, time);
+    if (index === 0) return 0;
+    if (index === beats.length) return beats.length - 1;
+    return time - beats[index - 1] <= beats[index] - time ? index - 1 : index;
+  };
+  let first = nearest(start);
+  let last = nearest(end);
+  if (last <= first) last = first + 1;
+  if (last >= beats.length) {
+    last = beats.length - 1;
+    first = Math.min(first, last - 1);
+  }
+  return { start: beats[first], end: beats[last] };
 }
 
 // The decoded stems as plain buffer sources started at one AudioContext time: what a page over plain http
@@ -361,11 +421,12 @@ export class BufferEngine {
     this.playing = false;
     this.paused = 0;
     this.sources = [];
+    this.loop = null;  // {start, end} in file seconds
   }
 
   get position() {
     if (!this.playing) return this.paused;
-    return this.segment.input + Math.max(0, this.context.currentTime - this.segment.output);
+    return wrapLoop(this.segment.input + Math.max(0, this.context.currentTime - this.segment.output), this.loop);
   }
 
   play(input) {
@@ -382,6 +443,11 @@ export class BufferEngine {
     this.sources = this.buffers.map((buffer, index) => {
       const source = this.context.createBufferSource();
       source.buffer = buffer;
+      if (this.loop) {
+        source.loop = true;
+        source.loopStart = this.loop.start;
+        source.loopEnd = this.loop.end;
+      }
       source.connect(this.outputs[index]);
       source.start(when, Math.min(input, buffer.duration));
       return source;
@@ -472,8 +538,10 @@ export class Metronome {
     this.output = output;
     this.lookahead = lookahead;
     this.rate = 1;  // playback speed: a song second lasts 1/rate clock seconds
+    this.loop = null;  // {start, end} in song time: clicks go on from its start before the jump back
     this.beats = [];
     this.next = 0;
+    this.wrapNext = null;  // the next beat scheduled after the loop's jump back
     this.lastSongTime = null;
     this.pending = [];
     this.clicks = 0;
@@ -494,21 +562,40 @@ export class Metronome {
     }
     this.pending = [];
     this.lastSongTime = null;
+    this.wrapNext = null;
   }
 
   update(songTime) {
     if (!this.beats.length) return;
-    const jumped = this.lastSongTime === null || songTime < this.lastSongTime - 0.05 || songTime > this.lastSongTime + 0.5;
+    const loop = this.loop;
+    const reach = this.lookahead * this.rate;
+    // The loop's own jump back: the clicks after it are already scheduled, so it is not a seek.
+    const wrapped = loop !== null && this.lastSongTime !== null && songTime < this.lastSongTime - 0.05
+      && this.lastSongTime >= loop.end - reach - 0.25 && songTime <= loop.start + 0.25;
+    const jumped = !wrapped && (this.lastSongTime === null || songTime < this.lastSongTime - 0.05 || songTime > this.lastSongTime + 0.5);
     if (jumped) {
       this.reset();
       this.next = firstBeatAtOrAfter(this.beats, songTime);
     }
+    if (wrapped) {
+      this.next = this.wrapNext ?? firstBeatAtOrAfter(this.beats, songTime);
+      this.wrapNext = null;
+    }
     this.lastSongTime = songTime;
     const now = this.context.currentTime;
     this.pending = this.pending.filter(({ when }) => when > now);
-    while (this.next < this.beats.length && this.beats[this.next] <= songTime + this.lookahead * this.rate) {
+    const end = loop ? loop.end : Infinity;
+    while (this.next < this.beats.length && this.beats[this.next] <= songTime + reach && this.beats[this.next] < end - 1e-6) {
       this.click(now + Math.max(0, this.beats[this.next] - songTime) / this.rate);
       this.next += 1;
+    }
+    if (loop && songTime + reach >= end) {  // the loop's first beats, heard right after its end
+      if (this.wrapNext === null) this.wrapNext = firstBeatAtOrAfter(this.beats, loop.start);
+      while (this.wrapNext < this.beats.length && this.beats[this.wrapNext] < end - 1e-6
+          && this.beats[this.wrapNext] - loop.start <= songTime + reach - end) {
+        this.click(now + (end - songTime + this.beats[this.wrapNext] - loop.start) / this.rate);
+        this.wrapNext += 1;
+      }
     }
   }
 
