@@ -460,14 +460,18 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0' && document.querySelectorAll('#playback-panel audio').length === 6")
             # A title longer than two lines is cut after the second and fades out there; a short one is whole.
-            assert page.locator("#detail-title").get_attribute("data-clipped") is None
-            page.evaluate("document.querySelector('#detail-title').textContent = 'A very long live recording title, '.repeat(8)")
-            page.wait_for_function("document.querySelector('#detail-title').hasAttribute('data-clipped')")
-            clipped = page.evaluate("""() => { const t = document.querySelector('#detail-title'), style = getComputedStyle(t);
-                return [t.getBoundingClientRect().height / parseFloat(style.lineHeight), style.maskImage || style.webkitMaskImage]; }""")
-            assert 1.9 < clipped[0] <= 2.05 and "linear-gradient" in clipped[1], clipped
-            page.evaluate("document.querySelector('#detail-title').textContent = 'Track 0'")
-            page.wait_for_function("!document.querySelector('#detail-title').hasAttribute('data-clipped')")
+            # A phone shows no title: the tab names the project.
+            if viewport[0] >= 600:
+                assert page.locator("#detail-title").get_attribute("data-clipped") is None
+                page.evaluate("document.querySelector('#detail-title').textContent = 'A very long live recording title, '.repeat(8)")
+                page.wait_for_function("document.querySelector('#detail-title').hasAttribute('data-clipped')")
+                clipped = page.evaluate("""() => { const t = document.querySelector('#detail-title'), style = getComputedStyle(t);
+                    return [t.getBoundingClientRect().height / parseFloat(style.lineHeight), style.maskImage || style.webkitMaskImage]; }""")
+                assert 1.9 < clipped[0] <= 2.05 and "linear-gradient" in clipped[1], clipped
+                page.evaluate("document.querySelector('#detail-title').textContent = 'Track 0'")
+                page.wait_for_function("!document.querySelector('#detail-title').hasAttribute('data-clipped')")
+            else:
+                assert not page.locator("#detail-title").is_visible()
             # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
             page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
             # Running jobs keep the page polling, so wait for this project's response, not network idle.
@@ -704,6 +708,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             master_row = page.locator("#detail-controls .mixer-master")
             # A speaker icon, no word (the stems are named in English); the fader carries the name.
             assert master_row.locator(".mixer-name").text_content() == "" and master_row.locator(".mixer-name svg").count() == 1
+            # Like a stem's volume: the icon over the fader, both at the left edge.
+            icon_box, fader_box = master_row.locator(".mixer-name svg").bounding_box(), master_row.locator(".mixer-fader").bounding_box()
+            assert icon_box["y"] + icon_box["height"] <= fader_box["y"] + 1 and abs(icon_box["x"] - fader_box["x"]) <= 1
+            stem_left = page.locator(".mixer-row .mixer-left").first.bounding_box()
+            assert abs(fader_box["width"] - stem_left["width"]) <= 1  # as wide as a stem's fader column
             master_box, first_row = master_row.bounding_box(), page.locator(".mixer-row").first.bounding_box()
             assert master_box["y"] + master_box["height"] <= first_row["y"] and abs(master_box["x"] - first_row["x"]) <= 1
             assert page.locator("#playback-panel .mixer-master").count() == 0
@@ -711,10 +720,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             title_box = page.locator("#detail-title").bounding_box()
             assert buttons_box["x"] >= page.locator(".playhead-layer").bounding_box()["x"] - 1
             assert abs((master_box["y"] + master_box["height"] / 2) - (buttons_box["y"] + buttons_box["height"] / 2)) <= 2
-            if viewport[0] >= 600:  # beside the buttons; on a phone under them
+            if viewport[0] >= 600:  # beside the buttons; on a phone none
                 assert title_box["x"] >= buttons_box["x"] + buttons_box["width"]
             else:
-                assert title_box["y"] >= buttons_box["y"] + buttons_box["height"] - 1
+                assert title_box is None
             master = page.locator('[data-control="master-volume"]')
             assert master.input_value() == "100" and page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "1"
             master.evaluate("el => { el.value = '40'; el.dispatchEvent(new Event('input', { bubbles: true })); }")

@@ -236,7 +236,8 @@ h1, h2, h3, p { margin-top: 0; }
    card's full width, so the columns line up with the playhead layer. */
 .mixer-row { grid-column: 1 / -1; display: grid; grid-template-columns: var(--columns); column-gap: var(--column-gap); }
 .mixer-row { position: relative; min-height: 61px; align-items: stretch; padding: var(--row-pad) 0; border-top: 1px solid var(--line-soft); }
-.mixer-left { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
+/* The master volume like a stem: its icon over the fader. */
+.mixer-left, .mixer-master { min-width: 0; display: grid; grid-template-rows: 22px 18px; align-content: center; gap: 4px; }
 .mixer-heading { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
 .mixer-name { min-width: 0; display: inline-flex; align-items: center; gap: 6px; overflow: hidden; color: var(--text-soft); font-size: 15px; font-weight: 400; white-space: nowrap; }
 .mixer-name .icon { flex: 0 0 auto; width: 17px; height: 17px; color: var(--muted); }
@@ -264,8 +265,7 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-fader input::-moz-range-track, .accent-slider input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
 .mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 .mixer-fader input::-moz-range-thumb, .accent-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
-.mixer-master { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; }
-.mixer-master .mixer-fader { flex: 1; min-width: 0; }
+.mixer-master { flex: 1; }
 .mixer-fader.master-fader::before { display: none; }  /* no 100 % mark: 100 is the end of this fader */
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
@@ -391,9 +391,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .playback-buttons { grid-auto-columns: 44px; gap: 5px; }
   .transport-button { height: 46px; font-size: 24px; }
   .footer-upgrade { margin-inline: 0; }  /* wrapped under the metronome: left, like the other footer rows */
-  /* No room for the title beside the buttons: buttons and timer on the first line, the title under them;
-     the master volume level with the buttons. */
-  #detail-title { order: 1; flex-basis: 100%; }
+  /* No title: the tab above names the project, and the header keeps one line (buttons, timer). */
+  #detail-title { display: none; }
   .detail-time { margin-left: auto; }
   .project-detail > .detail-controls { align-self: start; height: 46px; }
   .search-overlay { padding: 14px 10px; }
