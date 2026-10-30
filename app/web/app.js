@@ -581,6 +581,7 @@ async function cancelAndDelete(project) {
 
 function openTabList() {
   tabsPopover.hidden = false;
+  tabsPopover.style.maxHeight = `${innerHeight - tabsPopover.getBoundingClientRect().top - 12}px`;  // down to the window's bottom
   tabsTrigger.setAttribute("aria-expanded", "true");
 }
 

@@ -131,7 +131,7 @@ button { cursor: pointer; }
 .project-tabs-shell { position: relative; display: flex; align-items: flex-start; gap: 8px; padding: 10px 16px 0; }
 .project-tabs-shell > .project-tabs { flex: 1; }
 .tabs-trigger { flex: none; width: 36px; min-width: 36px; height: 36px; }
-.tabs-popover { top: 50px; right: 16px; max-height: min(60vh, 520px); overflow-y: auto; }
+.tabs-popover { top: 50px; right: 16px; overflow-y: auto; }
 .tabs-item { padding-block: 4px; cursor: pointer; }
 .tabs-item .icon-button { grid-row: 1; }  /* one line: no meta row under the title */
 .tabs-item:hover .queue-title { color: var(--accent); }

@@ -1132,6 +1132,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             tabs_trigger.click()
             rows = page.locator("#tabs-list .tabs-item")
             assert rows.count() == len(projects)
+            # A long list may reach down to the window's bottom, not a fixed share of it.
+            assert page.locator("#tabs-popover").evaluate("p => Math.abs(p.getBoundingClientRect().top + parseFloat(p.style.maxHeight) - (innerHeight - 12)) < 1")
             assert page.locator("#tabs-list .queue-title").first.text_content() == "Track 0"
             assert rows.first.get_attribute("aria-current") == "true"
             rows.nth(2).click()
