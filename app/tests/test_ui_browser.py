@@ -821,7 +821,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                         [...speed.querySelectorAll('.speed-scale span')].map((s) => s.textContent)]; }""")
             assert all(abs(offset) <= 1 for offset in marks[:3]), marks
             assert marks[3] == ["25%", "100%", "150%"]
-            # A turtle left of the scale and a hare right of it; no «Скорость» and no value beside it — the value is a
+            # A snail left of the scale and a hare right of it; no «Скорость» and no value beside it — the value is a
             # tooltip over the thumb while hovering; the scale's labels stay inside the speed block.
             speed_layout = page.evaluate("""() => {
                 const wrap = document.querySelector('.footer-speed'), fader = wrap.querySelector('.speed-fader').getBoundingClientRect();

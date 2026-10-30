@@ -206,7 +206,7 @@ h1, h2, h3, p { margin-top: 0; }
 .speed-scale span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
 .speed-end { display: inline-flex; color: var(--muted); }
 .speed-end .icon { width: 20px; height: 20px; }
-/* Off (an iPhone over http): faint, the turtle and the hare most. */
+/* Off (an iPhone over http): faint, the snail and the hare most. */
 .footer-speed:has(input:disabled) { opacity: .4; }
 .footer-speed:has(input:disabled) .speed-end { opacity: .5; }
 /* The value as a tooltip over the thumb: while hovering or dragging, and while the stems are prepared. */
