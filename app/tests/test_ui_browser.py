@@ -839,6 +839,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 return [t.left + t.width / 2 - (r.left + 6 + (r.width - 12) * 0.6), t.bottom <= r.top]; }""")
             assert abs(tip[0]) <= 1 and tip[1] and page.locator(".footer-speed-value").text_content() == "100%", tip
             page.mouse.move(0, 0)
+            ticks = page.evaluate("getComputedStyle(document.querySelector('.speed-fader'), '::after').display")
+            assert ticks == ("none" if viewport[0] < 600 else "block")  # the speed's ticks only on a wide screen
             if viewport[0] < 600:  # on a phone the rows of the footer are as far apart as the footer's top padding
                 gaps = page.evaluate("""() => { const box = (s) => document.querySelector(s).getBoundingClientRect();
                     const pad = parseFloat(getComputedStyle(document.querySelector('.project-footer')).paddingTop);
@@ -1319,6 +1321,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             iphone.wait_for_function("document.querySelector('.footer-speed')?.dataset.engine === 'stretch'", timeout=30000)
             assert iphone.locator(".decoded-note").count() == 0
             assert iphone.locator('[data-control="speed"]').is_disabled()
+            assert iphone.locator(".footer-speed").evaluate("e => getComputedStyle(e).opacity") == "0.4"
+            assert iphone.locator(".speed-end").first.evaluate("e => getComputedStyle(e).opacity") == "0.5"
             iphone.keyboard.press("Space")
             iphone.wait_for_timeout(1500)
             iphone.keyboard.press("Space")

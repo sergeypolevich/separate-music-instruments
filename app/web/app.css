@@ -206,6 +206,9 @@ h1, h2, h3, p { margin-top: 0; }
 .speed-scale span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; }
 .speed-end { display: inline-flex; color: var(--muted); }
 .speed-end .icon { width: 20px; height: 20px; }
+/* Off (an iPhone over http): faint, the turtle and the hare most. */
+.footer-speed:has(input:disabled) { opacity: .4; }
+.footer-speed:has(input:disabled) .speed-end { opacity: .5; }
 /* The value as a tooltip over the thumb: while hovering or dragging, and while the stems are prepared. */
 .footer-speed-value { position: absolute; z-index: 2; bottom: calc(50% + 21px); left: calc(6px + (100% - 12px) * var(--share, .6)); padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; opacity: 0; transform: translateX(-50%); pointer-events: none; transition: opacity .15s; }
 .speed-fader:hover .footer-speed-value, .speed-fader:active .footer-speed-value, .footer-speed[data-loading] .footer-speed-value { opacity: 1; }
@@ -370,6 +373,7 @@ button:disabled { opacity: .55; cursor: wait; }
   border-color: transparent; background-color: var(--button-bg); }
 
 @media (max-width: 600px) {
+  .speed-fader::after { display: none; }  /* no ticks on the phone */
   .shell { width: min(calc(100% - 28px), 760px); }
   .topbar { min-height: 62px; grid-template-columns: auto minmax(38px, 1fr) auto; gap: 7px; }
   .brand { gap: 6px; font-size: 13px; }
