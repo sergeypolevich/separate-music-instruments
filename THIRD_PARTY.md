@@ -10,8 +10,8 @@ time it is needed; none of it is redistributed here.
 |---|---|---|---|
 | Signalsmith Stretch Web 1.3.2 (playback speed) | Geraint Luff / Signalsmith Audio Ltd. | MIT | `app/web/vendor/signalsmith-stretch-1.3.2.mjs`, license text next to it |
 | Icons in the style of Lucide (speaker, turtle, hare, sparkles, help, settings and others; drawn inline) | Lucide contributors | ISC | `app/web/app.js`, `app/web/index.html` |
-| Stem icons: Drum, Piano keys, Trumpet ([game-icons.net](https://game-icons.net)) | Delapouite | CC BY 3.0 | `app/web/app.js` |
-| Stem icons: microphone, bass and guitar headstocks | Sergey Polevich (the author of this project) | the project's license | `app/web/app.js` |
+| Stem icons: Piano keys (cut to four keys), Trumpet ([game-icons.net](https://game-icons.net)) | Delapouite | CC BY 3.0 | `app/web/app.js` |
+| Stem icons: microphone, bass and guitar headstocks, snare drum | Sergey Polevich (the author of this project) | the project's license | `app/web/app.js` |
 
 ## Models (downloaded on first use)
 
