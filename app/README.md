@@ -94,9 +94,9 @@ py -m pytest -q
 By default, no live YouTube or Demucs smoke tests run. The separate opt-in
 command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It runs two tests, each
 starting the API and worker and opening installed Edge or Chrome in a visible browser window: one pastes
-the link of «Guitarist Singing» (26 s, a Creative Commons Attribution video from Freestocks), downloads it,
+the link of "Guitarist Singing" (26 s, a Creative Commons Attribution video from Freestocks), downloads it,
 runs Demucs, and checks project reopen, playback, seek, per-track gain, and mute controls; the other opens a
-generated 10-second file through «Открыть аудиофайл» and separates and plays it the same way. They need
+generated 10-second file through Open audio file and separates and plays it the same way. They need
 internet, the Playwright test dependency, installed Edge or Chrome, available disk space, and several
 minutes of CPU processing. Run it before every commit as required by
 `skills/audio-stems-development.md`; it never installs an application update.
@@ -204,8 +204,8 @@ if you customized it.
 
 ### Updates
 
-Settings → Обновления → **Проверить** reads the fixed public GitHub repository's stable releases (only on that
-click) and lists those newer than `app/VERSION` (tags `vNN` or `vNN.N`, compared as numbers: v18 < v18.1 < v19; newest first) with their notes. **Обновить до vNN**
+Settings → Updates → **Check** reads the fixed public GitHub repository's stable releases (only on that
+click) and lists those newer than `app/VERSION` (tags `vNN` or `vNN.N`, compared as numbers: v18 < v18.1 < v19; newest first) with their notes. **Update to vNN**
 asks for confirmation and is refused while a job or an upgrade runs (409 `busy`):
 
 - a ZIP copy downloads the release's archive from GitHub (`api.github.com/.../zipball/<tag>`, redirected to
@@ -223,7 +223,7 @@ Release `vNN` (or `vNN.N` for a point version) is published with the version's n
 
 The separator offers two local models: `hdemucs_mmi` with shifts 2 (default, fast,
 four stems) and `bs_roformer_sw` (through audio-separator, overlap 1, six stems,
-much slower but clearly better; «Улучшить качество» uses it). `htdemucs_6s`, the
+much slower but clearly better; Improve quality uses it). `htdemucs_6s`, the
 fast model before version 13, is no longer offered but stays registered so earlier
 projects can be separated again. The listening studies behind the choice are in
 [separate-music-instruments-research](https://github.com/sergeypolevich/separate-music-instruments-research).
@@ -256,5 +256,5 @@ pin is missing from them. Check known vulnerabilities with
 Every model weights file has a pinned SHA-256 (`_WEIGHTS` in `audio_stems/separator.py`,
 `BEAT_CHECKPOINT_SHA256` in `audio_stems/analysis.py`) checked before use; Demucs
 runs with `HF_HUB_OFFLINE=1` on exactly the checked files. If a model is changed upstream,
-a new install fails with «Model weights failed the integrity check» (files already
+a new install fails with "Model weights failed the integrity check" (files already
 downloaded keep working) until the pins are updated on purpose.

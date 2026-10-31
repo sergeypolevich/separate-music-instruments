@@ -57,7 +57,7 @@ dauern wenige Sekunden.
 
 ## Aktualisieren
 
-**Einstellungen → Обновления → Проверить** zeigt, was spätere Versionen Neues bringen. **Обновить до …** lädt die
+**Einstellungen → Updates → Prüfen** zeigt, was spätere Versionen Neues bringen. **Aktualisieren auf …** lädt die
 neueste herunter (wenn gerade nichts getrennt wird); schließen Sie das Audio-Stems-Fenster und starten Sie die App
 erneut – das Update wird vor dem Öffnen installiert. Ihre Songs, Spuren und Einstellungen bleiben, wie sie sind.
 
