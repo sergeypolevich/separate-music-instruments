@@ -18,7 +18,7 @@ time it is needed; none of it is redistributed here.
 |---|---|---|---|---|
 | Demucs `hdemucs_mmi` | fast separation, 4 stems | Alexandre Défossez (Meta AI) | [huggingface.co/adefossez/Demucs-hdemucs_mmi](https://huggingface.co/adefossez/Demucs-hdemucs_mmi) | Demucs code: MIT; the model card names no license for the weights |
 | Demucs `htdemucs_6s` | re-separating projects made before version 13 | Alexandre Défossez (Meta AI) | [huggingface.co/adefossez/HTDemucs-6s](https://huggingface.co/adefossez/HTDemucs-6s) | as above |
-| BS-RoFormer SW | «Улучшить качество», 6 stems | jarredou | GitHub releases used by [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) | no license published |
+| BS-RoFormer SW | Improve quality, 6 stems | jarredou | GitHub releases used by [audio-separator](https://github.com/nomadkaraoke/python-audio-separator) | no license published |
 | beat_this `final0` | beats for the metronome | CPJKU, Johannes Kepler University Linz | [github.com/CPJKU/beat_this](https://github.com/CPJKU/beat_this), weights from cloud.cp.jku.at | MIT (code and published weights) |
 
 Some of these models were trained on MUSDB18 and other datasets whose terms allow research and non-commercial

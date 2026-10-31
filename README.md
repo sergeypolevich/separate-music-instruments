@@ -11,7 +11,7 @@ window; you can also find a song on YouTube.
 - **Opens your own audio file** — MP3, WAV, FLAC, M4A, OGG and others — with a button or dragged onto the
   window. You can also find a song on YouTube by name or paste a YouTube link.
 - **Separates it into tracks.** A fast model gives four (vocals, drums, bass and everything else) in about
-  a minute per minute of music; «improve quality» re-separates a song into six — vocals, drums, bass, guitar,
+  a minute per minute of music; **Improve quality** re-separates a song into six — vocals, drums, bass, guitar,
   piano and everything else — with a much better, slower model.
 - **Plays all tracks in sync**, with a volume fader, solo and mute for each, and a waveform you click to seek.
 - **For practising**:
@@ -52,7 +52,7 @@ seconds.
 
 ## Updating
 
-**Settings → Обновления → Проверить** shows what is new in later versions. **Обновить до …** downloads the newest
+**Settings → Updates → Check** shows what is new in later versions. **Update to …** downloads the newest
 one (when no song is being separated); close the Audio Stems window and start the app again, and the update is
 installed before it opens. Your songs, stems and settings stay as they are.
 

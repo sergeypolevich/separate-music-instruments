@@ -28,7 +28,7 @@ def test_readme_describes_shared_api_worker_and_restart_limits():
     text = readme.read_text(encoding="utf-8")
 
     assert "Keep `py run.py --worker` running separately" in text
-    assert "restart to use it" in text and "Обновить до vNN" in text  # updates: when they take effect
+    assert "restart to use it" in text and "Update to vNN" in text  # updates: when they take effect
     assert "By default, no live YouTube or Demucs smoke tests run" in text
     assert "Run it before every commit" in text
 
@@ -82,3 +82,10 @@ def test_third_party_list_names_every_model_and_direct_dependency():
     assert direct and all(name in listed for name in direct)
     assert all(model in re.sub(r"[ -]", "_", listed.lower()) for model in _WEIGHTS)
     assert "beat_this `final0`" in listed and "CC BY-NC 4.0" in listed
+
+
+def test_english_and_german_docs_have_no_russian():
+    root = Path(__file__).parents[2]
+    for name in ("README.md", "README.de.md", "THIRD_PARTY.md", "AGENTS.md", "app/README.md"):
+        text = (root / name).read_text(encoding="utf-8").replace("[Русский](README.ru.md)", "")
+        assert not re.findall(r"[А-Яа-яЁё]+", text), name  # UI labels are named in the document's own language
