@@ -89,7 +89,7 @@ jobs:
 
   # A Mac without Python 3.12: Start MacOS.command must install it for the user with the pinned uv.
   mac-without-python:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
