@@ -1,10 +1,8 @@
 """pytubefix implementation of the provider-independent downloader contract."""
 from __future__ import annotations
 
-import hashlib
 import logging
 from typing import Callable
-from urllib.parse import parse_qs, urlparse
 
 from pytubefix import Search, YouTube
 
@@ -24,17 +22,6 @@ from audio_stems.config import Settings
 logger = logging.getLogger("audio_stems.pytube")
 
 
-def _video_id(url: str) -> str:
-    parsed = urlparse(url)
-    found = parse_qs(parsed.query).get("v", [None])[0]
-    if found:
-        return found
-    parts = [part for part in parsed.path.split("/") if part]
-    if parsed.hostname and parsed.hostname.lower() == "youtu.be" and parts:
-        return parts[0]
-    return hashlib.sha256(url.encode("utf-8")).hexdigest()[:16]
-
-
 class PytubeDownloader:
     def __init__(self, storage: LocalMediaStorage, settings: Settings) -> None:
         self.storage = storage
@@ -42,14 +29,23 @@ class PytubeDownloader:
 
     def search(self, query: str) -> list[VideoCandidate]:
         try:
-            videos = Search(query).videos
+            # The ID and title come from the search response itself: pytubefix's Search.videos asks YouTube's player
+            # for each result's title with the WEB client, which YouTube answers with bot detection on some networks.
+            raw = Search(query).fetch_query()
+            sections = raw["contents"]["twoColumnSearchResultsRenderer"]["primaryContents"]["sectionListRenderer"]["contents"]
+            found = [
+                item["videoRenderer"]
+                for section in sections
+                for item in section.get("itemSectionRenderer", {}).get("contents", [])
+                if "videoRenderer" in item
+            ]
             return [
                 VideoCandidate(
-                    str(getattr(video, "video_id", None) or _video_id(video.watch_url)),
-                    video.title,
-                    video.watch_url,
+                    video["videoId"],
+                    "".join(run["text"] for run in video["title"]["runs"]),
+                    f"https://www.youtube.com/watch?v={video['videoId']}",
                 )
-                for video in videos
+                for video in found
             ]
         except Exception as exc:
             raise AdapterError("Video search failed", FailureCategory.TRANSIENT) from exc

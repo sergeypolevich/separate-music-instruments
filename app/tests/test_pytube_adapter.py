@@ -52,18 +52,29 @@ class FakeYoutube:
         self.streams = streams
 
 
-def test_search_adapter_returns_candidates_without_downloading(monkeypatch, tmp_path):
-    candidate = type("Candidate", (), {
-        "video_id": "source-1", "title": "Track", "watch_url": "https://youtube.com/watch?v=source-1"
-    })()
-    monkeypatch.setattr("audio_stems.youtube.Search", lambda query: type("Result", (), {"videos": [candidate]})())
+def test_search_takes_ids_and_titles_from_the_search_response(monkeypatch, tmp_path):
+    # Asking the player for each title (Search.videos) got a user's searches blocked as a bot: it must not happen.
+    def video(video_id, *runs):
+        return {"videoRenderer": {"videoId": video_id, "title": {"runs": [{"text": text} for text in runs]}}}
+
+    raw = {"contents": {"twoColumnSearchResultsRenderer": {"primaryContents": {"sectionListRenderer": {"contents": [
+        {"itemSectionRenderer": {"contents": [
+            {"searchPyvRenderer": {"ads": []}}, video("source-1", "Track"), {"lockupViewModel": {}},
+            video("source-2", "Other ", "Track"),
+        ]}},
+        {"continuationItemRenderer": {}},
+    ]}}}}}
+    searched = type("Result", (), {"fetch_query": lambda self: raw, "videos": property(lambda self: pytest.fail("player asked"))})
+    monkeypatch.setattr("audio_stems.youtube.Search", lambda query: searched())
     settings = Settings.load(environ={}, dotenv_path=tmp_path / "missing.env")
     downloader = PytubeDownloader(LocalMediaStorage(tmp_path / "media"), settings)
 
-
     results = downloader.search("query")
 
-    assert results == [VideoCandidate("source-1", "Track", candidate.watch_url)]
+    assert results == [
+        VideoCandidate("source-1", "Track", "https://www.youtube.com/watch?v=source-1"),
+        VideoCandidate("source-2", "Other Track", "https://www.youtube.com/watch?v=source-2"),
+    ]
 
 
 def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_path):
