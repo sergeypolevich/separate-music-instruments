@@ -350,7 +350,8 @@ h1, h2, h3, p { margin-top: 0; }
 .primary-button:hover, #submit-button:hover { background: var(--accent-hover); }
 .danger-action { background: var(--danger); color: var(--danger-ink); }
 .danger-action:hover { background: color-mix(in srgb, var(--danger) 80%, var(--text)); }
-button:disabled { opacity: .55; cursor: wait; }
+button:disabled { opacity: .55; cursor: default; }
+button[aria-busy="true"] { cursor: progress; }
 /* "Ритм не найден": off for good, not busy. */
 .footer-toggle:disabled, .footer-fader input:disabled, [data-action="count-in"]:disabled { opacity: .55; cursor: default; }
 /* A running upgrade is busy, not unavailable: its progress fill stays fully visible. */

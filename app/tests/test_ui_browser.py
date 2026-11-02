@@ -191,6 +191,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json(detail)
             elif path == "/api/v1/queue":
                 self._json(queue_items)
+            elif path == "/api/v1/updates":
+                self._json({"current": "19.1", "releases": [{"tag_name": "v19.2", "name": "Версия 19.2", "published_at": "2026-11-02T18:00:00Z",
+                                                              "notes": "Fix", "url": "https://github.com/"}]})
             elif path == "/api/v1/models":
                 self._json([
                     {"name": "htdemucs_6s", "label": "Demucs 6", "description": "Fast", "stems": list(STEMS), "default": True,
@@ -260,6 +263,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             if self.path.endswith("/beats"):
                 beats_polls.append(self.path)
                 self._json({"status": "running", "progress": 0.3, "error": None, "result": None}, 202)
+                return
+            if self.path == "/api/v1/updates/apply":
+                time.sleep(0.5)  # the download takes a while
+                self._json({"state": "prepared"})
                 return
             if self.path == "/api/v1/storage/cleanup":
                 freed = disk["unused"] + disk["temp"] if body == {"confirmed": True} else 0
@@ -1047,6 +1054,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.evaluate("document.querySelector('[data-screen=\"settings\"]').click()")
             page.wait_for_function("document.querySelector('#delete-all-projects').disabled")
             disk["busy"] = False
+            # Updates: the install button shows the download and then says it is done; a disabled button is no wait cursor.
+            page.locator("#check-updates").click()
+            install = page.locator('[data-action="install-update"]')
+            assert install.text_content() == "Обновить до v19.2"
+            install.click()
+            assert confirm_in_app() == "Установить «Версия 19.2»?"
+            assert install.text_content() == "Скачиваем…" and install.evaluate("b => getComputedStyle(b).cursor") == "progress"
+            page.wait_for_function("document.querySelector('[data-action=\"install-update\"]').textContent === 'Скачано: перезапустите приложение'")
+            assert install.is_disabled() and install.evaluate("b => getComputedStyle(b).cursor") == "default"
             # Separation: models are a radio list; the choice is remembered across reloads.
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()

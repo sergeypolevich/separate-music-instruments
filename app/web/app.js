@@ -1679,18 +1679,25 @@ function renderReleases(result) {
       apply.addEventListener("click", async () => {
         if (!(await askConfirm({ title: `Установить «${release.name || release.tag_name}»?`, text: "Задачи в очереди должны закончиться. Ваши песни и настройки не затрагиваются. После установки приложение нужно запустить заново.", action: "Установить", danger: false }))) return;
         apply.disabled = true;
+        apply.setAttribute("aria-busy", "true");
+        apply.textContent = "Скачиваем…";
         updatesMessage.textContent = "Скачиваем обновление…";
         try {
           const done = await requestJson("/api/v1/updates/apply", {
             method: "POST",
             body: JSON.stringify({ tag_name: release.tag_name, confirmed: true }),
           });
+          // The button itself says it is done: the message above the card went unnoticed (a user's report).
+          apply.textContent = done.state === "applied" ? "Установлено: перезапустите приложение" : "Скачано: перезапустите приложение";
           updatesMessage.textContent = done.state === "applied"
             ? "Обновление установлено. Закройте окно Audio Stems и запустите приложение снова."
             : "Обновление скачано. Закройте окно Audio Stems и запустите приложение снова: оно установится при запуске.";
         } catch (error) {
           updatesMessage.textContent = error.message;
+          apply.textContent = `Обновить до ${release.tag_name}`;
           apply.disabled = false;
+        } finally {
+          apply.removeAttribute("aria-busy");
         }
       });
       card.append(apply);
