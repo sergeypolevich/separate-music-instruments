@@ -359,9 +359,8 @@ button:disabled { opacity: .55; cursor: wait; }
 .confirm-dialog { width: min(calc(100% - 32px), 420px); padding: 0; border: 1px solid var(--line-strong); border-radius: 14px; background: var(--panel); color: var(--text); box-shadow: 0 25px 90px var(--shadow); }
 .confirm-dialog::backdrop { background: var(--overlay); backdrop-filter: blur(5px); }
 .confirm-card { padding: 22px; }
-.confirm-card .eyebrow { margin-bottom: 7px; color: var(--danger); font-size: 9px; letter-spacing: 1.4px; }
 .confirm-card h2 { margin: 0; font: 650 19px Manrope, sans-serif; }
-.confirm-card > p:not(.eyebrow):not(.detail-error) { margin: 8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.confirm-card > p:not(.detail-error) { margin: 8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .confirm-actions button { min-height: 36px; }
 

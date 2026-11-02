@@ -283,9 +283,6 @@ class LocalMediaStorage:
         name = self._claim_title("temp", title, source_id)
         return self.temp_root / name
 
-    def temporary_model_directory(self, title: str, model_name: str, source_id: str | None = None) -> Path:
-        return self.temporary_directory(title, source_id) / safe_filename(model_name)
-
     def stems_complete(
         self,
         title: str,
