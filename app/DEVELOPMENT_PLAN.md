@@ -44,6 +44,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 39. **Version 18.3 phone header and master volume:** no project title on phones (the tab names it); the master volume's icon over its fader like a stem's. Plan: `~/.claude/plans/version-18-3.md`.
 40. **Version 19 loop and easier install:** a loop dragged over the waveforms, snapped to the beats, played gapless through the decoded engine; launchers `Start Windows.bat` / `Start MacOS.command`; an app icon and a Windows desktop shortcut; release archives per system linked from the READMEs.
 41. **Version 19.1 best model without a system ffmpeg:** audio-separator writes with soundfile and skips its ffmpeg check; the cause of a failed separator run in its log record; a live check on Windows and the macOS CI.
+42. **Version 19.2 search without bot detection:** search results come from the search response alone; unused code removed.
 27. **Version 9 project cleanup:** close test gaps and record coverage/performance baselines first; move everything except `Start.bat` (renamed), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/` into `app/`; remove single-implementation protocols, the unused idempotency key and Demucs parameters, placeholder settings and dead code — with identical UI and no performance regression.
 
 ## Stage gate
