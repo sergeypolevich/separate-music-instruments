@@ -66,6 +66,16 @@ jobs:
         working-directory: app
         run: node --test tests/test_playback.mjs
 
+      # The real BS-RoFormer on a 10-second file with no ffmpeg on PATH (a user's Mac had none); it downloads
+      # its 650 MB weights first.
+      - name: Best model without a system ffmpeg
+        if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
+        working-directory: app
+        timeout-minutes: 30
+        env:
+          RUN_LIVE_E2E: "1"
+        run: .venv/bin/python -m pytest -q -m e2e -s tests/test_separator_live.py
+
       - name: Browser test in WebKit (Safari's engine)
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         working-directory: app

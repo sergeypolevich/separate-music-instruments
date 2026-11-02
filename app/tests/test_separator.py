@@ -308,6 +308,67 @@ def test_roformer_runs_audio_separator_in_its_own_process_and_maps_its_file_name
     assert result.stems[0].path.name == "source_(Vocals)_BS-Roformer-SW.wav"
 
 
+_FAKE_AUDIO_SEPARATOR = """
+import json, os, pathlib, subprocess
+
+
+class Separator:
+    def __init__(self, **kwargs):
+        self.kwargs = kwargs
+
+    def check_ffmpeg_installed(self):
+        subprocess.check_output(["ffmpeg", "-version"])  # the real check: fails where no system ffmpeg is installed
+
+    def load_model(self, model_filename):
+        self.check_ffmpeg_installed()
+
+    def separate(self, path):
+        out = pathlib.Path(self.kwargs["output_dir"])
+        out.mkdir(parents=True)
+        (out / "kwargs.json").write_text(json.dumps(self.kwargs))
+"""
+
+
+def test_audio_separator_runs_without_a_system_ffmpeg(monkeypatch, tmp_path):
+    # The user's Mac had none: audio-separator's own check stopped every run of the best model.
+    package = tmp_path / "fake" / "audio_separator" / "separator"
+    package.mkdir(parents=True)
+    (package.parent / "__init__.py").write_text("")
+    (package / "__init__.py").write_text(_FAKE_AUDIO_SEPARATOR)
+    monkeypatch.setenv("PYTHONPATH", str(tmp_path / "fake"))
+    monkeypatch.setenv("PATH", str(tmp_path))  # no ffmpeg anywhere
+    arguments = {"out": str(tmp_path / "out"), "models": str(tmp_path), "checkpoint": "x.ckpt", "overlap": 1, "input": "in.wav"}
+
+    run_with_progress([sys.executable, "-c", separator_module._AUDIO_SEPARATOR, json.dumps(arguments)], 1, None)
+
+    kwargs = json.loads((tmp_path / "out" / "kwargs.json").read_text())
+    assert kwargs["use_soundfile"] is True and kwargs["output_format"] == "WAV"  # soundfile writes without ffmpeg
+
+
+def test_the_pinned_audio_separator_still_has_what_the_ffmpeg_bypass_relies_on():
+    import inspect
+
+    from audio_separator.separator import Separator
+
+    assert "use_soundfile" in inspect.signature(Separator).parameters
+    assert "self.check_ffmpeg_installed()" in inspect.getsource(Separator.setup_accelerated_inferencing_device)
+
+
+def test_a_failed_separator_names_its_last_error_line_in_the_log(monkeypatch, tmp_path):
+    def failing_run(command, passes, progress):
+        raise subprocess.CalledProcessError(1, command, stderr=b"Traceback ...\nFileNotFoundError: no ffmpeg\n\n")
+
+    monkeypatch.setattr("audio_stems.separator.subprocess.run", _decode_only)
+    monkeypatch.setattr("audio_stems.separator.run_with_progress", failing_run)
+    source = tmp_path / "source.webm"
+    source.write_bytes(b"audio")
+
+    with pytest.raises(AdapterError) as error:
+        StemSeparator(tmp_path / "models").separate(source, tmp_path / "out", SeparationOptions("bs_roformer_sw", "cpu"))
+    assert str(error.value) == "Separator exited with status 1: FileNotFoundError: no ffmpeg"
+    assert error.value.category is FailureCategory.PERMANENT
+
+
 def test_progress_arrives_while_the_separator_runs_not_at_its_exit():
     # Like tqdm in a pipe: carriage-return redraws, no explicit flush, then a pause before exit.
     script = "\n".join([

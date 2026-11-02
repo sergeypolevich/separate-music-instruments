@@ -82,12 +82,15 @@ _WEIGHTS = {
 def sha256_file(path: Path) -> str:
     with path.open("rb") as file:
         return hashlib.file_digest(file, "sha256").hexdigest()
-# Runs audio-separator in its own process so its memory is freed after every song.
+# Runs audio-separator in its own process so its memory is freed after every song. It writes the stems with soundfile
+# (float, like its float WAV input) and reads only that WAV, so it needs no system ffmpeg: its check for one is skipped.
 _AUDIO_SEPARATOR = (
     "import json, sys\n"
     "from audio_separator.separator import Separator\n"
+    "Separator.check_ffmpeg_installed = lambda self: None\n"
     "a = json.loads(sys.argv[1])\n"
     "s = Separator(output_dir=a['out'], model_file_dir=a['models'], output_format='WAV', normalization_threshold=1.0,\n"
+    "              use_soundfile=True,\n"
     "              mdxc_params={'segment_size': 256, 'override_model_segment_size': False, 'batch_size': 1,\n"
     "                           'overlap': a['overlap'], 'pitch_shift': 0})\n"
     "s.load_model(model_filename=a['checkpoint'])\n"
@@ -268,7 +271,10 @@ class StemSeparator:
         except subprocess.CalledProcessError as exc:
             if shutil.disk_usage(output_dir).free < needed // 2:
                 raise disk_full_error(needed, shutil.disk_usage(output_dir).free) from exc
-            raise AdapterError(f"Separator exited with status {exc.returncode}", FailureCategory.PERMANENT) from exc
+            # The last line of its output names the cause in the job's log record (the user sees the category only).
+            cause = next((line for line in reversed((exc.stderr or b"").decode("utf-8", "replace").splitlines()) if line.strip()), "")
+            raise AdapterError(f"Separator exited with status {exc.returncode}: {cause.strip()}".rstrip(": "),
+                               FailureCategory.PERMANENT) from exc
         except FileNotFoundError as exc:
             raise AdapterError("Separator executable is unavailable", FailureCategory.PERMANENT) from exc
         except OSError as exc:

@@ -96,7 +96,8 @@ command is `$env:RUN_LIVE_E2E = "1"; py -m pytest -q -m e2e -s`. It runs two tes
 starting the API and worker and opening installed Edge or Chrome in a visible browser window: one pastes
 the link of "Guitarist Singing" (26 s, a Creative Commons Attribution video from Freestocks), downloads it,
 runs Demucs, and checks project reopen, playback, seek, per-track gain, and mute controls; the other opens a
-generated 10-second file through Open audio file and separates and plays it the same way. They need
+generated 10-second file through Open audio file and separates and plays it the same way. A third runs the real
+BS-RoFormer on a generated 10-second file with every ffmpeg hidden from PATH (the app needs no system ffmpeg). They need
 internet, the Playwright test dependency, installed Edge or Chrome, available disk space, and several
 minutes of CPU processing. Run it before every commit as required by
 `skills/audio-stems-development.md`; it never installs an application update.
