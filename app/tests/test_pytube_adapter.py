@@ -99,7 +99,8 @@ def test_download_preserves_exact_source_url_and_selects_webm(monkeypatch, tmp_p
     assert downloaded.source.url == exact
     assert downloaded.media_format == "webm"
     assert storage.validate_audio_file(downloaded.path, "webm")
-    assert selected.download_args[1].endswith(".webm")
+    assert selected.download_args[1].endswith(".webm.part")  # renamed once complete: a cut-off file is never reused
+    assert not list(downloaded.path.parent.glob("*.part"))
 
 
 def test_download_falls_back_to_audio_only_when_webm_is_missing(monkeypatch, tmp_path):

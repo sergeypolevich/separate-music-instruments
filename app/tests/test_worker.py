@@ -111,3 +111,37 @@ def test_worker_keeps_batch_download_phase_before_any_separation(tmp_path):
     assert max(i for i, kind in enumerate(kinds) if kind == "download") < min(
         i for i, kind in enumerate(kinds) if kind == "separate"
     )
+
+
+def test_after_a_restart_for_an_update_interrupted_work_goes_on_and_finished_work_is_not_redone(tmp_path):
+    orchestrator, store, _, events, _, _ = job_fixtures.build_orchestrator(tmp_path)
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "first"),
+                                              SourceRequest(SourceKind.SEARCH_QUERY, "second")])
+    store.claim_next_batch()
+    for status in (JobStatus.DOWNLOADING, JobStatus.DOWNLOADED, JobStatus.SEPARATING, JobStatus.COMPLETED):
+        store.transition_job(receipt.job_ids[0], status, stage="x")
+    for status in (JobStatus.DOWNLOADING, JobStatus.DOWNLOADED, JobStatus.SEPARATING):  # the update stopped it here
+        store.transition_job(receipt.job_ids[1], status, stage="x")
+    marker = tmp_path / "resume-after-update"
+    marker.touch()
+    worker = DatabaseWorker(store, orchestrator, resume_marker=marker)
+
+    assert worker.recover_on_start() == 1
+    assert not marker.exists()  # only this start resumes; a later crash fails work as before
+    assert store.get_job(receipt.job_ids[1], "client-1").status is JobStatus.QUEUED
+    assert worker.run_once() is True
+
+    assert events == [("search", "second"), ("download", "id-second"), ("separate", events[2][1])]  # not "first" again
+    assert store.get_job(receipt.job_ids[0], "client-1").status is JobStatus.COMPLETED
+    assert store.get_job(receipt.job_ids[1], "client-1").status is JobStatus.COMPLETED
+    assert store.get_batch(receipt.batch_id, "client-1").status == BatchStatus.COMPLETED.value
+
+
+def test_without_the_update_marker_a_restart_fails_interrupted_work_as_before(tmp_path):
+    store = SqliteMetadataStore(tmp_path / "audio_stems.pipeline.db")
+    receipt = store.create_batch("client-1", [SourceRequest(SourceKind.SEARCH_QUERY, "Track")])
+    store.claim_next_batch()
+
+    DatabaseWorker(store, FakeOrchestrator(store), resume_marker=tmp_path / "resume-after-update").recover_on_start()
+
+    assert store.get_job(receipt.job_ids[0], "client-1").status is JobStatus.FAILED

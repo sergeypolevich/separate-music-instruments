@@ -153,6 +153,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
     beats_polls = []
     upgrade_polls = []
+    server_process = [1]  # what /api/v1/health answers; an installed update restarts the server as 2
     wav_bytes = _silent_wav()
 
     class ApiHandler(_QuietHandler):
@@ -191,6 +192,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json(detail)
             elif path == "/api/v1/queue":
                 self._json(queue_items)
+            elif path == "/api/v1/health":
+                self._json({"status": "ok", "process": server_process[0]})
             elif path == "/api/v1/updates":
                 self._json({"current": "19.1", "releases": [{"tag_name": "v19.2", "name": "Версия 19.2", "published_at": "2026-11-02T18:00:00Z",
                                                               "notes": "Fix", "url": "https://github.com/"}]})
@@ -266,7 +269,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 return
             if self.path == "/api/v1/updates/apply":
                 time.sleep(0.5)  # the download takes a while
-                self._json({"state": "prepared"})
+                self._json({"state": "staged"})
+                threading.Timer(1.5, server_process.__setitem__, (0, 2)).start()  # then the app restarts
                 return
             if self.path == "/api/v1/storage/cleanup":
                 freed = disk["unused"] + disk["temp"] if body == {"confirmed": True} else 0
@@ -1054,15 +1058,21 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.evaluate("document.querySelector('[data-screen=\"settings\"]').click()")
             page.wait_for_function("document.querySelector('#delete-all-projects').disabled")
             disk["busy"] = False
-            # Updates: the install button shows the download and then says it is done; a disabled button is no wait cursor.
+            # Updates: the install button shows each step; once the server answers under a new process the page
+            # reloads itself with the new version. A disabled button is no wait cursor.
+            assert page.locator("#check-updates").evaluate("b => (b.disabled = true, getComputedStyle(b).cursor)") == "default"
+            page.locator("#check-updates").evaluate("b => b.disabled = false")
             page.locator("#check-updates").click()
             install = page.locator('[data-action="install-update"]')
             assert install.text_content() == "Обновить до v19.2"
+            page.evaluate("window.beforeUpdate = true")
             install.click()
             assert confirm_in_app() == "Установить «Версия 19.2»?"
+            assert "продолжится после перезапуска" in page.locator("#confirm-description").text_content()
             assert install.text_content() == "Скачиваем…" and install.evaluate("b => getComputedStyle(b).cursor") == "progress"
-            page.wait_for_function("document.querySelector('[data-action=\"install-update\"]').textContent === 'Скачано: перезапустите приложение'")
-            assert install.is_disabled() and install.evaluate("b => getComputedStyle(b).cursor") == "default"
+            page.wait_for_function("document.querySelector('[data-action=\"install-update\"]')?.textContent === 'Перезапускаем…'")
+            page.wait_for_function("!window.beforeUpdate", timeout=10_000)  # reloaded, still in Settings (#settings)
+            page.locator("#settings-overlay").wait_for(state="visible")
             # Separation: models are a radio list; the choice is remembered across reloads.
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()

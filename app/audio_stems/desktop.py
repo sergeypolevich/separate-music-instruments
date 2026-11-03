@@ -13,7 +13,7 @@ from urllib.request import urlopen
 import webbrowser
 
 from audio_stems.config import Settings, move_legacy_storage
-from audio_stems.updates import apply_staged_update
+from audio_stems.updates import RESTART_EXIT_CODE, apply_staged_update
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +22,15 @@ WORKER = ("-m", "audio_stems.pipeline")
 # Checked by name only (find_spec, no import), so the check on every start costs milliseconds.
 RUNTIME_MODULES = ("pytubefix", "demucs", "fastapi", "uvicorn", "imageio_ffmpeg", "soundfile", "audio_separator", "beat_this")
 MISSING_DEPENDENCIES = 3  # exit code: Start Windows.bat then runs the full dependency setup
+
+
+def libraries_match() -> bool:
+    """The environment holds exactly the libraries this code's lock file names."""
+    lock = ROOT / ("requirements-windows.lock" if os.name == "nt" else "requirements-macos.lock")
+    try:
+        return (ROOT / ".venv" / "requirements.installed").read_bytes() == lock.read_bytes()
+    except OSError:
+        return False
 
 
 def missing_runtime_modules() -> list[str]:
@@ -78,12 +87,7 @@ def run(
     installed = apply_staged_update(ROOT.parent, settings.storage_root.parent / "update")
     if installed:  # downloaded in Settings → Обновления; copied over the app now, before any of it runs
         print(f"Installed the update {installed}.", flush=True)
-        lock = ROOT / ("requirements-windows.lock" if os.name == "nt" else "requirements-macos.lock")
-        try:
-            libraries_unchanged = (ROOT / ".venv" / "requirements.installed").read_bytes() == lock.read_bytes()
-        except OSError:
-            libraries_unchanged = False
-        if not libraries_unchanged:
+        if not libraries_match():
             return MISSING_DEPENDENCIES  # the launcher installs the new libraries, then starts the new code
         return restart([sys.executable, "-m", "audio_stems.desktop"], cwd=ROOT)  # this process still runs the old code
     url = f"http://127.0.0.1:{settings.api_port}"
@@ -114,16 +118,26 @@ def run(
         while True:
             completed = [process for process in processes if process.poll() is not None]
             if completed:
-                return next((process.returncode for process in completed if process.returncode), 0)
+                code = next((process.returncode for process in completed if process.returncode), 0)
+                break
             if stop_file is not None and stop_file.exists():
                 return 0
             sleep(0.25)
     except KeyboardInterrupt:
         return 0
     finally:
+        # shortcut: a separation running in the worker's own child process is not stopped with it; it ends at its
+        # next progress line (its pipe is gone). Kill the process tree if two separations ever overlap.
         for process in reversed(processes):
             _stop_process(process)
         print("Audio Stems services stopped.", flush=True)
+    if code != RESTART_EXIT_CODE:
+        return code
+    # Settings → Обновления installed an update: start again with the new code (a git copy's libraries may differ).
+    if not libraries_match():
+        return MISSING_DEPENDENCIES
+    print("Restarting with the update...", flush=True)
+    return restart([sys.executable, "-m", "audio_stems.desktop"], cwd=ROOT, env={**os.environ, "AUDIO_STEMS_OPEN_BROWSER": "0"})
 
 
 def network_addresses() -> list[str]:

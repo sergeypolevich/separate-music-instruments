@@ -29,6 +29,8 @@ _TAG = re.compile(r"v?(\d+(?:\.\d+)?)")  # v18 or v18.1; v3.0.0 and v18-beta are
 # Never replaced by an update: the environment, the local settings and git's own folder.
 _KEEP = (".git", "app/.venv", "app/.env")
 VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
+RESTART_EXIT_CODE = 4  # the API exits with it once an update is in place: the launcher starts again with the new code
+RESUME_MARKER = "resume-after-update"  # in the data folder: the next worker requeues the work the restart interrupted
 
 
 def current_version() -> str:

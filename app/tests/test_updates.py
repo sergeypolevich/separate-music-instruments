@@ -15,6 +15,8 @@ from audio_stems.db import SqliteMetadataStore
 from audio_stems.models import SourceKind, SourceRequest, YouTubeSourceAdapter
 from audio_stems.separator import StemSeparator
 from audio_stems.updates import (
+    RESTART_EXIT_CODE,
+    RESUME_MARKER,
     GitHubReleaseClient, UpdateError, Updater, apply_staged_update, current_version, release_number, unpack_release,
 )
 
@@ -218,12 +220,15 @@ def test_a_git_clone_fast_forwards_to_the_tag_only_when_clean_and_behind(tmp_pat
         updater.apply("v18")
 
 
-def _api(tmp_path, updater):
+def _api(tmp_path, updater, exits=None):
+    (tmp_path / "data").mkdir(exist_ok=True)  # the data folder: never the user's real one
     settings = replace(Settings.load(environ={}, dotenv_path=tmp_path / "missing.env"),
-                       database_url=f"sqlite:///{(tmp_path / 'u.db').as_posix()}")
+                       database_url=f"sqlite:///{(tmp_path / 'u.db').as_posix()}", storage_root=tmp_path / "data" / "Music",
+                       temp_root=tmp_path / "data" / "temp")
     repository = SqliteMetadataStore(tmp_path / "u.db")
     app = create_app(repository=repository, settings=settings, source_adapter=YouTubeSourceAdapter(settings.allowed_source_hosts),
-                     separator=StemSeparator(), updater=updater)
+                     separator=StemSeparator(), updater=updater,
+                     exit_process=(exits.append if exits is not None else lambda code: pytest.fail(f"exit {code}")))
 
     async def send(method, path, body=None):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
@@ -232,7 +237,7 @@ def _api(tmp_path, updater):
     return (lambda method, path, body=None: asyncio.run(send(method, path, body))), repository
 
 
-def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed_and_idle(tmp_path):
+def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed(tmp_path):
     updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: "17")
     request, repository = _api(tmp_path, updater)
 
@@ -240,19 +245,20 @@ def test_the_update_api_lists_new_releases_and_installs_only_when_confirmed_and_
     assert found["current"] == "17" and [r["tag_name"] for r in found["releases"]] == ["v18"]
     assert found["releases"][0]["notes"] == "Bug fixes and improvements"
     assert request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": False}).json()["error"]["code"] == "confirmation_required"
-    repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "a song")])  # a task waits
-    busy = request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": True})
-    assert busy.status_code == 409 and busy.json()["error"]["code"] == "busy"
 
 
-def test_the_update_api_stages_the_release_when_idle(tmp_path):
+def test_the_update_api_stages_the_release_then_restarts_without_waiting_for_running_work(tmp_path):
     updater = Updater(tmp_path / "root", tmp_path / "update", open_url=github([release("v18")], release_zip()), version=lambda: "17")
-    request, _repository = _api(tmp_path, updater)
+    exits = []
+    request, repository = _api(tmp_path, updater, exits)
+    repository.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "a song")])  # a task waits: no refusal
 
     applied = request("POST", "/api/v1/updates/apply", {"tag_name": "v18", "confirmed": True})
 
     assert applied.status_code == 200 and applied.json() == {"state": "staged", "tag_name": "v18", "restart_required": True}
     assert (tmp_path / "update" / "ready").read_text() == "v18"
+    assert exits == [RESTART_EXIT_CODE]  # after the answer: the launcher starts the new code
+    assert (tmp_path / "data" / RESUME_MARKER).exists()  # the next worker puts the interrupted work back in the queue
 
 
 def test_github_out_of_reach_is_a_stable_error(tmp_path):

@@ -56,8 +56,9 @@ seconds.
 ## Updating
 
 **Settings → Updates → Check** shows what is new in later versions. **Update to …** downloads the newest
-one (when no song is being separated); close the Audio Stems window and start the app again, and the update is
-installed before it opens. Your songs, stems and settings stay as they are.
+one and restarts the app with it; the page reloads by itself. A song being downloaded or separated goes on after the
+restart (a separation starts that song over). Your songs, stems and settings stay as they are. Versions before 19.3
+do not restart by themselves: close the Audio Stems window and start the app again.
 
 ## Where your files are
 

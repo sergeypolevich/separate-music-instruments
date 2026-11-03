@@ -13,7 +13,7 @@ from typing import Annotated, Callable
 from urllib.parse import unquote
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
@@ -38,7 +38,7 @@ from audio_stems.storage import LocalMediaStorage
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.config import Settings
 from audio_stems.models import YouTubeSourceAdapter
-from audio_stems.updates import UpdateCheckError, UpdateError, Updater
+from audio_stems.updates import RESTART_EXIT_CODE, RESUME_MARKER, UpdateCheckError, UpdateError, Updater
 import numpy as np
 import soundfile
 
@@ -165,6 +165,7 @@ def create_app(
     storage: LocalMediaStorage | None = None,
     updater: Updater | None = None,
     start_analysis: Callable[[], None] | None = None,
+    exit_process: Callable[[int], None] = os._exit,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
@@ -231,8 +232,8 @@ def create_app(
         )
 
     @app.get("/api/v1/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> dict[str, object]:
+        return {"status": "ok", "process": os.getpid()}  # a new number tells the page the app has restarted
 
     def rates() -> dict[str, float]:
         """This machine's measured speed per model, else the test laptop's."""
@@ -415,14 +416,12 @@ def create_app(
         return {"freed_bytes": storage.clean_unused(repository.storage_keys_in_use())}
 
     @app.post("/api/v1/updates/apply")
-    def apply_update(body: UpdateApplyRequest) -> dict[str, object]:
+    def apply_update(body: UpdateApplyRequest, background: BackgroundTasks) -> dict[str, object]:
         if not body.confirmed:
             raise HTTPException(
                 status_code=409,
                 detail={"code": "confirmation_required", "message": "Confirm the update before continuing"},
             )
-        if repository.has_active_jobs():  # a separation must not lose its code halfway
-            raise HTTPException(status_code=409, detail={"code": "busy", "message": "Дождитесь окончания задач в очереди"})
         try:
             state = updater.apply(body.tag_name)
         except UpdateCheckError as exc:
@@ -440,6 +439,10 @@ def create_app(
             )
             raise HTTPException(status_code=500, detail={"code": "update_failed", "message": "The update could not be installed"}) from exc
         logger.info("Update prepared", extra={"event": "update_" + state, "ClientID": _OWNER_ID, "tag_name": body.tag_name})
+        # Running work is not waited for: the next worker puts it back into the queue. After the answer is sent the
+        # API exits, and the launcher restarts the app with the new code.
+        (settings.storage_root.parent / RESUME_MARKER).touch()
+        background.add_task(exit_process, RESTART_EXIT_CODE)
         return {"state": state, "tag_name": body.tag_name, "restart_required": True}
 
     @app.post("/api/v1/batches", status_code=status.HTTP_202_ACCEPTED)

@@ -76,11 +76,15 @@ class PytubeDownloader:
                     return DownloadedAudio(destination, selected, stream.subtype, destination.stat().st_size)
                 self.storage.quarantine_audio(destination)
 
+            # A download stopped halfway (a cancel, a restart for an update) leaves only the .part file: a cut-off
+            # file under the real name would pass the header check and be reused as the song.
+            partial = destination.with_name(destination.name + ".part")
             try:
-                stream.download(output_path=str(destination.parent), filename=destination.name)
+                stream.download(output_path=str(destination.parent), filename=partial.name)
             except OperationCancelled:
-                destination.unlink(missing_ok=True)  # half a file is no use to anyone
+                partial.unlink(missing_ok=True)  # half a file is no use to anyone
                 raise
+            partial.replace(destination)
             if not self.storage.validate_audio_file(destination, stream.subtype):
                 if destination.exists():
                     self.storage.quarantine_audio(destination)

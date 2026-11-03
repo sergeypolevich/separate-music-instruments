@@ -1,4 +1,5 @@
 """Local-only ASGI/HTTP smoke for the documented API and served UI."""
+import os
 import socket
 import threading
 import time
@@ -64,7 +65,7 @@ def test_uvicorn_serves_ui_and_local_api_without_worker_or_network(tmp_path):
             projects = client.get("/api/v1/projects")
             batch = client.post("/api/v1/batches", json={"inputs": ["Smoke test query"]})
 
-            assert health.status_code == 200 and health.json() == {"status": "ok"}
+            assert health.status_code == 200 and health.json()["status"] == "ok" and health.json()["process"] == os.getpid()  # in-thread server: this process
             assert page.status_code == 200 and 'id="check-updates"' in page.text
             assert script.status_code == styles.status_code == playback.status_code == projects.status_code == 200
             assert projects.json() == []

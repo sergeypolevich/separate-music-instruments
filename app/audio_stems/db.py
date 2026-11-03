@@ -270,6 +270,32 @@ class SqliteMetadataStore:
         receipt = BatchReceipt(UUID(batch["id"]), job_ids, batch["owner_id"], options)
         return QueuedBatch(receipt, sources)
 
+    def requeue_interrupted_batches(self) -> int:
+        """After a restart for an update: unfinished work of prior worker processes goes back into the queue, in its
+        own batch and order; finished jobs keep their state. Stored audio and complete stems are reused."""
+        now = _utc_now()
+        with self._connection() as connection:
+            batches = [row["id"] for row in connection.execute(
+                "SELECT id FROM batches WHERE status = ?", (BatchStatus.PROCESSING.value,))]
+            for batch_id in batches:
+                connection.execute("UPDATE batches SET status = ?, updated_at = ? WHERE id = ?",
+                                   (BatchStatus.QUEUED.value, now, batch_id))
+                for row in connection.execute(
+                    "SELECT id FROM jobs WHERE batch_id = ? AND status NOT IN (?, ?, ?)",
+                    (batch_id, JobStatus.COMPLETED.value, JobStatus.FAILED.value, JobStatus.CANCELLED.value),
+                ).fetchall():
+                    connection.execute(
+                        "UPDATE jobs SET status = ?, current_stage = NULL, progress = 0, updated_at = ? WHERE id = ?",
+                        (JobStatus.QUEUED.value, now, row["id"]),
+                    )
+                    connection.execute(
+                        "INSERT INTO job_events (id, batch_id, job_id, name, occurred_at, details_json, actor_id) "
+                        "VALUES (?, ?, ?, ?, ?, ?, NULL)",
+                        (str(uuid4()), batch_id, row["id"], "job_requeued", now,
+                         json.dumps({"status": JobStatus.QUEUED.value, "reason": "update_restart"})),
+                    )
+        return len(batches)
+
     def recover_interrupted_batches(self) -> int:
         """Fail unfinished work from prior worker processes; outputs remain reusable."""
         recovered = 0

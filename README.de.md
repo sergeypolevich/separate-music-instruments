@@ -58,8 +58,10 @@ dauern wenige Sekunden.
 ## Aktualisieren
 
 **Einstellungen → Updates → Prüfen** zeigt, was spätere Versionen Neues bringen. **Aktualisieren auf …** lädt die
-neueste herunter (wenn gerade nichts getrennt wird); schließen Sie das Audio-Stems-Fenster und starten Sie die App
-erneut – das Update wird vor dem Öffnen installiert. Ihre Songs, Spuren und Einstellungen bleiben, wie sie sind.
+neueste herunter und startet die App damit neu; die Seite lädt sich selbst neu. Ein Song, der gerade geladen oder
+getrennt wird, geht nach dem Neustart weiter (eine Trennung beginnt für diesen Song von vorn). Ihre Songs, Spuren und
+Einstellungen bleiben, wie sie sind. Versionen vor 19.3 starten nicht selbst neu: Schließen Sie das
+Audio-Stems-Fenster und starten Sie die App erneut.
 
 ## Wo Ihre Dateien liegen
 

@@ -207,7 +207,7 @@ if you customized it.
 
 Settings → Updates → **Check** reads the fixed public GitHub repository's stable releases (only on that
 click) and lists those newer than `app/VERSION` (tags `vNN` or `vNN.N`, compared as numbers: v18 < v18.1 < v19; newest first) with their notes. **Update to vNN**
-asks for confirmation and is refused while a job or an upgrade runs (409 `busy`):
+asks for confirmation; running work is not waited for:
 
 - a ZIP copy downloads the release's archive from GitHub (`api.github.com/.../zipball/<tag>`, redirected to
   `codeload.github.com`; any other host is refused; at most 200 MB), unpacks it into `~/Audio Stems/update/<tag>/`
@@ -217,7 +217,15 @@ asks for confirmation and is refused while a job or an upgrade runs (409 `busy`)
   lock file: it starts the new code; changed: it exits with code 3 so `Start Windows.bat`/`Start MacOS.command` installs the new
   libraries first;
 - a git clone fast-forwards to the tag (`git fetch --tags origin`, `git merge --ff-only refs/tags/<tag>`), only
-  with no local changes to tracked files and no local commits the release lacks; restart to use it.
+  with no local changes to tracked files and no local commits the release lacks.
+
+Then the API writes `~/Audio Stems/resume-after-update` and, after its answer, exits with code 4. The launcher stops
+the worker and starts itself again (`python -m audio_stems.desktop`, no new browser tab): the staged release is
+installed, or, when the lock file no longer matches the installed libraries, it exits with code 3 for the full setup.
+The next worker finds the marker and puts interrupted batches back into the queue (finished jobs are not redone;
+stored audio and complete stems are reused); after any other restart interrupted jobs fail as before. The page waits
+for `/api/v1/health` to answer with a new `process` number and reloads. Downloads go to `<name>.part` and are renamed
+when complete, so a cut-off file is never reused.
 
 Releasing: when a version is pushed to main (with the user's consent), `app/VERSION` holds its number and a GitHub
 Release `vNN` (or `vNN.N` for a point version) is published with the version's notes.

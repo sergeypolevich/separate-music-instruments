@@ -250,3 +250,30 @@ def test_a_downloaded_update_is_installed_before_the_services_start(monkeypatch,
     assert result == expected and started == []  # the old code never starts the services
     assert installed[0][0] == tmp_path and installed[0][1].name == "update"
     assert restarted == ([[desktop.sys.executable, "-m", "audio_stems.desktop"]] if same_libraries else [])
+
+
+@pytest.mark.parametrize("same_libraries, expected", [(True, "restarted"), (False, desktop.MISSING_DEPENDENCIES)])
+def test_an_api_exit_for_an_update_stops_the_worker_and_starts_the_new_code(monkeypatch, same_libraries, expected):
+    processes, restarted = [], []
+
+    def popen(args, **_kwargs):
+        processes.append(FakeProcess(args))
+        return processes[-1]
+
+    def api_exits_for_the_update(_seconds):
+        processes[0].returncode = desktop.RESTART_EXIT_CODE
+
+    monkeypatch.setattr(desktop, "wait_for_api", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(desktop, "libraries_match", lambda: same_libraries)  # a git copy may need new libraries
+    monkeypatch.setenv("AUDIO_STEMS_OPEN_BROWSER", "0")
+
+    result = desktop.run(popen=popen, sleep=api_exits_for_the_update, open_browser=lambda *_a, **_k: True,
+                         restart=lambda command, **kwargs: restarted.append((command, kwargs)) or "restarted")
+
+    assert result == expected and processes[1].terminated  # the worker stops first; the queue keeps its work
+    if same_libraries:
+        command, kwargs = restarted[0]
+        assert command == [desktop.sys.executable, "-m", "audio_stems.desktop"]
+        assert kwargs["env"]["AUDIO_STEMS_OPEN_BROWSER"] == "0"  # the open page reloads itself: no second tab
+    else:
+        assert restarted == []  # the launcher installs the libraries, then starts the new code

@@ -1677,26 +1677,26 @@ function renderReleases(result) {
       apply.dataset.action = "install-update";
       apply.textContent = `Обновить до ${release.tag_name}`;
       apply.addEventListener("click", async () => {
-        if (!(await askConfirm({ title: `Установить «${release.name || release.tag_name}»?`, text: "Задачи в очереди должны закончиться. Ваши песни и настройки не затрагиваются. После установки приложение нужно запустить заново.", action: "Установить", danger: false }))) return;
+        if (!(await askConfirm({ title: `Установить «${release.name || release.tag_name}»?`, text: "Приложение перезапустится само. Идущее скачивание или разделение продолжится после перезапуска (разделение — с начала). Ваши песни и настройки не затрагиваются.", action: "Установить", danger: false }))) return;
+        // The button itself shows each step: a message above the card went unnoticed (a user's report).
         apply.disabled = true;
         apply.setAttribute("aria-busy", "true");
         apply.textContent = "Скачиваем…";
         updatesMessage.textContent = "Скачиваем обновление…";
         try {
-          const done = await requestJson("/api/v1/updates/apply", {
+          const before = (await requestJson("/api/v1/health")).process;
+          await requestJson("/api/v1/updates/apply", {
             method: "POST",
             body: JSON.stringify({ tag_name: release.tag_name, confirmed: true }),
           });
-          // The button itself says it is done: the message above the card went unnoticed (a user's report).
-          apply.textContent = done.state === "applied" ? "Установлено: перезапустите приложение" : "Скачано: перезапустите приложение";
-          updatesMessage.textContent = done.state === "applied"
-            ? "Обновление установлено. Закройте окно Audio Stems и запустите приложение снова."
-            : "Обновление скачано. Закройте окно Audio Stems и запустите приложение снова: оно установится при запуске.";
+          apply.textContent = "Перезапускаем…";
+          updatesMessage.textContent = "Приложение перезапускается с новой версией. Если ей нужны новые библиотеки, это займёт несколько минут: ход виден в окне Audio Stems.";
+          await waitForRestart(before);
+          window.location.reload();
         } catch (error) {
           updatesMessage.textContent = error.message;
           apply.textContent = `Обновить до ${release.tag_name}`;
           apply.disabled = false;
-        } finally {
           apply.removeAttribute("aria-busy");
         }
       });
@@ -1704,6 +1704,19 @@ function renderReleases(result) {
     }
     return card;
   }));
+}
+
+// After an update the server answers again under a new process number: the new version is running.
+async function waitForRestart(before) {
+  for (;;) {
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    try {
+      const response = await fetch("/api/v1/health", { cache: "no-store" });
+      if (response.ok && (await response.json()).process !== before) return;
+    } catch (_error) {
+      // still restarting
+    }
+  }
 }
 
 async function checkUpdates() {

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 import hashlib
 import json
 import logging
@@ -33,6 +33,7 @@ from typing import Callable
 from audio_stems.models import SeparationOptions
 
 from audio_stems.separator import BEST_MODEL, audio_duration
+from audio_stems.updates import RESUME_MARKER
 
 if TYPE_CHECKING:
     from audio_stems.db import SqliteMetadataStore
@@ -127,6 +128,9 @@ class BatchOrchestrator:
         for job_id, request in zip(receipt.job_ids, sources):
             try:
                 self._stop_if_cancelled(job_id)
+                current = self.repository.get_job(job_id, owner_id)
+                if current is not None and current.status in {JobStatus.COMPLETED, JobStatus.FAILED}:
+                    continue  # finished before an update restarted the app (requeue_interrupted_batches)
                 stored = self._stored_source(job_id, owner_id)
                 if stored is not None:  # «Разделить» after a cancel or a failure: no new search, no new download
                     self.repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
@@ -482,6 +486,7 @@ class DatabaseWorker:
         *,
         poll_seconds: float = 1.0,
         sleep: Callable[[float], None] = time.sleep,
+        resume_marker: Path | None = None,
     ) -> None:
         if poll_seconds <= 0:
             raise ValueError("poll_seconds must be positive")
@@ -489,9 +494,16 @@ class DatabaseWorker:
         self.orchestrator = orchestrator
         self.poll_seconds = poll_seconds
         self.sleep = sleep
+        self.resume_marker = resume_marker
 
     def recover_on_start(self) -> int:
         self.repository.requeue_interrupted_analyses("upgrade")
+        if self.resume_marker is not None and self.resume_marker.exists():  # the app restarted for an update
+            count = self.repository.requeue_interrupted_batches()
+            self.resume_marker.unlink(missing_ok=True)
+            worker_logger.info("Work interrupted by an update goes on",
+                               extra={"event": "worker_batches_resumed", "resumed_batches": count})
+            return count
         count = self.repository.recover_interrupted_batches()
         if count:
             worker_logger.warning(
@@ -597,7 +609,7 @@ def build_worker(settings: Settings | None = None) -> DatabaseWorker:
         settings=settings,
         sleep=time.sleep,
     )
-    return DatabaseWorker(repository, orchestrator)
+    return DatabaseWorker(repository, orchestrator, resume_marker=settings.storage_root.parent / RESUME_MARKER)
 
 
 if __name__ == "__main__":
