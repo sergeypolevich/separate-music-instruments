@@ -149,6 +149,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     uploaded = []
     deleted = []
     renamed = []  # the names the page saved, by PATCH
+    reordered = []  # the orders the page saved, by PUT
     running_detail = {}
     running_source = set()  # running projects whose source audio is already downloaded
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
@@ -300,6 +301,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             renamed.append((self.path, body))
             item = next(p for p in projects if self.path.endswith("/" + p["project_id"]))
             item["name"] = body["name"].strip() or None
+            self.send_response(204)
+            self.end_headers()
+
+        def do_PUT(self):
+            ids = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))["project_ids"]
+            reordered.append(ids)
+            projects.sort(key=lambda p: ids.index(p["project_id"]))
             self.send_response(204)
             self.end_headers()
 
@@ -1274,6 +1282,47 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 _wait_until(lambda: renamed[-1] == ("/api/v1/projects/project-0", {"name": ""}))
                 page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
                 assert page.evaluate("document.activeElement.id") != "detail-title"
+            # Order. A tab held 300 ms is lifted and follows the mouse, the others make room; on release the order
+            # is saved and the open project stays open. Moved at once, the strip scrolls instead (above).
+            order = "() => [...document.querySelectorAll('.project-tab')].map(t => t.dataset.projectId)"
+            original = page.evaluate(order)
+            page.locator("#project-tabs").evaluate("s => { s.scrollLeft = 0; }")
+            first, third = (page.locator(".project-tab").nth(index).bounding_box() for index in (0, 2))
+            page.mouse.move(third["x"] + third["width"] / 2, third["y"] + third["height"] / 2)
+            page.mouse.down()
+            time.sleep(0.4)
+            assert page.locator(".project-tab.lifted").count() == 1
+            page.mouse.move(first["x"] + 4, third["y"] + third["height"] / 2, steps=8)
+            assert page.evaluate("getComputedStyle(document.querySelectorAll('.project-tab')[0]).transform") != "none"  # made room
+            page.mouse.up()
+            _wait_until(lambda: reordered and reordered[-1][:3] == [original[2], original[0], original[1]])
+            assert sorted(reordered[-1]) == sorted(original)  # the whole list
+            page.wait_for_function(f"({order})().slice(0, 3).join() === '{original[2]},{original[0]},{original[1]}'")
+            assert page.locator(".project-tab.lifted").count() == 0
+            assert page.locator("#detail-title").text_content() == "Track 0" or viewport[0] < 600  # the release opened nothing
+            # A slow click (held, not moved) still opens the tab.
+            second = page.locator(".project-tab").nth(1)
+            second.hover()
+            page.mouse.down()
+            time.sleep(0.4)
+            page.mouse.up()
+            page.wait_for_function("document.querySelector('.project-tab[aria-selected=\"true\"]') === document.querySelectorAll('.project-tab')[1]")
+            assert len(reordered) == 1
+            # In the list, by mouse, the row moves at once (touch holds first, as on the tabs); the list stays open.
+            tabs_trigger.click()
+            rows = page.locator("#tabs-list .tabs-item")
+            listed = page.evaluate(order)
+            top, fourth = rows.nth(0).bounding_box(), rows.nth(3).bounding_box()
+            page.mouse.move(fourth["x"] + 40, fourth["y"] + fourth["height"] / 2)
+            page.mouse.down()
+            page.mouse.move(fourth["x"] + 40, top["y"] + 2, steps=8)
+            page.mouse.up()
+            _wait_until(lambda: len(reordered) == 2 and reordered[-1][:4] == [listed[3], listed[0], listed[1], listed[2]])
+            assert page.locator("#tabs-popover").is_visible()
+            page.wait_for_function(f"({order})()[0] === '{listed[3]}'")  # the tabs follow
+            page.keyboard.press("Escape")
+            page.evaluate(f"saveProjectOrder({json.dumps(original)})")
+            page.wait_for_function(f"({order})().join() === '{','.join(original)}'")
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")

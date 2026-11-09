@@ -838,10 +838,20 @@ class SqliteMetadataStore:
                 "SELECT p.*, j.id AS job_id, j.status AS job_status, j.progress AS job_progress, j.audio_seconds, "
                 "j.separation_started_at, j.separation_options_json "
                 "FROM projects p JOIN jobs j ON j.project_id = p.id "
-                "WHERE p.owner_id = ? ORDER BY p.created_at, p.rowid",
+                "WHERE p.owner_id = ? ORDER BY p.position IS NULL, p.position, p.created_at, p.rowid",
                 (owner_id,),
             ).fetchall()
         return [self._project(row) for row in rows]
+
+    def reorder_projects(self, owner_id: str, project_ids: list[UUID]) -> bool:
+        """Put the owner's projects in this order; False (nothing changed) unless it names each of them once."""
+        ids = [str(project_id) for project_id in project_ids]
+        with self._connection() as connection:
+            own = {row["id"] for row in connection.execute("SELECT id FROM projects WHERE owner_id = ?", (owner_id,))}
+            if len(ids) != len(own) or set(ids) != own:
+                return False
+            connection.executemany("UPDATE projects SET position = ? WHERE id = ?", [(index, id_) for index, id_ in enumerate(ids)])
+        return True
 
     def begin_project_deletion(self, project_id: UUID, owner_id: str) -> ProjectDeletion:
         """Persist managed file keys, then remove project/job metadata atomically."""

@@ -153,6 +153,12 @@ button { cursor: pointer; }
 /* Registered so the fill can animate; a running job fills its tab from the left. */
 @property --job-progress { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
 .project-tab { transition: --job-progress .8s linear; }
+/* Dragged to a new place: the others slide aside, the held one is lifted (a shadow, a little larger). */
+.project-tab, .tabs-item { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.reordering > .project-tab { transition: --job-progress .8s linear, transform .15s ease; }
+.reordering > .tabs-item { transition: transform .15s ease; }
+.reordering > .lifted { position: relative; z-index: 2; transition: none; box-shadow: 0 6px 18px rgb(0 0 0 / .28); cursor: grabbing; }
+.tabs-item.lifted { background: var(--panel-soft); }
 .project-tab:not([data-status="completed"]):not([data-status="failed"]) {
   background-image: linear-gradient(to right, color-mix(in srgb, var(--accent) 24%, transparent) var(--job-progress), transparent var(--job-progress));
 }

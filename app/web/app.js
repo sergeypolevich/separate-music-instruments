@@ -460,6 +460,7 @@ function followSelectedJob(projects) {
 function renderProjects(projects) {
   scheduleProjectPoll(projects);
   followSelectedJob(projects);
+  if (reordering) return;  // the next poll (or the drop's reload) draws them
   renderTabList(projects);
   const tabs = [...projectTabs.querySelectorAll(".project-tab")];
   // Same projects in the same order: update in place, so polling never resets hover, drag or scroll.
@@ -681,6 +682,10 @@ projectTabs.addEventListener("pointerdown", (event) => {
 });
 projectTabs.addEventListener("pointermove", (event) => {
   if (!tabDrag || event.pointerId !== tabDrag.id) return;
+  if (reordering) {  // the tab was held and lifted: it moves, the strip does not
+    tabDrag = null;
+    return;
+  }
   const dx = event.clientX - tabDrag.x;
   if (!tabDrag.moved && Math.abs(dx) > 5) {
     tabDrag.moved = true;
@@ -705,6 +710,122 @@ projectTabs.addEventListener("click", (event) => {
   event.preventDefault();
   event.stopPropagation();
 }, true);
+
+// Drag to reorder: the tabs sideways, the project list up and down. The item follows the pointer, the others make
+// room, and on release the new order is saved. hold(event): the pointer must first rest 300 ms without moving
+// (where a move scrolls: the tab strip, and the list by touch); otherwise a 5 px move starts the drag.
+let reordering = false;  // while an item is lifted the polls leave the tabs and the list alone
+
+function reorderable(container, scroller, selector, axis, hold) {
+  const along = (event) => (axis === "x" ? event.clientX : event.clientY);
+  const scrolled = () => (axis === "x" ? scroller.scrollLeft : scroller.scrollTop);
+  const translate = (offset) => (axis === "x" ? `translateX(${offset}px)` : `translateY(${offset}px)`);
+  let drag = null;
+  let suppressClick = false;
+  const place = () => {
+    const [low, high] = drag.edges[drag.from];
+    const [first, last] = [drag.edges[0][0], drag.edges[drag.edges.length - 1][1]];
+    const offset = Math.min(Math.max(drag.at + scrolled() - drag.start, first - low), last - high);  // within the row
+    const centre = (low + high) / 2 + offset;
+    drag.to = drag.from;
+    drag.edges.forEach(([a, b], index) => {
+      if (index > drag.from && centre >= (a + b) / 2) drag.to = index;  // >=: the row's ends are reachable
+      if (index < drag.from && centre <= (a + b) / 2 && drag.to === drag.from) drag.to = index;
+    });
+    drag.items.forEach((item, index) => {
+      const room = index > drag.from && index <= drag.to ? -drag.size : index < drag.from && index >= drag.to ? drag.size : 0;
+      item.style.transform = item === drag.item ? `${translate(offset)} scale(1.04)` : room ? translate(room) : "";
+    });
+  };
+  const autoScroll = () => {  // near an edge the list scrolls on by itself, so an item can go past what is visible
+    if (!drag?.lifted) return;
+    const box = scroller.getBoundingClientRect();
+    const [low, high] = axis === "x" ? [box.left, box.right] : [box.top, box.bottom];
+    const step = drag.at < low + 32 ? -8 : drag.at > high - 32 ? 8 : 0;
+    if (step) {
+      if (axis === "x") scroller.scrollLeft += step;
+      else scroller.scrollTop += step;
+      place();
+    }
+    requestAnimationFrame(autoScroll);
+  };
+  const lift = () => {
+    window.clearTimeout(drag.timer);
+    drag.items = [...container.querySelectorAll(selector)];
+    drag.edges = drag.items.map((item) => {  // in the content's coordinates, so scrolling moves the item along
+      const box = item.getBoundingClientRect();
+      return axis === "x" ? [box.left + scrolled(), box.right + scrolled()] : [box.top + scrolled(), box.bottom + scrolled()];
+    });
+    drag.from = drag.items.indexOf(drag.item);
+    const [low, high] = drag.edges[drag.from];
+    const next = drag.edges[drag.from + 1];
+    const previous = drag.edges[drag.from - 1];
+    drag.size = high - low + (next ? next[0] - high : previous ? low - previous[1] : 0);  // its length and the gap
+    drag.lifted = reordering = true;
+    container.setPointerCapture(drag.pointer);
+    container.classList.add("reordering");
+    drag.item.classList.add("lifted");
+    place();
+    autoScroll();
+  };
+  const end = (event) => {
+    if (!drag || event.pointerId !== drag.pointer) return;
+    window.clearTimeout(drag.timer);
+    const { lifted, items, from, to, item, x, y } = drag;
+    drag = null;
+    if (!lifted) return;
+    reordering = false;
+    container.classList.remove("reordering");  // first: the items jump into place instead of sliding back
+    item.classList.remove("lifted");
+    items.forEach((other) => { other.style.transform = ""; });
+    if (Math.hypot(event.clientX - x, event.clientY - y) > 5) {  // a slow click still opens the tab
+      suppressClick = true;  // the release after a drag is not a click on the item
+      window.setTimeout(() => { suppressClick = false; }, 0);
+    }
+    if (event.type === "pointercancel" || to === from) return;
+    container.insertBefore(item, to > from ? items[to].nextSibling : items[to]);
+    saveProjectOrder([...container.querySelectorAll(selector)].map((other) => other.dataset.projectId));
+  };
+  container.addEventListener("pointerdown", (event) => {
+    const item = event.target.closest(selector);
+    if (!item || event.button !== 0 || event.target.closest("[data-action]")) return;
+    drag = { item, pointer: event.pointerId, x: event.clientX, y: event.clientY, at: along(event), start: along(event) + scrolled(), lifted: false, timer: null };
+    if (hold(event)) drag.timer = window.setTimeout(lift, 300);
+  });
+  container.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.pointer) return;
+    drag.at = along(event);
+    if (drag.lifted) place();
+    else if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) > 5) {
+      if (drag.timer) {  // moved before the hold ended: a scroll, not a drag
+        window.clearTimeout(drag.timer);
+        drag = null;
+      } else lift();
+    }
+  });
+  container.addEventListener("pointerup", end);
+  container.addEventListener("pointercancel", end);
+  container.addEventListener("touchmove", (event) => { if (drag?.lifted) event.preventDefault(); }, { passive: false });
+  container.addEventListener("contextmenu", (event) => { if (drag) event.preventDefault(); });  // a long press
+  container.addEventListener("click", (event) => {
+    if (!suppressClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
+}
+
+async function saveProjectOrder(projectIds) {
+  try {
+    await requestJson("/api/v1/projects/order", { method: "PUT", body: JSON.stringify({ project_ids: projectIds }) });
+  } catch (error) {  // the list changed meanwhile (409): the reload shows the server's order
+    detailError.textContent = error.message;
+    detailError.hidden = false;
+  }
+  loadProjects();
+}
+
+reorderable(projectTabs, projectTabs, ".project-tab", "x", () => true);
+reorderable(document.querySelector("#tabs-list"), tabsPopover, ".tabs-item", "y", (event) => event.pointerType !== "mouse");
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 

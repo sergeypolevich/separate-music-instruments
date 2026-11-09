@@ -128,6 +128,26 @@ def test_a_project_is_renamed_without_touching_its_source_title_and_files(tmp_pa
     assert missing.status_code == 404 and missing.json()["error"]["code"] == "not_found"
 
 
+def test_projects_keep_the_order_they_were_dragged_into_and_a_new_one_comes_last(tmp_path):
+    request, _, _, _ = build_reopened_client(tmp_path)
+    store = SqliteMetadataStore(tmp_path / "library.db")
+    for query in ("Second", "Third"):
+        store.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, query)])
+    first, second, third = (project["project_id"] for project in request("GET", "/api/v1/projects").json())
+
+    assert request("PUT", "/api/v1/projects/order", json={"project_ids": [third, first, second]}).status_code == 204
+    store.create_batch("local", [SourceRequest(SourceKind.SEARCH_QUERY, "Fourth")])
+    listed = [project["project_id"] for project in request("GET", "/api/v1/projects").json()]
+    assert listed[:3] == [third, first, second] and len(listed) == 4
+    # Only the whole list, each project once: otherwise nothing changes.
+    for wrong in ([third, first, second], listed + [str(uuid4())], [listed[0]] * 4, listed[:3] + [str(uuid4())]):
+        response = request("PUT", "/api/v1/projects/order", json={"project_ids": wrong})
+        assert response.status_code == 409 and response.json()["error"]["code"] == "conflict"
+    foreign = store.create_batch("foreign-owner", [SourceRequest(SourceKind.SEARCH_QUERY, "Private")])
+    assert request("PUT", "/api/v1/projects/order", json={"project_ids": listed[:3] + [str(store.list_projects("foreign-owner")[0].project_id)]}).status_code == 409
+    assert [project["project_id"] for project in request("GET", "/api/v1/projects").json()] == listed
+
+
 def test_project_library_rejects_foreign_and_unknown_ids(tmp_path):
     request, _, _, _ = build_reopened_client(tmp_path)
     store = SqliteMetadataStore(tmp_path / "library.db")

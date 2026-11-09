@@ -74,6 +74,11 @@ class ProjectUpdate(BaseModel):
     name: Annotated[str, Field(max_length=200)]
 
 
+class ProjectOrder(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    project_ids: list[UUID] = Field(max_length=10_000)
+
+
 class StorageCleanupRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirmed: StrictBool
@@ -566,6 +571,13 @@ def create_app(
             }
             for project in repository.list_projects(_OWNER_ID)
         ]
+
+    @app.put("/api/v1/projects/order", status_code=status.HTTP_204_NO_CONTENT)
+    def reorder_projects(body: ProjectOrder) -> Response:
+        # The whole list, so a project added meanwhile is never left without a place: the page reloads and retries.
+        if not repository.reorder_projects(_OWNER_ID, body.project_ids):
+            raise HTTPException(status_code=409, detail={"code": "conflict", "message": "The project list has changed"})
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.get("/api/v1/queue")
     def get_queue() -> list[dict[str, object]]:
