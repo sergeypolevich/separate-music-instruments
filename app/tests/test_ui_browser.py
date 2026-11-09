@@ -1276,7 +1276,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 page.keyboard.press("Escape")
                 assert title.text_content() == "Track 0 in D" and len(renamed) == 1
                 title.click()
-                page.keyboard.press("Control+A")
+                page.keyboard.press("ControlOrMeta+A")
                 page.keyboard.press("Delete")
                 page.keyboard.press("Enter")
                 _wait_until(lambda: renamed[-1] == ("/api/v1/projects/project-0", {"name": ""}))
