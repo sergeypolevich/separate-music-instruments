@@ -46,6 +46,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 41. **Version 19.1 best model without a system ffmpeg:** audio-separator writes with soundfile and skips its ffmpeg check; the cause of a failed separator run in its log record; a live check on Windows and the macOS CI.
 42. **Version 19.2 search without bot detection:** search results come from the search response alone; unused code removed.
 43. **Version 19.3 update restarts the app:** no waiting for the queue; the launcher restarts on the API's exit code 4; interrupted work goes back into the queue; downloads through `.part`; the update button shows each step.
+44. **Version 20 master volume, rename and order:** ↑/↓ change the master volume by 5 %; a project is renamed in its title (a double tap on its tab on a phone), the name stored apart from the source title; projects are dragged into a new order (a tab after a 300 ms hold, a list row at once by mouse), the order stored.
 27. **Version 9 project cleanup:** close test gaps and record coverage/performance baselines first; move everything except `Start.bat` (renamed), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/` into `app/`; remove single-implementation protocols, the unused idempotency key and Demucs parameters, placeholder settings and dead code — with identical UI and no performance regression.
 
 ## Stage gate
