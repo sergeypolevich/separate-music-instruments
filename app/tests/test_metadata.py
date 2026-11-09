@@ -2,7 +2,7 @@ import sqlite3
 import subprocess
 import sys
 from pathlib import Path
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -105,7 +105,7 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 10
+    assert version == 11
     assert foreign_keys == 1
     assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
 
@@ -180,7 +180,7 @@ def test_two_processes_migrating_a_new_database_at_once_both_succeed(tmp_path):
 
     assert all(code == 0 for code, _ in results), results
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 10
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 11
 
 
 def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):
@@ -240,7 +240,8 @@ def test_migration_9_accepts_local_files_and_keeps_every_row_and_cascade(tmp_pat
         job_id = receipt.job_ids[0]
         store.add_asset(MediaAsset(uuid4(), job_id, MediaAssetType.STEM, "Stems/Song/vocals.flac", 3, stem_name="vocals"))
         store.transition_job(job_id, JobStatus.SEARCHING)
-        project_id = store.list_projects("client-1")[0].project_id
+        with sqlite3.connect(database) as connection:  # this code reads columns a version-8 schema lacks
+            project_id = UUID(connection.execute("SELECT id FROM projects").fetchone()[0])
         store.queue_analysis(project_id, "beats", {})
 
     def counts():

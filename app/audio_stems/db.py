@@ -68,6 +68,7 @@ class ProjectRecord:
     audio_seconds: float | None = None
     separation_started_at: str | None = None
     model_name: str | None = None
+    name: str | None = None  # given by the user; shown instead of the title
 
 
 @dataclass(frozen=True)
@@ -690,6 +691,15 @@ class SqliteMetadataStore:
             )
         return UUID(row["id"])
 
+    def rename_project(self, project_id: UUID, owner_id: str, name: str | None) -> bool:
+        """Set the user's name for the project (None shows the source title again); False if it is not found."""
+        with self._connection() as connection:
+            result = connection.execute(
+                "UPDATE projects SET name = ?, updated_at = ? WHERE id = ? AND owner_id = ?",
+                (name, _utc_now(), str(project_id), owner_id),
+            )
+        return result.rowcount == 1
+
     def update_project_source(self, job_id: UUID, source_id: str, title: str) -> None:
         with self._connection() as connection:
             result = connection.execute(
@@ -808,6 +818,7 @@ class SqliteMetadataStore:
             job_id=UUID(row["job_id"]), job_status=row["job_status"], job_progress=row["job_progress"],
             audio_seconds=row["audio_seconds"], separation_started_at=row["separation_started_at"],
             model_name=(_options_from_json(row["separation_options_json"]) or SeparationOptions("", "")).model_name or None,
+            name=row["name"],
         )
 
     def get_project(self, project_id: UUID, owner_id: str) -> ProjectRecord | None:

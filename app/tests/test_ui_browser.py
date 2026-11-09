@@ -148,6 +148,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     actions = []  # cancels and «Разделить» the page asked for
     uploaded = []
     deleted = []
+    renamed = []  # the names the page saved, by PATCH
     running_detail = {}
     running_source = set()  # running projects whose source audio is already downloaded
     disk = {"unused": 40 * 2**20, "temp": 10 * 2**20, "busy": False}
@@ -180,6 +181,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 stems = ("vocals", "drums", "bass", "other") if project_id == "project-3" else STEMS  # a 4-stem model
                 missing = ("vocals", "drums") if project_id == "project-4" else ()  # removed from disk by hand
                 detail = _project_detail(item["project_id"], item["job_id"], item["title"], stems, missing)
+                detail["name"] = item.get("name")
                 if project_id == "project-0" and len(upgrade_polls) >= 3:  # upgraded: new stem files
                     for asset in detail["assets"]:
                         asset["asset_id"] += "-sw"
@@ -292,6 +294,14 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 self._json({"batch_id": batch_id, "status": "queued", "job_ids": [new_job_id], "jobs": []}, 202)
             else:
                 self._json({"error": {"code": "not_found", "message": "Not found"}}, 404)
+
+        def do_PATCH(self):
+            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
+            renamed.append((self.path, body))
+            item = next(p for p in projects if self.path.endswith("/" + p["project_id"]))
+            item["name"] = body["name"].strip() or None
+            self.send_response(204)
+            self.end_headers()
 
         def do_DELETE(self):
             deleted.append(self.path)
@@ -485,6 +495,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 assert not page.locator("#detail-title").is_visible()
             # Re-opening the selected project (tab click, job-finished refresh) keeps the same players.
             page.evaluate("window.firstStem = document.querySelector('#playback-panel audio')")
+            time.sleep(0.45)  # on a phone two taps on one tab within 400 ms rename it
             # Running jobs keep the page polling, so wait for this project's response, not network idle.
             with page.expect_response(lambda response: response.url.endswith("/api/v1/projects/project-0")):
                 page.locator('.project-tab[data-project-id="project-0"]').click()
@@ -1207,6 +1218,62 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             projects[4].update(job_status="completed", progress=0.0)
             page.keyboard.press("Escape")
             assert page.locator("#tabs-popover").is_hidden()
+            # Renaming. On a phone (no title there) a double tap on a tab puts a field over it; Enter saves.
+            tab0 = page.locator('.project-tab[data-project-id="project-0"]')
+            tab0.click()
+            page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
+            time.sleep(0.5)  # not a double tap with the click that opened it
+            title = page.locator("#detail-title")
+            if viewport[0] < 600:
+                tab0.click()
+                tab0.click()
+                field = page.locator(".tab-rename")
+                assert field.is_visible() and field.input_value() == "Track 0"
+                assert page.evaluate("document.activeElement.className") == "tab-rename"
+                assert page.evaluate("getComputedStyle(document.querySelector('.tab-rename')).fontSize") == "16px"  # iOS does not zoom
+                field.fill("Warm-up")
+                page.keyboard.press("Enter")
+                _wait_until(lambda: renamed and renamed[-1] == ("/api/v1/projects/project-0", {"name": "Warm-up"}))
+                page.wait_for_function("document.querySelector('.project-tab[data-project-id=\"project-0\"]').textContent === 'Warm-up'")
+                assert page.locator(".tab-rename").count() == 0
+                # Esc in the field keeps the old name and saves nothing.
+                time.sleep(0.5)
+                tab0.click()
+                tab0.click()
+                page.locator(".tab-rename").fill("Nope")
+                page.keyboard.press("Escape")
+                assert page.locator(".tab-rename").count() == 0 and tab0.text_content() == "Warm-up" and len(renamed) == 1
+                projects[0]["name"] = None
+                page.evaluate("loadProjects()")
+                page.wait_for_function("document.querySelector('.project-tab[data-project-id=\"project-0\"]').textContent === 'Track 0'")
+            else:
+                tab0.click()
+                tab0.click()
+                assert page.locator(".tab-rename").count() == 0  # a double click on a computer just opens the tab
+                # In the title: a click puts the caret there, typing never reaches the hotkeys, leaving it saves;
+                # Esc gives the old name back; an empty name shows the source's title again.
+                assert title.evaluate("t => getComputedStyle(t).cursor") == "text"
+                paused = page.evaluate("document.querySelector('#playback-panel audio').paused")
+                title.click()
+                assert page.evaluate("document.activeElement.id") == "detail-title"
+                page.keyboard.press("End")
+                page.keyboard.type(" in D")  # a space and a letter that are hotkeys elsewhere
+                assert page.evaluate("document.querySelector('#playback-panel audio').paused") == paused
+                assert page.evaluate(selected)[1] != "true"  # D did not select Drums
+                page.locator("#detail-time").click()  # anywhere outside the title
+                _wait_until(lambda: renamed and renamed[-1] == ("/api/v1/projects/project-0", {"name": "Track 0 in D"}))
+                page.wait_for_function("document.querySelector('.project-tab[data-project-id=\"project-0\"]').textContent === 'Track 0 in D'")
+                title.click()
+                page.keyboard.type("zzz")
+                page.keyboard.press("Escape")
+                assert title.text_content() == "Track 0 in D" and len(renamed) == 1
+                title.click()
+                page.keyboard.press("Control+A")
+                page.keyboard.press("Delete")
+                page.keyboard.press("Enter")
+                _wait_until(lambda: renamed[-1] == ("/api/v1/projects/project-0", {"name": ""}))
+                page.wait_for_function("document.querySelector('#detail-title').textContent === 'Track 0'")
+                assert page.evaluate("document.activeElement.id") != "detail-title"
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")

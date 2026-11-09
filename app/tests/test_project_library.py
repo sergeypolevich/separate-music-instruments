@@ -72,13 +72,13 @@ def build_reopened_client(tmp_path):
         storage=storage,
     )
 
-    async def send(method, path):
+    async def send(method, path, **kwargs):
         async with httpx.AsyncClient(
             transport=httpx.ASGITransport(app=app), base_url="http://testserver"
         ) as client:
-            return await client.request(method, path)
+            return await client.request(method, path, **kwargs)
 
-    return lambda method, path: asyncio.run(send(method, path)), receipt, options, missing_path
+    return lambda method, path, **kwargs: asyncio.run(send(method, path, **kwargs)), receipt, options, missing_path
 
 
 def test_library_reopens_project_with_title_status_options_and_asset_availability(tmp_path):
@@ -104,6 +104,28 @@ def test_library_reopens_project_with_title_status_options_and_asset_availabilit
     assert all("storage_key" not in asset and "path" not in asset for asset in body["assets"])
     assert body["project_id"] == str(project["project_id"])
     assert body["job"]["job_id"] == str(receipt.job_ids[0])
+
+
+def test_a_project_is_renamed_without_touching_its_source_title_and_files(tmp_path):
+    request, _, _, _ = build_reopened_client(tmp_path)
+    project_id = request("GET", "/api/v1/projects").json()[0]["project_id"]
+    files = sorted(path.relative_to(tmp_path) for path in (tmp_path / "media").rglob("*"))
+
+    assert request("PATCH", f"/api/v1/projects/{project_id}", json={"name": "  My practice take  "}).status_code == 204
+    listed = request("GET", "/api/v1/projects").json()[0]
+    detail = request("GET", f"/api/v1/projects/{project_id}").json()
+    queued = request("GET", "/api/v1/queue").json()[0]
+
+    assert listed["name"] == detail["name"] == queued["title"] == "My practice take"
+    assert listed["title"] == detail["title"] == "Actual Song Title"  # the files are named after it
+    assert sorted(path.relative_to(tmp_path) for path in (tmp_path / "media").rglob("*")) == files
+    # An empty name shows the source title again.
+    assert request("PATCH", f"/api/v1/projects/{project_id}", json={"name": " "}).status_code == 204
+    assert request("GET", f"/api/v1/projects/{project_id}").json()["name"] is None
+    assert request("PATCH", f"/api/v1/projects/{project_id}", json={"name": "x" * 201}).status_code == 422
+    assert request("PATCH", f"/api/v1/projects/{project_id}", json={"title": "x"}).status_code == 422
+    missing = request("PATCH", f"/api/v1/projects/{uuid4()}", json={"name": "x"})
+    assert missing.status_code == 404 and missing.json()["error"]["code"] == "not_found"
 
 
 def test_project_library_rejects_foreign_and_unknown_ids(tmp_path):

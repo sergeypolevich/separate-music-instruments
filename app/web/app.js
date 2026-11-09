@@ -28,6 +28,8 @@ const detailTitle = document.querySelector("#detail-title");
 // At most two lines (CSS); a longer title fades out at the end of the second line instead of scrolling.
 const markClippedTitle = () => { detailTitle.toggleAttribute("data-clipped", detailTitle.scrollHeight > detailTitle.clientHeight + 1); };
 new ResizeObserver(markClippedTitle).observe(detailTitle);
+// The name the user gave, else the source's title, else what was typed.
+const projectName = (project) => project.name || project.title || project.input_value;
 const detailControls = document.querySelector("#detail-controls");  // the master volume, over the mixer column
 const detailTransport = document.querySelector("#detail-transport");  // ▶ ▶4 ⏮, before the title
 const detailTime = document.querySelector("#detail-time");
@@ -195,7 +197,7 @@ async function deleteAllProjects() {
     try {
       await requestJson(`/api/v1/projects/${encodeURIComponent(project.project_id)}`, { method: "DELETE" });
     } catch (_error) {
-      failed.push(project.title || project.input_value);
+      failed.push(projectName(project));
     }
   }
   selectedProjectId = null;
@@ -372,7 +374,7 @@ function scheduleProjectPoll(projects) {
 }
 
 function updateProjectTab(button, project) {
-  const nameText = project.title || project.input_value;
+  const nameText = projectName(project);
   const state = stateDescriptions[project.job_status] || project.job_status;
   button.dataset.status = statusBucket(project.job_status);
   button.style.setProperty("--job-progress", `${Math.round((project.progress || 0) * 100)}%`);
@@ -487,10 +489,72 @@ function renderProjects(projects) {
     name.className = "project-tab-name";
     button.append(name);
     updateProjectTab(button, project);
-    button.addEventListener("click", () => openProject(project.project_id));
+    button.addEventListener("click", () => {
+      // On a phone (no title to edit) a second tap on the same tab within 400 ms renames it.
+      const now = performance.now();
+      const twice = lastTabTap.id === project.project_id && now - lastTabTap.time < 400 && phoneLayout.matches;
+      lastTabTap = { id: project.project_id, time: twice ? 0 : now };
+      if (twice) renameInTab(button);
+      else openProject(project.project_id);
+    });
     return button;
   }));
   updateTabFades();
+}
+
+let lastTabTap = { id: null, time: 0 };
+const phoneLayout = matchMedia("(max-width: 600px)");  // as in app.css, where the title is hidden
+
+// Renaming: in the title on a computer, in a field over the tab after a double tap. Leaving the text saves it,
+// Enter too, Esc keeps the old name; an empty name shows the source's title again.
+async function renameProject(projectId, text) {
+  try {
+    await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}`, {
+      method: "PATCH", body: JSON.stringify({ name: text.replace(/\s+/g, " ").trim().slice(0, 200) }),
+    });
+  } catch (error) {
+    detailError.textContent = error.message;
+    detailError.hidden = false;
+  }
+  if (projectId === selectedProjectId) await openProject(projectId);  // the title, the tabs and the list
+  else await loadProjects();
+}
+
+function editName(field, read, cancel, save) {
+  const before = read();
+  let cancelled = false;
+  const onKey = (event) => {
+    if (event.key === "Enter") event.preventDefault();
+    if (event.key === "Escape") cancelled = true;
+    if (event.key === "Enter" || event.key === "Escape") field.blur();
+  };
+  field.addEventListener("keydown", onKey);
+  field.addEventListener("blur", () => {
+    field.removeEventListener("keydown", onKey);
+    if (cancelled) cancel(before);
+    else if (read() !== before) save(read());
+  }, { once: true });
+}
+
+detailTitle.addEventListener("focus", () => {
+  const projectId = selectedProjectId;
+  editName(detailTitle, () => detailTitle.textContent, (before) => { detailTitle.textContent = before; },
+    (text) => renameProject(projectId, text));
+});
+
+function renameInTab(button) {
+  const box = button.getBoundingClientRect();
+  const field = document.createElement("input");
+  field.className = "tab-rename";
+  field.value = button.firstElementChild.textContent;
+  field.maxLength = 200;
+  field.setAttribute("aria-label", "Название проекта");
+  Object.assign(field.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+  document.body.append(field);
+  editName(field, () => field.value, () => {}, (text) => renameProject(button.dataset.projectId, text));
+  field.addEventListener("blur", () => field.remove(), { once: true });
+  field.focus();
+  field.select();
 }
 
 // The list of every project (the button right of the tabs): a click opens one, ✕ deletes it after a question;
@@ -499,7 +563,7 @@ function renderTabList(projects) {
   tabsTrigger.hidden = !projects.length;
   if (!projects.length) closeTabList();
   document.querySelector("#tabs-list").replaceChildren(...projects.map((project) => {
-    const nameText = project.title || project.input_value;
+    const nameText = projectName(project);
     const row = document.createElement("div");
     row.className = "queue-item tabs-item";
     row.dataset.projectId = project.project_id;
@@ -769,11 +833,11 @@ function renderProject(project) {
   const rebuild = key !== playbackKey;
   if (rebuild) cleanupPlayback();
   selectedProjectId = project.project_id;
-  selectedProjectTitle = project.title || project.input_value;
+  selectedProjectTitle = projectName(project);
   selectedJobId = project.job.job_id;
   projectEmpty.hidden = true;
   projectDetail.hidden = false;
-  detailTitle.textContent = selectedProjectTitle;
+  if (document.activeElement !== detailTitle) detailTitle.textContent = selectedProjectTitle;  // a poll never undoes typing
   detailTitle.title = selectedProjectTitle;
   markClippedTitle();
   detailError.textContent = project.job.error_summary || "";

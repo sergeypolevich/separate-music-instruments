@@ -69,6 +69,11 @@ class _UiFiles(StaticFiles):
         return response
 
 
+class ProjectUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    name: Annotated[str, Field(max_length=200)]
+
+
 class StorageCleanupRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     confirmed: StrictBool
@@ -551,6 +556,7 @@ def create_app(
                 "input_value": project.input_value,
                 "source_id": project.source_id,
                 "title": project.title,
+                "name": project.name,
                 "created_at": project.created_at.isoformat(),
                 "job_id": str(project.job_id),
                 "job_status": project.job_status,
@@ -568,7 +574,7 @@ def create_app(
         speed = rates()
         jobs = [
             {"kind": "job", "job_id": str(project.job_id), "project_id": str(project.project_id),
-             "title": project.title or project.input_value, "status": project.job_status,
+             "title": project.name or project.title or project.input_value, "status": project.job_status,
              "progress": round(project.job_progress, 3), "eta_seconds": eta_seconds(project, speed)}
             for project in repository.list_projects(_OWNER_ID)
             if project.job_status not in {"completed", "failed", "cancelled"}
@@ -578,7 +584,7 @@ def create_app(
             project, job = project_and_job(UUID(project_id))
             state = upgrade_state(project, job)
             upgrades.append({"kind": "upgrade", "job_id": str(job.job_id), "project_id": project_id,
-                             "title": project.title or project.input_value, "status": state["status"],
+                             "title": project.name or project.title or project.input_value, "status": state["status"],
                              "progress": state["progress"], "eta_seconds": state["eta_seconds"]})
         working = {"searching", "downloading", "separating", "running"}
         return sorted(jobs + upgrades, key=lambda item: item["status"] not in working)  # stable: the order otherwise
@@ -633,6 +639,7 @@ def create_app(
             "input_value": project.input_value,
             "source_id": project.source_id,
             "title": project.title,
+            "name": project.name,
             "created_at": project.created_at.isoformat(),
             "job": {
                 **_job_payload(job),
@@ -649,6 +656,13 @@ def create_app(
             "shared_bytes": shared_bytes,
             "upgrade": upgrade_state(project, job),
         }
+
+    @app.patch("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def rename_project(project_id: UUID, body: ProjectUpdate) -> Response:
+        # Only what is shown changes: the files keep the source title's names.
+        if not repository.rename_project(project_id, _OWNER_ID, body.name.strip() or None):
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.delete("/api/v1/projects/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
     def delete_project(project_id: UUID) -> Response:
