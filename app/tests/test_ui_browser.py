@@ -674,10 +674,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Home")
             selected = "() => [...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)"
             assert page.evaluate(selected) == ["true"] + ["false"] * 5
-            page.keyboard.press("ArrowUp")
-            assert page.evaluate(selected)[0] == "true"
-            page.keyboard.press("ArrowDown")
-            page.keyboard.press("ArrowDown")
+            page.keyboard.press("Shift+Tab")
+            page.keyboard.press("Tab")
+            page.keyboard.press("Tab")
+            page.keyboard.press("Tab")
             assert page.evaluate(selected) == ["false", "false", "true", "false", "false", "false"]
             bar = page.evaluate("""() => { const row = document.querySelector('.mixer-row[data-selected="true"]');
                 const s = getComputedStyle(row, '::before'); return [s.width, s.height, row.getBoundingClientRect().height]; }""")
@@ -688,8 +688,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("KeyM")
             assert page.locator('[data-control="mute"]').nth(2).get_attribute("aria-pressed") == "true"
             page.keyboard.press("KeyM")
-            for _ in range(8):
-                page.keyboard.press("ArrowDown")
+            page.keyboard.press("KeyO")
             assert page.evaluate(selected)[-1] == "true"
             # Tab walks the tracks in a circle instead of moving the focus (so no focus rings).
             focused = page.evaluate("document.activeElement.outerHTML")
@@ -741,6 +740,17 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "0.4"
             assert page.evaluate("localStorage.getItem('audio-stems-master-volume:project-0')") == "40"
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1  # stems untouched
+            master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            # ↑ and ↓ change the master volume by 5 %, within 0-100 %, remembered; the selected track stays.
+            before = page.evaluate(selected)
+            for key, expected in (("ArrowUp", "100"), ("ArrowDown", "95"), ("ArrowDown", "90"), ("ArrowUp", "95")):
+                page.keyboard.press(key)
+                assert master.input_value() == expected, key
+            assert page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "0.95"
+            assert page.evaluate("localStorage.getItem('audio-stems-master-volume:project-0')") == "95"
+            for _ in range(25):
+                page.keyboard.press("ArrowDown")
+            assert master.input_value() == "0" and page.evaluate(selected) == before
             master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             # A clicked control keeps focus, but the next key never draws a focus ring around it.
             ring = "() => getComputedStyle(document.activeElement).outlineStyle"
@@ -1116,7 +1126,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
             assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 16 and ["Сбросить петлю", "Esc"] in rows
             assert ["Открыть вкладку 1–9", "1–9"] in rows and ["Вкладка: предыдущая / следующая", "Q, W"] in rows
-            assert ["Выбор дорожки: следующая / предыдущая", "↓, ↑"] in rows
+            assert ["Общая громкость +5 % / −5 %", "↑, ↓"] in rows
+            assert not any("Выбор дорожки" in action for action, _keys in rows)
             assert not any("End" in keys or "В конец" in action for action, keys in rows)
             # A list: no rules between the rows, the keys right after the action's text.
             assert page.evaluate("getComputedStyle(document.querySelector('#hotkey-list > div')).borderTopStyle") == "none"

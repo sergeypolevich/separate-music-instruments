@@ -227,7 +227,6 @@ const HOTKEYS = [
   ["Назад / вперёд на 5 секунд", "←, →"],
   ["В начало", "Home"],
   ["В начало и пауза", "Backspace"],
-  ["Выбор дорожки: следующая / предыдущая", "↓, ↑"],
   ["Следующая / предыдущая дорожка по кругу", "Tab, Shift+Tab"],
   ["Открыть вкладку 1–9", "1–9"],
   ["Вкладка: предыдущая / следующая", "Q, W"],
@@ -235,6 +234,7 @@ const HOTKEYS = [
   ["Solo выбранной дорожки", "S"],
   ["Mute выбранной дорожки", "M"],
   ["Громкость выбранной дорожки +10 % / −10 %", "+, −"],
+  ["Общая громкость +5 % / −5 %", "↑, ↓"],
   ["Открыть файл или найти песню", /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘F" : "Ctrl+F"],
   ["Ещё одна строка в поле поиска", "Shift+Enter"],
   ["Сбросить петлю", "Esc"],
@@ -1560,7 +1560,6 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       seekBy: (seconds) => transport.seek(transport.currentTime + seconds),
       seekTo: (seconds) => (transport.loop ? transport.setLoop(null, seconds) : transport.seek(seconds)),  // Home drops a loop
       dropLoop: () => { if (transport.loop) transport.setLoop(null, transport.currentTime); },
-      moveSelection: (step) => selectStem(selectedStem + step),
       cycleSelection: (step) => selectStem((selectedStem + step + stems.length) % stems.length),
       selectStemByName: (name) => {
         const index = stems.findIndex((asset) => asset.stem_name === name);
@@ -1572,6 +1571,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         const gain = mixerRowElements[selectedStem].querySelector('[data-control="gain"]');
         gain.value = String(Number(gain.value) + step);
         gain.dispatchEvent(new Event("input"));
+      },
+      nudgeMaster: (step) => {  // the slider clamps to 0-100 % and its input handler stores the value
+        master.value = String(Number(master.value) + step);
+        master.dispatchEvent(new Event("input"));
       },
     };
     tracks.forEach((audio) => audio.load());
@@ -2009,8 +2012,8 @@ document.addEventListener("keydown", (event) => {
     Home: () => controls.seekTo(0),
     Escape: () => controls.dropLoop(),  // with no window open (those close first, above)
     Backspace: () => controls.toStartAndPause(),  // the ⏮ button: back to the start, paused
-    ArrowUp: () => controls.moveSelection(-1),
-    ArrowDown: () => controls.moveSelection(1),
+    ArrowUp: () => controls.nudgeMaster(5),
+    ArrowDown: () => controls.nudgeMaster(-5),
     Space: () => controls.togglePlayback(),
     Enter: () => controls.togglePlayback(),
     NumpadEnter: () => controls.togglePlayback(),
