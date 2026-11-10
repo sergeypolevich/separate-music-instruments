@@ -89,3 +89,24 @@ def test_english_and_german_docs_have_no_russian():
     for name in ("README.md", "README.de.md", "THIRD_PARTY.md", "AGENTS.md", "app/README.md"):
         text = (root / name).read_text(encoding="utf-8").replace("[Русский](README.ru.md)", "")
         assert not re.findall(r"[\u0400-\u04FF]+", text), name  # UI labels are named in the document's own language
+
+
+def test_code_and_tests_are_english_only():
+    """Version 21 step 0: the app speaks English; translations come later from the translation service.
+    Markdown may keep Russian. A line here may only keep Cyrillic when it says why (the named fixtures)."""
+    app = Path(__file__).parents[1]
+    allowed = {  # file: a piece every allowed line contains
+        "tests/test_documentation.py": "README.ru.md",  # checks the Russian user guide
+        "tests/test_ui_browser.py": "\u041c\u043e\u044f \u0437\u0430\u043f\u0438\u0441\u044c.wav",  # a Cyrillic file name
+    }
+    skipped = {".venv", "vendor", "tmp", "__pycache__", ".pytest_cache", "node_modules"}
+    files = [path for path in app.rglob("*") if path.is_file() and not skipped & set(path.relative_to(app).parts)
+             and path.suffix in {".py", ".js", ".mjs", ".css", ".html", ".ps1", ".sh", ".sql", ".ini", ".txt"}]
+    files += [app.parent / "Start Windows.bat", app.parent / "Start MacOS.command"]
+    found = []
+    for path in files:
+        name = path.relative_to(app.parent).as_posix().removeprefix("app/")
+        for number, line in enumerate(path.read_text(encoding="utf-8-sig").splitlines(), 1):
+            if re.search(r"[\u0400-\u04ff]", line) and not (name in allowed and allowed[name] in line):
+                found.append(f"{name}:{number}: {line.strip()[:80]}")
+    assert len(files) > 50 and not found, found
