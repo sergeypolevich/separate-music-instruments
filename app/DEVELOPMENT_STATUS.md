@@ -359,6 +359,23 @@ Everything the user waits for is as fast as before or faster (switching projects
 - **Seek while playing, and a stalled first stem (the user's check after the fix above, with Docker and Telegram busy):** after a click into the waveforms the stems already loaded ran ahead while the first one (vocals, the time reference) was still seeking, the shown time stood still, then the others were pulled back. Changes in `SynchronizedTransport`: (1) a seek while playing pauses all stems, seeks them and starts them together once each is past seeking with HAVE_CURRENT_DATA (what a paused stem loads), or after 3 s anyway — once per seek, checked on a 50 ms timer as well as in the frame loop, because Chrome gives a covered or hidden window no animation frames (a first version relying on frames left the stems paused in a test window behind others); (2) the reference time is the median of the stems actually playing, so one stem still loading neither freezes the shown time nor pulls the others back, and every stem (the first too) is corrected toward it. Measured in Chrome with all CPU cores busy, the user's steps (30 s, metronome on/off/on, metronome volume, seek forward, Brooklyn): all stems wait ~1.2 s and start together, apart > 0.3 s in 0 of 40 samples; count-in on СМРТ unchanged (no sync pause/play calls); the delayed-bass case 0 s of silence, 7 requests. Node tests for the seek restart (frames and timer only, the 3 s limit, a pause cancelling it) and the stalled first stem.
 - **«Улучшенное качество разделения» looked different between projects (user's screenshots):** `showUpgrade` always set `--job-progress` inline from the upgrade state, so a project upgraded in the app («done», 100 %) kept a full fill on its finished button, while one separated with the best model (no upgrade row, 0 %) had none; the inline value beat the stylesheet's `.footer-toggle:not([data-analyzing]) { --job-progress: 0% }`. The fill is now set only while the upgrade is queued or running and removed otherwise. The browser test's best-model project now carries a finished «done, 100 %» upgrade and checks a 0 % fill there and after an upgrade finishes.
 
+## Version 21 — English app, then instant translations (in progress)
+
+Plan: `~/.claude/plans/version-21.md` (plan item 45). Step 0 is done: code, tests, styles and pages are English-only; Markdown may keep Russian and old commits stay as they were.
+
+- **Commits:**
+  - 644d7a1 server and worker messages, model descriptions;
+  - b40085d static page (`lang="en"`);
+  - 59f14cf texts built in `app.js` (two planned commits merged into one, because the browser test mixes texts of both halves);
+  - 5adee12 comments;
+  - 579d1b0 button names in `FUNCTIONALITY.md`;
+  - 8867d2a the guard test `test_code_and_tests_are_english_only` (the allowed Cyrillic: the Russian README check, the file name in the upload test).
+- **Formats:** sizes `1.5 GB`, times `~55 s` / `~11 min`, dates `Nov 10, 2026`, quotes “…”, `Queue: N tasks`.
+- **Reference for the later comparison:** the pairs "English → old Russian" are in the main checkout's `app/tmp/ru-v20-reference.json` (gitignored, about 200 texts).
+- **Checks per commit:** the touched tests (browser 5 passed, API, jobs, separator, documentation), node 36 passed. Screenshots of every screen, both themes, desktop and phone, from the real app on a temporary data folder: nothing cut or overlapping.
+- **Not run yet:** the full gate (at the version end). Error summaries already stored in a user's database stay Russian (data, not code).
+- **Next:** step 1, a prototype of the language choice in Settings.
+
 ## Version 20 — master volume on the arrows, rename and order of projects
 
 The user's three requests after 19.3: the up and down arrows become the master volume; projects are renamed in the title without buttons, saved on blur; projects are dragged into a new order. Answers: a step of 5 %; a double tap on the tab renames on a phone; tabs are dragged after a hold (variant A of three proposed).
