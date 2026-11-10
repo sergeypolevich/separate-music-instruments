@@ -36,7 +36,7 @@ _ALLOWED_JOB_TRANSITIONS = {
     JobStatus.SEPARATING: {JobStatus.COMPLETED, JobStatus.FAILED, JobStatus.CANCELLED},
     JobStatus.FAILED: {JobStatus.QUEUED},
     JobStatus.COMPLETED: set(),
-    JobStatus.CANCELLED: {JobStatus.QUEUED},  # «Разделить» after a cancelled separation (requeue_separation)
+    JobStatus.CANCELLED: {JobStatus.QUEUED},  # «Separate» after a cancelled separation (requeue_separation)
 }
 _ALLOWED_BATCH_TRANSITIONS = {
     BatchStatus.QUEUED: {BatchStatus.PROCESSING, BatchStatus.CANCELLED},
@@ -657,7 +657,7 @@ class SqliteMetadataStore:
         return UUID(row["project_id"]) if row else None
 
     def requeue_separation(self, project_id: UUID, owner_id: str) -> UUID:
-        """«Разделить»: a cancelled or failed project whose source audio is stored goes back into the queue, in a
+        """«Separate»: a cancelled or failed project whose source audio is stored goes back into the queue, in a
         batch of its own (its first batch may hold finished jobs); the worker separates the stored audio."""
         now = _utc_now()
         with self._connection() as connection:

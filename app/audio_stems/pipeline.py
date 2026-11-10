@@ -132,7 +132,7 @@ class BatchOrchestrator:
                 if current is not None and current.status in {JobStatus.COMPLETED, JobStatus.FAILED}:
                     continue  # finished before an update restarted the app (requeue_interrupted_batches)
                 stored = self._stored_source(job_id, owner_id)
-                if stored is not None:  # «Разделить» after a cancel or a failure: no new search, no new download
+                if stored is not None:  # «Separate» after a cancel or a failure: no new search, no new download
                     self.repository.transition_job(job_id, JobStatus.DOWNLOADING, stage="download")
                     self.repository.transition_job(job_id, JobStatus.DOWNLOADED, stage="download")
                     downloaded[job_id] = stored
@@ -269,7 +269,7 @@ class BatchOrchestrator:
 
     def _cancel(self, job_id: UUID, stage: str, owner_id: str, batch_id: UUID, request: SourceRequest) -> None:
         """Before the separation the project goes away (the user's rule); after the download it stays with its
-        audio, to be separated again with «Разделить»."""
+        audio, to be separated again with «Separate»."""
         logger.info("Job cancelled", extra={"event": "job_cancelled", "ClientID": owner_id, "batch_id": str(batch_id),
                                             "job_id": str(job_id), "stage": stage})
         if stage == "download" and request.kind is SourceKind.LOCAL_FILE:
@@ -425,7 +425,7 @@ class BatchOrchestrator:
     def upgrade_project(
         self, project_id: UUID, owner_id: str, progress: Callable[[float], None] | None = None,
     ) -> tuple[str, ...]:
-        """«Улучшить качество»: separate a finished project again with the best model and switch it to the
+        """«Improve quality»: separate a finished project again with the best model and switch it to the
         new stems. The old stems stay playable until the switch; returns the old files no project uses any
         more (deleted by the caller once the player has let go of them)."""
         project = self.repository.get_project(project_id, owner_id)
@@ -532,7 +532,7 @@ class DatabaseWorker:
         return True
 
     def run_upgrade(self, *, delete_attempts: int = 20, delete_pause: float = 0.5) -> bool:
-        """Work one queued «Улучшить качество»; True when one ran."""
+        """Work one queued «Improve quality»; True when one ran."""
         task = self.repository.claim_analysis("upgrade")
         if task is None:
             return False

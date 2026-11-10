@@ -61,7 +61,7 @@ _MODELS = {
     "htdemucs_6s": _Model("Demucs htdemucs_6s", "The earlier fast six-stem model.", _SIX, "demucs",
                           seconds_per_audio_second=0.9, offered=False),
 }
-# «Улучшить качество» re-separates a project with this model.
+# «Improve quality» re-separates a project with this model.
 BEST_MODEL = "bs_roformer_sw"
 # SHA-256 of every weights file a model runs, checked before use (Hugging Face's LFS hashes confirm the Demucs
 # ones). Demucs 4.1 builds the model class named in the file's own metadata, so a swapped file could run any code;

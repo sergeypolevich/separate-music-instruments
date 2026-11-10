@@ -145,7 +145,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
     new_job_id = "job-created"
     submitted = []
     queue_items = []  # what GET /api/v1/queue answers
-    actions = []  # cancels and «Разделить» the page asked for
+    actions = []  # cancels and «Separate» the page asked for
     uploaded = []
     deleted = []
     renamed = []  # the names the page saved, by PATCH
@@ -419,11 +419,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("!document.querySelector('#playback-panel audio').paused")
             page.keyboard.press("Space")
             page.wait_for_function("document.querySelector('#playback-panel audio').paused")
-            # «Отменить» next to the progress: a running task asks first, then the server is told.
+            # «Cancel» next to the progress: a running task asks first, then the server is told.
             page.locator('[data-action="cancel-job"]').click()
             confirm_in_app()
             _wait_until(lambda: actions and actions[-1] == f"/api/v1/jobs/{projects[6]['job_id']}/cancel")
-            # Cancelled after the download: the song stays, with «Разделить», which puts it back in the queue.
+            # Cancelled after the download: the song stays, with «Separate», which puts it back in the queue.
             running_detail["project-6"] = "cancelled"
             projects[6].update(job_status="cancelled", progress=0.3)
             page.locator('.project-tab[data-project-id="project-0"]').click()
@@ -861,7 +861,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                         [...speed.querySelectorAll('.speed-scale span')].map((s) => s.textContent)]; }""")
             assert all(abs(offset) <= 1 for offset in marks[:3]), marks
             assert marks[3] == ["25%", "100%", "150%"]
-            # A snail left of the scale and a hare right of it; no «Скорость» and no value beside it — the value is a
+            # A snail left of the scale and a hare right of it; no «Speed» and no value beside it — the value is a
             # tooltip over the thumb while hovering; the scale's labels stay inside the speed block.
             speed_layout = page.evaluate("""() => {
                 const wrap = document.querySelector('.footer-speed'), fader = wrap.querySelector('.speed-fader').getBoundingClientRect();
@@ -909,7 +909,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stream'")
             assert speed.input_value() == "100" and page.locator(".footer-speed-value").text_content() == "100%"
             assert abs(page.evaluate("document.querySelector('#playback-panel audio').currentTime") - moved) < 0.1
-            # «Улучшить качество»: progress on the button while the project keeps playing, then the player
+            # «Improve quality»: progress on the button while the project keeps playing, then the player
             # moves to the new stems at the same position and plays on; the button then says it is done.
             upgrade = page.locator('[data-action="upgrade"]')
             assert upgrade.text_content() == "Improve quality · ~23 min" and upgrade.is_enabled()
@@ -1072,7 +1072,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert confirm_in_app() == "Clean up storage?"
             page.wait_for_function("document.querySelector('#disk-message').textContent === 'Freed 50 MB.'")
             assert page.locator("#clean-storage").is_disabled()
-            # «Удалить все проекты» asks once with the size, then deletes every project through the bin's route.
+            # «Delete all projects» asks once with the size, then deletes every project through the bin's route.
             delete_all = page.locator("#delete-all-projects")
             assert delete_all.text_content() == "Delete all projects (3.0 GB)" and delete_all.is_enabled()
             before_deleted = len(deleted)
@@ -1387,7 +1387,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-created"]').wait_for(state="visible")
             assert submitted[-1] == {"inputs": ["New track", "Second track"], "model_name": "htdemucs_ft"}
 
-            # Your own file: «Открыть аудиофайл» comes first in the dialog, above the YouTube search.
+            # Your own file: «Open audio file» comes first in the dialog, above the YouTube search.
             page.locator("#search-trigger").click()
             assert page.evaluate("""() => document.querySelector('#open-file').getBoundingClientRect().bottom
                 < document.querySelector('#inputs').getBoundingClientRect().top""")

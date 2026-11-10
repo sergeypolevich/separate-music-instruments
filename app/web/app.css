@@ -205,7 +205,7 @@ h1, h2, h3, p { margin-top: 0; }
 .footer-toggle.metronome-toggle[aria-pressed="true"]:not([data-analyzing]) { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
 /* Two classes: a single one loses to the later .mixer-fader mark (100 of 150). */
 .mixer-fader.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
-/* «Улучшить качество» sits midway between the metronome and the speed: equal free space on both sides. */
+/* «Improve quality» sits midway between the metronome and the speed: equal free space on both sides. */
 .footer-upgrade { margin-inline: auto; }
 /* Top padding: the 25/100/150 labels over the fader stay inside the block. */
 .footer-speed { display: inline-flex; align-items: center; gap: 10px; padding: 15px 8px 4px; border-radius: 8px; color: var(--text-soft); font-size: 12px; transition: --job-progress .3s linear; }
@@ -364,7 +364,7 @@ h1, h2, h3, p { margin-top: 0; }
 .danger-action:hover { background: color-mix(in srgb, var(--danger) 80%, var(--text)); }
 button:disabled { opacity: .55; cursor: default; }
 button[aria-busy="true"] { cursor: progress; }
-/* "Ритм не найден": off for good, not busy. */
+/* "No beat found": off for good, not busy. */
 .footer-toggle:disabled, .footer-fader input:disabled, [data-action="count-in"]:disabled { opacity: .55; cursor: default; }
 /* A running upgrade is busy, not unavailable: its progress fill stays fully visible. */
 .footer-toggle[data-analyzing]:disabled { opacity: 1; }

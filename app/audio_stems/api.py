@@ -337,7 +337,7 @@ def create_app(
         return JSONResponse(beats_state(project_id), status_code=202)
 
     def upgrade_state(project, job) -> dict[str, object]:
-        """«Улучшить качество»: whether the project already has the best model, how long the upgrade takes
+        """«Improve quality»: whether the project already has the best model, how long the upgrade takes
         on this machine, and how far a running one is."""
         state = repository.get_analysis(project.project_id, "upgrade") or {
             "status": "none", "progress": 0.0, "error": None, "updated_at": None}
@@ -394,7 +394,7 @@ def create_app(
 
     @app.delete("/api/v1/projects/{project_id}/upgrade")
     def cancel_upgrade(project_id: UUID) -> dict[str, object]:
-        """Cancel «Улучшить качество»: a queued one is gone at once, a running one stops within a second or so
+        """Cancel «Improve quality»: a queued one is gone at once, a running one stops within a second or so
         (the worker); the project keeps its stems either way."""
         project, job = project_and_job(project_id)
         outcome = repository.cancel_analysis(project_id, "upgrade")
@@ -582,7 +582,7 @@ def create_app(
     @app.get("/api/v1/queue")
     def get_queue() -> list[dict[str, object]]:
         """What the worker is doing and what waits, in its order: the running task first, then the songs
-        waiting to be separated, then the waiting «Улучшить качество» (the worker takes batches first)."""
+        waiting to be separated, then the waiting «Improve quality» (the worker takes batches first)."""
         speed = rates()
         jobs = [
             {"kind": "job", "job_id": str(project.job_id), "project_id": str(project.project_id),
@@ -727,7 +727,7 @@ def create_app(
 
     @app.post("/api/v1/projects/{project_id}/separate", status_code=status.HTTP_202_ACCEPTED)
     def separate_again(project_id: UUID) -> dict[str, str]:
-        """«Разделить»: a cancelled or failed project with its source audio goes back into the queue."""
+        """«Separate»: a cancelled or failed project with its source audio goes back into the queue."""
         try:
             job_id = repository.requeue_separation(project_id, _OWNER_ID)
         except AdapterError as exc:

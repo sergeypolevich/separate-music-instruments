@@ -85,7 +85,7 @@ def run(
     move_legacy_storage()  # before the services open any file in it
     settings = Settings.load()
     installed = apply_staged_update(ROOT.parent, settings.storage_root.parent / "update")
-    if installed:  # downloaded in Settings → Обновления; copied over the app now, before any of it runs
+    if installed:  # downloaded in Settings → Updates; copied over the app now, before any of it runs
         print(f"Installed the update {installed}.", flush=True)
         if not libraries_match():
             return MISSING_DEPENDENCIES  # the launcher installs the new libraries, then starts the new code
@@ -133,7 +133,7 @@ def run(
         print("Audio Stems services stopped.", flush=True)
     if code != RESTART_EXIT_CODE:
         return code
-    # Settings → Обновления installed an update: start again with the new code (a git copy's libraries may differ).
+    # Settings → Updates installed an update: start again with the new code (a git copy's libraries may differ).
     if not libraries_match():
         return MISSING_DEPENDENCIES
     print("Restarting with the update...", flush=True)

@@ -88,4 +88,4 @@ def test_english_and_german_docs_have_no_russian():
     root = Path(__file__).parents[2]
     for name in ("README.md", "README.de.md", "THIRD_PARTY.md", "AGENTS.md", "app/README.md"):
         text = (root / name).read_text(encoding="utf-8").replace("[Русский](README.ru.md)", "")
-        assert not re.findall(r"[А-Яа-яЁё]+", text), name  # UI labels are named in the document's own language
+        assert not re.findall(r"[\u0400-\u04FF]+", text), name  # UI labels are named in the document's own language

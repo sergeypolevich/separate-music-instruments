@@ -571,7 +571,7 @@ def test_cancel_while_downloading_deletes_the_project_and_stops_its_batch(tmp_pa
 
     result = orchestrator.process_batch(receipt, requests)
 
-    assert store.list_projects("client-1") == []  # «удалять, если это загрузка»
+    assert store.list_projects("client-1") == []  # «delete it if it is an upload»
     assert result.status is BatchStatus.CANCELLED and separator.calls == []
 
 
@@ -599,7 +599,7 @@ def test_cancel_while_separating_keeps_the_project_with_its_audio_and_separate_f
     assert [a.asset_type for a in assets] == [MediaAssetType.SOURCE_AUDIO]  # the song stays, to listen to or separate
     assert not storage.temporary_directory(project.title, project.source_id).exists()  # the half-made stems are gone
 
-    # «Разделить»: back in the queue on its own; the stored audio is separated, no new search or download.
+    # «Separate»: back in the queue on its own; the stored audio is separated, no new search or download.
     store.requeue_separation(project.project_id, "client-1")
     events.clear()
     claimed = store.claim_next_batch()

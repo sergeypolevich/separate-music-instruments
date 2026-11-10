@@ -40,7 +40,7 @@ def test_separator_reports_model_names_and_supported_options():
     speed = {model.name: model.seconds_per_audio_second for model in models}
     assert speed == {"hdemucs_mmi": 1.2, "bs_roformer_sw": 7.1}  # estimates for the test laptop
     assert separator.model_stems("bs_roformer_sw") == stems["bs_roformer_sw"]
-    # Earlier projects keep their model for «Разделить заново».
+    # Earlier projects keep their model for «Separate again».
     assert separator.model_stems("htdemucs_6s") == stems["bs_roformer_sw"]
     with pytest.raises(AdapterError):
         separator.model_stems("made-up-model")

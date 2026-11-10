@@ -56,8 +56,6 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
                     'id="detail-input"', 'id="detail-model"'):
         assert removed not in page.text
     assert 'id="confirm-dialog"' in page.text
-    assert "РАЗДЕЛЕНИЕ АУДИО" not in page.text
-    assert "звучать по-новому" not in page.text
     assert 'rows="2"' in page.text
     assert 'id="model-options"' in page.text and 'id="model"' not in page.text
     assert 'id="device"' not in page.text

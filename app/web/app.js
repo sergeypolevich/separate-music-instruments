@@ -428,7 +428,7 @@ function renderJobProgress(state) {
     const status = document.createElement("div");
     status.className = "job-status";
     status.append(label, bar, cancel);
-    playbackPanel.querySelector(".separate-again")?.remove();  // «Разделить» was pressed: progress again
+    playbackPanel.querySelector(".separate-again")?.remove();  // «Separate» was pressed: progress again
     const mixer = playbackPanel.querySelector(".mixer-grid");
     if (activeControls && mixer) mixer.after(status);
     else playbackPanel.replaceChildren(status);
@@ -977,7 +977,7 @@ function renderProject(project) {
       const source = sourceAudio(project);
       if (source) setupProjectPlayback([{ ...source, asset_type: "stem", stem_name: "original" }], ++playbackSetupId, 0, project, true);
     } else if (["cancelled", "failed"].includes(project.job.status) && sourceAudio(project)) {
-      // Stopped before its stems: listen to the song and separate it again («Разделить»).
+      // Stopped before its stems: listen to the song and separate it again («Separate»).
       setupProjectPlayback([{ ...sourceAudio(project), asset_type: "stem", stem_name: "original" }], ++playbackSetupId, 0, project, true);
     } else if (project.job.status === "completed" && missing.some((asset) => asset.asset_type === "stem")) {
       renderMissingFiles(project, missing);
@@ -1032,7 +1032,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // every <audio> stem on its own and the six no longer add up cleanly: crackle on bright sounds. At 44.1 kHz
     // the mix reaches the output unchanged and is resampled once, as a whole, by the audio output.
     const audioContext = new AudioContextClass({ sampleRate: 44100 });
-    // «Общая»: every stem (streamed or stretched, both end in its gain node) passes it; the metronome does not.
+    // «Master»: every stem (streamed or stretched, both end in its gain node) passes it; the metronome does not.
     const masterGain = audioContext.createGain();
     masterGain.connect(audioContext.destination);
     const gainNodes = tracks.map((audio) => {
@@ -1320,7 +1320,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     masterRow.className = "mixer-master";  // not a .mixer-row: the stem rows are counted and selected by that class
     const masterName = document.createElement("span");
     masterName.className = "mixer-name";
-    masterName.innerHTML = iconSvg("speaker");  // the fader carries the name «Общая громкость»
+    masterName.innerHTML = iconSvg("speaker");  // the fader carries the name «Master volume»
     const masterFader = document.createElement("div");
     masterFader.className = "mixer-fader master-fader";
     const master = document.createElement("input");
@@ -1553,7 +1553,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       });
     }
 
-    // «Улучшить качество»: the worker separates the song again with the best model while this project
+    // «Improve quality»: the worker separates the song again with the best model while this project
     // keeps playing; when the new stems are ready the player switches to them at the same position.
     const upgradeButton = document.createElement("button");
     upgradeButton.type = "button";
@@ -2025,7 +2025,7 @@ function formatBytes(bytes) {
 }
 
 // The app's own confirmation (not window.confirm): resolves true when the action's button is pressed, false on
-// «Отмена» or Esc. With run, the dialog stays open while it works and shows its error.
+// «Cancel» or Esc. With run, the dialog stays open while it works and shows its error.
 let confirmPending = null;
 function askConfirm({ title, text, action, danger = true, run = null }) {
   confirmPending?.resolve(false);
