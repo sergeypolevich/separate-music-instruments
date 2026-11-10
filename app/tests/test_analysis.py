@@ -90,7 +90,7 @@ def test_a_failed_analysis_reports_why_and_can_be_requested_again(tmp_path):
     failed = request("GET", f"/api/v1/projects/{project_id}/beats").json()
     request("POST", f"/api/v1/projects/{project_id}/beats")
 
-    assert failed["status"] == "failed" and failed["error"] == "Не удалось определить доли этого трека"
+    assert failed["status"] == "failed" and failed["error"] == "Could not find the beats of this song"
     assert request("GET", f"/api/v1/projects/{project_id}/beats").json()["status"] == "done"
 
 

@@ -357,7 +357,7 @@ def test_a_full_disk_fails_the_job_once_with_the_space_message(tmp_path):
 
     assert result.jobs[0].status is JobStatus.FAILED
     assert separator.calls == ["id-track"]  # not retried: waiting does not free disk space
-    assert result.jobs[0].error_summary.startswith("Недостаточно места на диске: нужно ~700 МБ, свободно 100 МБ")
+    assert result.jobs[0].error_summary.startswith("Not enough disk space: ~700 MB needed, 100 MB free")
 
 
 def test_progress_is_written_rarely_and_reaches_one(tmp_path, monkeypatch):
@@ -466,7 +466,7 @@ def test_upgrade_without_the_source_audio_fails_with_a_clear_message(tmp_path):
     assert DatabaseWorker(store, orchestrator).run_once() is True
 
     state = store.get_analysis(project.project_id, "upgrade")
-    assert state["status"] == "failed" and state["error"] == "Исходное аудио проекта не найдено на диске"
+    assert state["status"] == "failed" and state["error"] == "The project's source audio is missing on disk"
     assert _stem_keys(store, job_id) == old_keys  # the project keeps its stems
 
 

@@ -324,7 +324,7 @@ def create_app(
         if job.status is not JobStatus.COMPLETED or audio_path is None or not audio_path.is_file() or not stems:
             raise HTTPException(
                 status_code=409,
-                detail={"code": "source_unavailable", "message": "Для определения долей нужно исходное аудио завершённого проекта"},
+                detail={"code": "source_unavailable", "message": "Beats need the source audio of a finished project"},
             )
         try:
             minutes = soundfile.info(storage.resolve_path(stems[0].storage_key)).duration / 60
@@ -378,7 +378,7 @@ def create_app(
         if state["status"] in ("queued", "running"):
             return JSONResponse(state, status_code=202)
         if state["best"]:
-            raise HTTPException(status_code=409, detail={"code": "already_best", "message": "Проект уже разделён лучшей моделью"})
+            raise HTTPException(status_code=409, detail={"code": "already_best", "message": "The project is already separated with the best model"})
         source = next((a for a in repository.list_assets(job.job_id, _OWNER_ID) if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
         try:
             source_ok = source is not None and storage.resolve_path(source.storage_key).is_file()
@@ -387,7 +387,7 @@ def create_app(
         if job.status is not JobStatus.COMPLETED or not source_ok:
             raise HTTPException(
                 status_code=409,
-                detail={"code": "source_unavailable", "message": "Для улучшения нужно исходное аудио завершённого проекта"},
+                detail={"code": "source_unavailable", "message": "Improving needs the source audio of a finished project"},
             )
         repository.queue_analysis(project_id, "upgrade", {"owner_id": _OWNER_ID})  # the worker runs it
         return JSONResponse(upgrade_state(project, job), status_code=202)
@@ -399,7 +399,7 @@ def create_app(
         project, job = project_and_job(project_id)
         outcome = repository.cancel_analysis(project_id, "upgrade")
         if outcome is None:
-            raise HTTPException(status_code=409, detail={"code": "no_upgrade", "message": "Улучшение не запущено"})
+            raise HTTPException(status_code=409, detail={"code": "no_upgrade", "message": "No quality improvement is running"})
         return {"state": outcome, **upgrade_state(project, job)}
 
     @app.get("/api/v1/storage")
@@ -421,7 +421,7 @@ def create_app(
         if repository.has_active_jobs():
             raise HTTPException(
                 status_code=409,
-                detail={"code": "processing_active", "message": "Дождитесь окончания разделения, затем очистите"},
+                detail={"code": "processing_active", "message": "Wait until the separation ends, then clean up"},
             )
         return {"freed_bytes": storage.clean_unused(repository.storage_keys_in_use())}
 
@@ -511,7 +511,7 @@ def create_app(
         separation_options(model_name)  # refuse a bad model before receiving the whole file
         limit = settings.upload_limit_mb * 2**20
         too_large = HTTPException(status_code=413, detail={
-            "code": "file_too_large", "message": f"Файл больше {settings.upload_limit_mb} МБ"})
+            "code": "file_too_large", "message": f"The file is larger than {settings.upload_limit_mb} MB"})
         if int(request.headers.get("content-length") or 0) > limit:
             raise too_large
         partial = storage.new_upload_path()
@@ -528,7 +528,7 @@ def create_app(
             if exc.category is not FailureCategory.INVALID_INPUT:
                 raise
             raise HTTPException(status_code=415, detail={
-                "code": "unsupported_file", "message": "Это не похоже на аудиофайл, который можно разделить"}) from exc
+                "code": "unsupported_file", "message": "This does not look like an audio file that can be separated"}) from exc
         except OSError as exc:
             raise (disk_full_error() if is_disk_full(exc) else
                    AdapterError("Upload could not be saved", FailureCategory.TRANSIENT)) from exc

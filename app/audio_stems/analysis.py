@@ -103,7 +103,7 @@ def run_queue(
         except Exception:
             logger.exception("Beat analysis failed", extra={"event": "beat_analysis_failed", "project_id": project_id})
             finished.set()
-            store.fail_analysis(project_id, "beats", "Не удалось определить доли этого трека")
+            store.fail_analysis(project_id, "beats", "Could not find the beats of this song")
         else:
             finished.set()
             store.finish_analysis(project_id, "beats", result)

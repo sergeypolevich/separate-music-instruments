@@ -42,9 +42,9 @@ def disk_full_error(needed_bytes: int | None = None, free_bytes: int | None = No
     """The user-facing message is the job's error summary, so it is written for the user."""
     detail = ""
     if needed_bytes is not None and free_bytes is not None:
-        detail = f": нужно ~{needed_bytes // 2**20} МБ, свободно {free_bytes // 2**20} МБ"
+        detail = f": ~{needed_bytes // 2**20} MB needed, {free_bytes // 2**20} MB free"
     return AdapterError(
-        f"Недостаточно места на диске{detail}. Освободите место и запустите разделение снова.",
+        f"Not enough disk space{detail}. Free some space and start the separation again.",
         FailureCategory.DISK_FULL,
     )
 

@@ -251,7 +251,7 @@ def test_separation_stops_before_demucs_when_the_disk_is_too_full(monkeypatch, t
         StemSeparator().separate(source, tmp_path / "out", SeparationOptions("htdemucs_6s", "cpu"))
 
     assert error.value.category is FailureCategory.DISK_FULL
-    assert "Недостаточно места на диске" in str(error.value) and "свободно 0 МБ" in str(error.value)
+    assert "Not enough disk space" in str(error.value) and "0 MB free" in str(error.value)
     assert len(calls) == 1  # only the decode ran
     assert not (tmp_path / "out" / "source.wav").exists()
 

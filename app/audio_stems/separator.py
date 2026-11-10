@@ -49,16 +49,16 @@ class _Model:
 # models and the best model at an acceptable speed (overlap 1 sounds like overlap 2, 1.6-2.5x faster).
 _MODELS = {
     "hdemucs_mmi": _Model(
-        "Demucs, быстрая",
-        "Быстрое разделение на четыре дорожки: гитара и клавишные — в «прочем».",
+        "Demucs, fast",
+        "Fast separation into four stems: guitar and keys go to Other.",
         _FOUR, "demucs", passes=2, shifts=2, seconds_per_audio_second=1.2,
     ),
     "bs_roformer_sw": _Model(
         "BS-RoFormer SW",
-        "Заметно лучше по звучанию, шесть дорожек с отдельными гитарой и пианино, но во много раз медленнее.",
+        "Sounds clearly better, six stems with separate guitar and piano, but many times slower.",
         _SIX, "audio-separator", checkpoint="BS-Roformer-SW.ckpt", overlap=1, seconds_per_audio_second=7.1,
     ),
-    "htdemucs_6s": _Model("Demucs htdemucs_6s", "Прежняя быстрая модель на шесть дорожек.", _SIX, "demucs",
+    "htdemucs_6s": _Model("Demucs htdemucs_6s", "The earlier fast six-stem model.", _SIX, "demucs",
                           seconds_per_audio_second=0.9, offered=False),
 }
 # «Улучшить качество» re-separates a project with this model.

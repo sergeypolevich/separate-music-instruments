@@ -51,3 +51,6 @@ Thumbs.db
 # Claude Code personal overrides
 .claude/settings.local.json
 soft-checks/
+
+# Local notes that never go to GitHub (e.g. the old Russian texts for comparison)
+/tmp/

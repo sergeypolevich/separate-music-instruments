@@ -431,7 +431,7 @@ class BatchOrchestrator:
         project = self.repository.get_project(project_id, owner_id)
         job = self.repository.get_job(project.job_id, owner_id) if project else None
         if job is None or job.status is not JobStatus.COMPLETED:
-            raise AdapterError("Улучшить можно только завершённый проект", FailureCategory.PERMANENT)
+            raise AdapterError("Only a finished project can be improved", FailureCategory.PERMANENT)
         if job.separation_options and job.separation_options.model_name == BEST_MODEL:
             return ()
         options = SeparationOptions(BEST_MODEL, self.options.device)
@@ -439,7 +439,7 @@ class BatchOrchestrator:
                        if a.asset_type is MediaAssetType.SOURCE_AUDIO), None)
         audio_path = self.storage.resolve_path(source.storage_key) if source else None
         if audio_path is None or not audio_path.is_file():
-            raise AdapterError("Исходное аудио проекта не найдено на диске", FailureCategory.PERMANENT)
+            raise AdapterError("The project's source audio is missing on disk", FailureCategory.PERMANENT)
         title, source_id = project.title or project.input_value, project.source_id
         stems = self.separator.model_stems(BEST_MODEL)
         existing = self.storage.existing_stems(title, stems, source_id, BEST_MODEL)
@@ -560,7 +560,7 @@ class DatabaseWorker:
             return True
         except Exception:
             worker_logger.exception("Quality upgrade failed", extra={"event": "upgrade_failed", "project_id": project_id})
-            self.repository.fail_analysis(project_id, "upgrade", "Не удалось улучшить качество")
+            self.repository.fail_analysis(project_id, "upgrade", "Could not improve the quality")
             return True
         self.repository.finish_analysis(project_id, "upgrade", {"model_name": BEST_MODEL})
         # The UI switches to the new stems within a second; until then Windows keeps the old ones locked.
