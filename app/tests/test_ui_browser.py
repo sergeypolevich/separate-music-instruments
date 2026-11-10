@@ -1113,7 +1113,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator(".model-option").nth(1).click()
             # The theme buttons are a moon and a sun, named for screen readers.
             assert page.evaluate("[...document.querySelectorAll('[data-theme-choice]')].map(b => [b.textContent.trim(), b.getAttribute('aria-label'), !!b.querySelector('svg')])") == [
-                ["", "Ночная тема", True], ["", "Дневная тема", True]]
+                ["", "Dark theme", True], ["", "Light theme", True]]
             page.locator('[data-theme-choice="light"]').click()
             assert page.evaluate(body_bg) != dark_bg
             # Light theme (A2): no accent glow on the page; filled buttons carry no border.
@@ -1357,8 +1357,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # Few words: no YouTube anywhere in the dialog, one hint about several songs, none about Enter.
             dialog_text = page.locator("#search-overlay .search-dialog").inner_text()
             assert "YouTube" not in dialog_text and "Enter" not in dialog_text and "НОВАЯ ЗАДАЧА" not in dialog_text
-            assert page.locator("#submit-form .field-hint").inner_text() == "Несколько песен — каждая с новой строки."
-            assert page.locator("#inputs").get_attribute("placeholder") == "Исполнитель — Песня"
+            assert page.locator("#submit-form .field-hint").inner_text() == "Several songs: one per line."
+            assert page.locator("#inputs").get_attribute("placeholder") == "Artist — Song"
             textarea = page.locator("#inputs")
             initial_height = textarea.evaluate("el => el.getBoundingClientRect().height")
             textarea.fill("one\ntwo\nthree\nfour")
@@ -1391,7 +1391,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#search-trigger").click()
             assert page.evaluate("""() => document.querySelector('#open-file').getBoundingClientRect().bottom
                 < document.querySelector('#inputs').getBoundingClientRect().top""")
-            assert "Открыть аудиофайл" in page.locator("#search-preview").inner_text()
+            assert "Open an audio file" in page.locator("#search-preview").inner_text()
             page.locator("#file-input").set_input_files({"name": "Моя запись.wav", "mimeType": "audio/wav", "buffer": wav_bytes})
             page.wait_for_function("document.querySelector('#search-overlay').hidden")
             page.locator('.project-tab[data-project-id="project-upload-1"]').wait_for(state="visible")

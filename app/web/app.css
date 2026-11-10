@@ -392,7 +392,7 @@ button[aria-busy="true"] { cursor: progress; }
   .brand-mark { transform: scale(.86); transform-origin: left center; width: 18px; }
   .search-trigger { height: 36px; padding: 0 9px; }
   .search-trigger > span:last-child { font-size: 0; }
-  .search-trigger > span:last-child::after { font-size: 11px; content: "Открыть файл или найти песню"; }
+  .search-trigger > span:last-child::after { font-size: 11px; content: "Open a file or find a song"; }
   .top-nav { gap: 8px; }
   .top-nav a { font-size: 11px; }
   .project-tabs-shell { padding: 7px 9px 0; }
