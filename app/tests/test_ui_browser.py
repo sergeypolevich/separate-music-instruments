@@ -198,7 +198,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             elif path == "/api/v1/health":
                 self._json({"status": "ok", "process": server_process[0]})
             elif path == "/api/v1/updates":
-                self._json({"current": "19.1", "releases": [{"tag_name": "v19.2", "name": "Версия 19.2", "published_at": "2026-11-02T18:00:00Z",
+                self._json({"current": "19.1", "releases": [{"tag_name": "v19.2", "name": "Version 19.2", "published_at": "2026-11-02T18:00:00Z",
                                                               "notes": "Fix", "url": "https://github.com/"}]})
             elif path == "/api/v1/models":
                 self._json([
@@ -370,7 +370,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             running_detail["project-5"] = "separating"
             projects[5].update(job_status="separating", progress=0.25, eta_seconds=720)
             page.locator('.project-tab[data-project-id="project-5"]').click()
-            page.wait_for_function("document.querySelector('.job-progress-label') && document.querySelector('.job-progress-label').textContent === 'Разделяем дорожки · 25% · осталось ~12 мин'")
+            page.wait_for_function("document.querySelector('.job-progress-label') && document.querySelector('.job-progress-label').textContent === 'Separating stems · 25% · ~12 min left'")
             assert page.locator(".mixer-row").count() == 0
             projects[5].update(progress=0.6)
             page.wait_for_function("document.querySelector('.job-progress > span').style.width === '60%'", timeout=15000)
@@ -385,7 +385,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             running_detail["project-6"] = "downloading"
             projects[6].update(job_status="downloading", progress=0.05, eta_seconds=720)
             page.locator('.project-tab[data-project-id="project-6"]').click()
-            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Загружаем аудио')")
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Downloading audio')")
             assert page.locator(".mixer-row").count() == 0
             # No tracks yet: the progress right under the header, ✕ right of the bar and level with it.
             def status_boxes():
@@ -402,7 +402,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             projects[6].update(job_status="separating", progress=0.3)
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 1", timeout=15000)
             assert page.locator(".mixer-row .mixer-name").text_content() == "Original"
-            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Разделяем дорожки · 30%')")
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Separating stems · 30%')")
             assert page.evaluate("""() => [document.querySelector('[data-action="count-in"]').hidden, document.querySelectorAll('.project-footer').length,
                 document.querySelector('.mixer-row .waveform-preview').childElementCount,
                 document.querySelector('.mixer-grid').compareDocumentPosition(document.querySelector('.job-progress')) & 4]""") == [True, 0, 0, 4]
@@ -429,9 +429,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.project-tab[data-project-id="project-0"]').click()
             page.locator('.project-tab[data-project-id="project-6"]').click()
             page.wait_for_function("document.querySelector('[data-action=\"separate\"]') && document.querySelectorAll('.mixer-row').length === 1")
-            assert page.locator(".separate-again .playback-message").text_content() == "Разделение отменено."
+            assert page.locator(".separate-again .playback-message").text_content() == "Separation cancelled."
             page.locator('[data-action="separate"]').click()
-            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('В очереди')", timeout=15000)
+            page.wait_for_function("document.querySelector('.job-progress-label')?.textContent.startsWith('Queued')", timeout=15000)
             assert actions[-1] == "/api/v1/projects/project-6/separate" and page.locator(".separate-again").count() == 0
             running_detail.pop("project-6")
             running_source.discard("project-6")
@@ -448,12 +448,12 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             ]
             page.wait_for_function("!document.querySelector('#queue-trigger').hidden", timeout=15000)
             ring = page.locator("#queue-trigger")
-            assert ring.get_attribute("data-share") == "true" and ring.get_attribute("aria-label") == "Очередь: 2 задачи"
+            assert ring.get_attribute("data-share") == "true" and ring.get_attribute("aria-label") == "Queue: 2 tasks"
             assert ring.bounding_box()["x"] + ring.bounding_box()["width"] <= page.locator("#help-trigger").bounding_box()["x"]
             ring.click()
             assert page.locator("#queue-popover").is_visible()
             assert page.evaluate("[...document.querySelectorAll('#queue-list .queue-item')].map(r => [r.querySelector('.queue-title').textContent, r.querySelector('.queue-meta').textContent])") == [
-                ["Running song", "Разделяем дорожки · осталось ~5 мин"], ["Track 0", "Улучшение качества · в очереди · осталось ~23 мин"]]
+                ["Running song", "Separating stems · ~5 min left"], ["Track 0", "Quality improvement · queued · ~23 min left"]]
             # No heading; the running row's background is filled with its share (40 %), the waiting one is not.
             assert page.locator("#queue-popover").inner_text().startswith("Running song")
             assert page.evaluate("[...document.querySelectorAll('#queue-list .queue-item')].map(r => r.style.getPropertyValue('--job-progress'))") == ["40%", ""]
@@ -464,7 +464,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator('.queue-item[data-kind="job"] [data-action="cancel-task"]').click()
             asked = [confirm_in_app()]
             _wait_until(lambda: actions and actions[-1] == "/api/v1/jobs/job-q1/cancel")
-            assert asked == ["Отменить «Running song»?"]
+            assert asked == ["Cancel “Running song”?"]
             queue_items.clear()  # the worker stopped it: nothing left, the ring goes away
             page.wait_for_function("document.querySelector('#queue-trigger').hidden", timeout=15000)
             assert page.locator("#queue-popover").is_hidden()
@@ -515,15 +515,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs(tabs_box["x"] - page.locator("#detail-controls").bounding_box()["x"]) <= 1
             assert page.locator(".project-tab").count() == 14
             assert page.locator(".project-tab").first.get_attribute("data-status") == "completed"
-            assert "Ошибка" not in page.locator("#project-tabs").inner_text()
+            assert "Error" not in page.locator("#project-tabs").inner_text()
             assert page.locator("#search-trigger").bounding_box()["width"] <= 760
             assert page.locator("#project-tabs").evaluate("el => el.compareDocumentPosition(document.querySelector('#project-workspace')) & Node.DOCUMENT_POSITION_FOLLOWING")
             assert page.locator(".mixer-row").count() == 6
             assert page.locator(".mixer-row").first.locator(".mixer-left > *").count() == 2
             assert page.locator(".gain-value").count() == 0 and page.locator(".timeline").count() == 0
             assert page.locator(".playback-buttons button").count() == 3  # ▶, ▶4 (count-in), ⏮
-            assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Воспроизвести"
-            assert page.locator('[data-action="reset"]').get_attribute("aria-label") == "В начало и пауза"
+            assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Play"
+            assert page.locator('[data-action="reset"]').get_attribute("aria-label") == "To the start and pause"
             assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
             tabs = page.locator("#project-tabs")
             # No visible scrollbar under the tabs.
@@ -689,7 +689,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Backspace")
             page.wait_for_function("document.querySelector('#playback-panel audio').paused")
             assert page.evaluate(audio_state)["t"] == 0
-            assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Воспроизвести"
+            assert page.locator('[data-action="toggle"]').get_attribute("aria-label") == "Play"
             page.keyboard.press("Home")
             selected = "() => [...document.querySelectorAll('.mixer-row')].map(r => r.dataset.selected)"
             assert page.evaluate(selected) == ["true"] + ["false"] * 5
@@ -805,13 +805,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             metronome = page.locator(".footer-toggle").first
             # An icon only; the name is the tooltip and the accessible name.
             assert metronome.text_content() == "" and metronome.locator("svg").count() == 1
-            assert metronome.get_attribute("aria-label") == metronome.get_attribute("title") == "Метроном"
+            assert metronome.get_attribute("aria-label") == metronome.get_attribute("title") == "Metronome"
             assert metronome.get_attribute("aria-pressed") == "false"
             off_background = metronome.evaluate("el => getComputedStyle(el).backgroundColor")
             assert page.locator('[data-control="metronome-volume"]').input_value() == "50"
             metronome.click()
-            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Метроном · 30%'")
-            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Метроном' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Metronome · 30%'")
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Metronome' && !document.querySelector('.footer-toggle').dataset.analyzing", timeout=10000)
             assert metronome.get_attribute("aria-pressed") == "true" and beats_polls[0].endswith("/project-0/beats")
             # On: filled with the accent, the icon in the accent's ink (clearly different from off).
             on_style = metronome.evaluate("el => [getComputedStyle(el).backgroundColor, getComputedStyle(el).color]")
@@ -871,7 +871,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                         inside: labels.every((l) => l.top >= box.top && l.bottom <= box.bottom),
                         tip: getComputedStyle(wrap.querySelector('.footer-speed-value')).opacity, text: wrap.innerText}; }""")
             assert speed_layout["ends"] == 2 and speed_layout["left"] and speed_layout["right"] and speed_layout["inside"], speed_layout
-            assert speed_layout["tip"] == "0" and "Скорость" not in speed_layout["text"]
+            assert speed_layout["tip"] == "0" and "Speed" not in speed_layout["text"]
             page.locator(".speed-fader").hover()
             page.wait_for_function("getComputedStyle(document.querySelector('.footer-speed-value')).opacity === '1'")
             tip = page.evaluate("""() => { const t = document.querySelector('.footer-speed-value').getBoundingClientRect();
@@ -894,7 +894,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             speed.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             page.wait_for_function("document.querySelector('.footer-speed').dataset.engine === 'stretch'", timeout=20000)
             fills = page.evaluate("window.speedFills")
-            assert any(fill not in ("", "0%", "100%") and text.startswith("подготовка ") for fill, text in fills), fills
+            assert any(fill not in ("", "0%", "100%") and text.startswith("preparing ") for fill, text in fills), fills
             assert page.evaluate("getComputedStyle(document.querySelector('.footer-speed')).backgroundImage") == "none"
             assert page.locator(".footer-speed-value").text_content() == "50%"
             page.wait_for_function("document.querySelector('.metronome-bpm').textContent === '120 BPM'")  # heard at 50 %
@@ -912,7 +912,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # «Улучшить качество»: progress on the button while the project keeps playing, then the player
             # moves to the new stems at the same position and plays on; the button then says it is done.
             upgrade = page.locator('[data-action="upgrade"]')
-            assert upgrade.text_content() == "Улучшить качество · ~23 мин" and upgrade.is_enabled()
+            assert upgrade.text_content() == "Improve quality · ~23 min" and upgrade.is_enabled()
             assert page.locator('[data-action="cancel-upgrade"]').is_hidden()
             if viewport[0] > 1000:  # midway between the metronome volume and the speed block
                 gaps = page.evaluate("""() => { const v = document.querySelector('.footer-fader').getBoundingClientRect(),
@@ -927,15 +927,15 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_function(f"!{paused}")
             upgrade.click()
-            page.wait_for_function("document.querySelector('[data-action=\"upgrade\"]').textContent.startsWith('Улучшаем · 40%')", timeout=5000)
-            assert upgrade.text_content() == "Улучшаем · 40% · осталось ~14 мин" and not page.evaluate(paused)
+            page.wait_for_function("document.querySelector('[data-action=\"upgrade\"]').textContent.startsWith('Improving · 40%')", timeout=5000)
+            assert upgrade.text_content() == "Improving · 40% · ~14 min left" and not page.evaluate(paused)
             assert page.locator('[data-action="cancel-upgrade"]').is_visible()  # × beside it while it runs
             before_switch = page.evaluate(position)
             page.wait_for_function("[...document.querySelectorAll('#playback-panel audio')].every(a => a.src.includes('-sw'))", timeout=10000)
             page.wait_for_function(f"!{paused}", timeout=10000)
             assert page.evaluate(position) >= before_switch - 0.3
             upgrade = page.locator('[data-action="upgrade"]')
-            assert upgrade.text_content() == "Улучшенное качество разделения" and upgrade.is_disabled()
+            assert upgrade.text_content() == "Improved separation quality" and upgrade.is_disabled()
             assert upgrade.get_attribute("data-icon") == "check" and upgrade.locator("svg path").count() == 1
             assert page.locator('[data-action="cancel-upgrade"]').is_hidden()
             assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # no leftover progress fill once done
@@ -986,8 +986,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("window.oldStems.every(a => a.paused && !a.hasAttribute('src'))")
             # No steady beat found: the metronome, its volume and ▶4 say so and stay off.
             page.locator(".footer-toggle").first.click()
-            page.wait_for_function("document.querySelector('.footer-toggle').title === 'Ритм не найден'")
-            assert page.locator(".metronome-bpm").text_content() == "Ритм не найден"  # visible next to the icon
+            page.wait_for_function("document.querySelector('.footer-toggle').title === 'No beat found'")
+            assert page.locator(".metronome-bpm").text_content() == "No beat found"  # visible next to the icon
             assert page.evaluate("['.footer-toggle', '[data-control=\"metronome-volume\"]', '[data-action=\"count-in\"]'].every(s => document.querySelector(s).disabled)")
             assert page.locator(".footer-toggle").first.get_attribute("aria-pressed") == "false"
             page.locator('.project-tab[data-project-id="project-0"]').click()
@@ -1000,11 +1000,11 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             )
 
             # The project's disk size sits next to the bin; the dialog says what deleting frees.
-            assert page.locator("#detail-size").text_content() == "12 МБ"
+            assert page.locator("#detail-size").text_content() == "12 MB"
             page.locator("#delete-project").click()
             assert page.locator("#confirm-dialog").is_visible()
-            assert page.locator("#confirm-title").text_content() == "Удалить проект?"
-            assert "Освободится 12 МБ." in page.locator("#confirm-description").text_content()
+            assert page.locator("#confirm-title").text_content() == "Delete the project?"
+            assert "This frees 12 MB." in page.locator("#confirm-description").text_content()
             page.locator("#confirm-cancel").click()
             assert not page.locator("#confirm-dialog").is_visible()
             was_playing = page.evaluate("!document.querySelector('#playback-panel audio').paused")
@@ -1066,20 +1066,20 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs(accent_mark[0] - accent_mark[1]) <= 1 and accent_mark[2] == "12px"
             # Disk space: sizes per kind and one button for unused and temporary files.
             page.wait_for_function("document.querySelectorAll('#disk-usage dd').length === 4")
-            assert page.locator("#disk-usage dd").all_text_contents() == ["3,0 ГБ", "40 МБ", "10 МБ", "800 МБ"]
-            assert page.locator("#clean-storage").text_content() == "Очистить 50 МБ"
+            assert page.locator("#disk-usage dd").all_text_contents() == ["3.0 GB", "40 MB", "10 MB", "800 MB"]
+            assert page.locator("#clean-storage").text_content() == "Clean up 50 MB"
             page.locator("#clean-storage").click()
-            assert confirm_in_app() == "Очистить хранилище?"
-            page.wait_for_function("document.querySelector('#disk-message').textContent === 'Освобождено 50 МБ.'")
+            assert confirm_in_app() == "Clean up storage?"
+            page.wait_for_function("document.querySelector('#disk-message').textContent === 'Freed 50 MB.'")
             assert page.locator("#clean-storage").is_disabled()
             # «Удалить все проекты» asks once with the size, then deletes every project through the bin's route.
             delete_all = page.locator("#delete-all-projects")
-            assert delete_all.text_content() == "Удалить все проекты (3,0 ГБ)" and delete_all.is_enabled()
+            assert delete_all.text_content() == "Delete all projects (3.0 GB)" and delete_all.is_enabled()
             before_deleted = len(deleted)
             delete_all.click()
             questions = [confirm_in_app() + " " + page.locator("#confirm-description").text_content()]
-            page.wait_for_function("document.querySelector('#disk-message').textContent.startsWith('Удалено проектов')")
-            assert "3,0 ГБ" in questions[0] and f"({len(projects)})" in questions[0]
+            page.wait_for_function("document.querySelector('#disk-message').textContent.startsWith('Projects deleted')")
+            assert "3.0 GB" in questions[0] and f"({len(projects)})" in questions[0]
             assert native_dialogs == []
             assert sorted(deleted[before_deleted:]) == sorted(f"/api/v1/projects/{p['project_id']}" for p in projects)
             # While a separation runs, neither cleanup nor deleting everything is offered.
@@ -1093,23 +1093,23 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#check-updates").evaluate("b => b.disabled = false")
             page.locator("#check-updates").click()
             install = page.locator('[data-action="install-update"]')
-            assert install.text_content() == "Обновить до v19.2"
+            assert install.text_content() == "Update to v19.2"
             page.evaluate("window.beforeUpdate = true")
             install.click()
-            assert confirm_in_app() == "Установить «Версия 19.2»?"
-            assert "продолжится после перезапуска" in page.locator("#confirm-description").text_content()
-            assert install.text_content() == "Скачиваем…" and install.evaluate("b => getComputedStyle(b).cursor") == "progress"
-            page.wait_for_function("document.querySelector('[data-action=\"install-update\"]')?.textContent === 'Перезапускаем…'")
+            assert confirm_in_app() == "Install “Version 19.2”?"
+            assert "continues after the restart" in page.locator("#confirm-description").text_content()
+            assert install.text_content() == "Downloading…" and install.evaluate("b => getComputedStyle(b).cursor") == "progress"
+            page.wait_for_function("document.querySelector('[data-action=\"install-update\"]')?.textContent === 'Restarting…'")
             page.wait_for_function("!window.beforeUpdate", timeout=10_000)  # reloaded, still in Settings (#settings)
             page.locator("#settings-overlay").wait_for(state="visible")
             # Separation: models are a radio list; the choice is remembered across reloads.
             radios = page.locator('#model-options input[type="radio"]')
             assert radios.count() == 2 and radios.nth(0).is_checked()
-            assert page.locator(".model-option-name").nth(1).text_content() == "Demucs ft · 4 дорожки"
+            assert page.locator(".model-option-name").nth(1).text_content() == "Demucs ft · 4 stems"
             # The time per minute of music: this machine's median, else the default estimate.
             assert page.locator(".model-option-time").all_text_contents() == [
-                "~55 с на минуту песни · по последним разделениям на этом компьютере",
-                "~11 мин на минуту песни · оценка, уточнится после первого разделения"]
+                "~55 s per minute of song · from the latest separations on this computer",
+                "~11 min per minute of song · an estimate, refined after the first separation"]
             page.locator(".model-option").nth(1).click()
             # The theme buttons are a moon and a sun, named for screen readers.
             assert page.evaluate("[...document.querySelectorAll('[data-theme-choice]')].map(b => [b.textContent.trim(), b.getAttribute('aria-label'), !!b.querySelector('svg')])") == [
@@ -1141,13 +1141,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#help-trigger").click()
             assert page.locator("#help-overlay").is_visible()
             rows = page.evaluate("[...document.querySelectorAll('#hotkey-list > div')].map(r => [r.querySelector('dt').textContent, r.querySelector('dd').textContent])")
-            assert rows[0] == ["Воспроизвести / пауза", "Пробел, Enter"] and rows[3] == ["В начало и пауза", "Backspace"]
-            assert ["Выбрать Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
-            assert ["Громкость выбранной дорожки +10 % / −10 %", "+, −"] in rows and len(rows) == 16 and ["Сбросить петлю", "Esc"] in rows
-            assert ["Открыть вкладку 1–9", "1–9"] in rows and ["Вкладка: предыдущая / следующая", "Q, W"] in rows
-            assert ["Общая громкость +5 % / −5 %", "↑, ↓"] in rows
-            assert not any("Выбор дорожки" in action for action, _keys in rows)
-            assert not any("End" in keys or "В конец" in action for action, keys in rows)
+            assert rows[0] == ["Play / pause", "Space, Enter"] and rows[3] == ["To the start and pause", "Backspace"]
+            assert ["Select Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"] in rows
+            assert ["Selected stem volume +10% / −10%", "+, −"] in rows and len(rows) == 16 and ["Clear loop", "Esc"] in rows
+            assert ["Open tab 1–9", "1–9"] in rows and ["Tab: previous / next", "Q, W"] in rows
+            assert ["Master volume +5% / −5%", "↑, ↓"] in rows
+            assert not any(keys == "↓, ↑" for _action, keys in rows)  # the arrows no longer select a stem
+            assert not any("End" in keys or "To the end" in action for action, keys in rows)
             # A list: no rules between the rows, the keys right after the action's text.
             assert page.evaluate("getComputedStyle(document.querySelector('#hotkey-list > div')).borderTopStyle") == "none"
             # Against the action's last line: a long action wraps (wider fonts on macOS), its keys follow that line.
@@ -1200,8 +1200,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             tabs_trigger.click()
             page.locator('#tabs-list [data-project-id="project-3"] [data-action="delete-project"]').click()
             page.locator("#confirm-dialog").wait_for(state="visible")  # after the project's record (its size) has come
-            assert page.locator("#confirm-title").text_content() == "Удалить проект?"
-            assert "«Track 3»" in page.locator("#confirm-description").text_content() and "Освободится 12 МБ." in page.locator("#confirm-description").text_content()
+            assert page.locator("#confirm-title").text_content() == "Delete the project?"
+            assert "“Track 3”" in page.locator("#confirm-description").text_content() and "This frees 12 MB." in page.locator("#confirm-description").text_content()
             before_deleted = len(deleted)
             page.locator("#confirm-action").click()
             _wait_until(lambda: deleted[before_deleted:] == ["/api/v1/projects/project-3"])
@@ -1215,7 +1215,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.querySelector('#tabs-list [data-project-id=\"project-4\"]').style.getPropertyValue('--job-progress') === '30%'")
             tabs_trigger.click()
             page.locator('#tabs-list [data-project-id="project-4"] [data-action="delete-project"]').click()
-            assert page.locator("#confirm-title").text_content() == "Отменить и удалить проект?"
+            assert page.locator("#confirm-title").text_content() == "Cancel and delete the project?"
             page.locator("#confirm-action").click()
             _wait_until(lambda: actions and actions[-1] == "/api/v1/jobs/job-4/cancel")
             time.sleep(0.7)
@@ -1326,7 +1326,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # A four-stem project shows four rows, and the playhead spans exactly them.
             page.locator('.project-tab[data-project-id="project-3"]').click()
             page.wait_for_function("document.querySelectorAll('.mixer-row').length === 4")
-            assert page.locator('[data-action="upgrade"]').text_content() == "Улучшенное качество разделения"  # already the best model
+            assert page.locator('[data-action="upgrade"]').text_content() == "Improved separation quality"  # already the best model
             assert page.evaluate("""() => getComputedStyle(document.querySelector('[data-action="upgrade"]')).getPropertyValue('--job-progress').trim()""") == "0%"  # the same look as any best-model project
             assert page.evaluate("document.querySelector('.playhead-layer').style.gridRow") == "1 / span 4"
             page.keyboard.press("KeyG")  # no guitar row: the selection stays put
@@ -1337,8 +1337,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.locator("#detail-time").text_content() == "0:00 / 0:04"
             # Files deleted by hand: the project says which and offers to separate the song again.
             page.locator('.project-tab[data-project-id="project-4"]').click()
-            page.wait_for_function("document.querySelector('#playback-panel').textContent.includes('С диска удалены файлы проекта: Vocal, Drums.')")
-            page.get_by_role("button", name="Разделить заново").click()
+            page.wait_for_function("document.querySelector('#playback-panel').textContent.includes('Files of the project were deleted from the disk: Vocal, Drums.')")
+            page.get_by_role("button", name="Separate again").click()
             page.wait_for_function("document.querySelector('.project-tab[data-project-id=\"project-created\"]')")
             assert deleted[-1] == "/api/v1/projects/project-4"
             assert submitted[-1] == {"inputs": ["Track 4"], "model_name": "htdemucs_6s"}
@@ -1356,7 +1356,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert bounds["width"] == viewport[0] and bounds["height"] == viewport[1]
             # Few words: no YouTube anywhere in the dialog, one hint about several songs, none about Enter.
             dialog_text = page.locator("#search-overlay .search-dialog").inner_text()
-            assert "YouTube" not in dialog_text and "Enter" not in dialog_text and "НОВАЯ ЗАДАЧА" not in dialog_text
+            assert "YouTube" not in dialog_text and "Enter" not in dialog_text and "NEW TASK" not in dialog_text
             assert page.locator("#submit-form .field-hint").inner_text() == "Several songs: one per line."
             assert page.locator("#inputs").get_attribute("placeholder") == "Artist — Song"
             textarea = page.locator("#inputs")
@@ -1376,7 +1376,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.wait_for_function("document.activeElement.id === 'inputs'")
             page.locator("#inputs").fill("https://vimeo.com/1")  # a link the app does not take: said in Russian
             page.keyboard.press("Enter")
-            page.wait_for_function("document.querySelector('#form-message').textContent.includes('поддерживаются ссылки YouTube')")
+            page.wait_for_function("document.querySelector('#form-message').textContent.includes('YouTube links are supported')")
             page.locator("#inputs").fill("")  # the text typed earlier is still there
             page.keyboard.type("New track")
             page.keyboard.press("Shift+Enter")  # a new line, not a submission
@@ -1413,7 +1413,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             # ?engine=decoded (the iPhone trial): the decoded stems through the stretch engine at 100 % too; the
             # note says how long preparing took; pause and play keep the position; the streams stay silent.
             page.goto(f"http://127.0.0.1:{server.server_port}/?engine=decoded", wait_until="load")
-            page.wait_for_function("document.querySelector('.decoded-note')?.textContent.startsWith('Декодированный режим: готово за')", timeout=30000)
+            page.wait_for_function("document.querySelector('.decoded-note')?.textContent.startsWith('Decoded mode: ready in')", timeout=30000)
             assert page.evaluate("document.querySelector('.footer-speed').dataset.engine") == "stretch"
             assert page.locator('[data-control="speed"]').input_value() == "100"
             page.keyboard.press("Space")
