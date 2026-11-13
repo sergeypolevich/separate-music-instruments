@@ -97,6 +97,7 @@ def test_code_and_tests_are_english_only():
     app = Path(__file__).parents[1]
     allowed = {  # file: a piece every allowed line contains
         "tests/test_documentation.py": "README.ru.md",  # checks the Russian user guide
+        "audio_stems/i18n.py": '": ("',  # the languages, each named in itself
         "tests/test_ui_browser.py": "\u041c\u043e\u044f \u0437\u0430\u043f\u0438\u0441\u044c.wav",  # a Cyrillic file name
     }
     skipped = {".venv", "vendor", "tmp", "__pycache__", ".pytest_cache", "node_modules"}

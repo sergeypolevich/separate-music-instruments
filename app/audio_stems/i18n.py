@@ -15,6 +15,26 @@ from pathlib import Path
 
 WEB = Path(__file__).resolve().parents[1] / "web"
 CATALOG = WEB / "i18n" / "catalog.json"
+COOKIE = "audio-stems-language"  # the user's choice in Settings; the page sets it
+
+# The languages the app offers: code → (English name, own name). Offered once web/i18n/<code>.json exists.
+LANGUAGES = {
+    "sq": ("Albanian", "Shqip"), "ar": ("Arabic", "العربية"), "be": ("Belarusian", "Беларуская"),
+    "bs": ("Bosnian", "Bosanski"), "bg": ("Bulgarian", "Български"), "ca": ("Catalan", "Català"),
+    "zh": ("Chinese", "中文（简体）"), "hr": ("Croatian", "Hrvatski"), "cs": ("Czech", "Čeština"),
+    "da": ("Danish", "Dansk"), "nl": ("Dutch", "Nederlands"), "en": ("English", "English"), "et": ("Estonian", "Eesti"),
+    "fi": ("Finnish", "Suomi"), "fr": ("French", "Français"), "gl": ("Galician", "Galego"), "de": ("German", "Deutsch"),
+    "el": ("Greek", "Ελληνικά"), "he": ("Hebrew", "עברית"), "hi": ("Hindi", "हिन्दी"), "hu": ("Hungarian", "Magyar"),
+    "it": ("Italian", "Italiano"), "lv": ("Latvian", "Latviešu"), "lt": ("Lithuanian", "Lietuvių"),
+    "mk": ("Macedonian", "Македонски"), "nb": ("Norwegian", "Norsk"), "fa": ("Persian", "فارسی"),
+    "pl": ("Polish", "Polski"), "pt": ("Portuguese", "Português"), "ro": ("Romanian", "Română"),
+    "ru": ("Russian", "Русский"), "sr": ("Serbian", "Српски"), "sk": ("Slovak", "Slovenčina"),
+    "sl": ("Slovenian", "Slovenščina"), "es": ("Spanish", "Español"), "sv": ("Swedish", "Svenska"),
+    "tr": ("Turkish", "Türkçe"), "uk": ("Ukrainian", "Українська"),
+}
+# Written right to left: the text runs that way, the layout is not mirrored (the user's choice).
+RIGHT_TO_LEFT = {"ar", "he", "fa"}
+_ALIASES = {"no": "nb", "nn": "nb", "iw": "he"}  # browser tags that name an offered language differently
 
 _LETTER = re.compile(r"[^\W\d_]")
 _STRING = r'"((?:[^"\\]|\\.)*)"'
@@ -102,6 +122,49 @@ def build_catalog(web: Path = WEB) -> dict:
 
 def render(catalog: dict) -> str:
     return json.dumps(catalog, ensure_ascii=False, indent=1) + "\n"
+
+
+def offered(web: Path = WEB) -> list[str]:
+    """English and every language whose translation ships in web/i18n, in the order of LANGUAGES."""
+    return [code for code in LANGUAGES if code == "en" or (web / "i18n" / f"{code}.json").is_file()]
+
+
+def choose(cookie: str | None, accept_language: str, languages: list[str]) -> str:
+    """The user's choice; on the first start the browser's first language that is offered; else English."""
+    if cookie in languages:
+        return cookie
+    ranked = []
+    for position, part in enumerate(accept_language.split(",")):
+        tag, _, quality = part.strip().partition(";q=")
+        try:
+            ranked.append((-float(quality or 1), position, tag.strip().lower()))
+        except ValueError:
+            continue
+    for _quality, _position, tag in sorted(ranked):
+        primary = tag.split("-")[0]
+        code = _ALIASES.get(primary, primary)
+        if code in languages:
+            return code
+    return "en"
+
+
+def page(code: str, web: Path = WEB) -> str:
+    """index.html in the chosen language: lang on <html>, the dictionary and the offered languages before app.js.
+    Until app.js has put the static texts into the language the page stays hidden (no English shows for a moment);
+    should app.js not run, it shows anyway after 1.5 s."""
+    html = (web / "index.html").read_text(encoding="utf-8")
+    dictionary = {} if code == "en" else json.loads((web / "i18n" / f"{code}.json").read_text(encoding="utf-8"))
+    languages = [[c, LANGUAGES[c][1], LANGUAGES[c][0], c in RIGHT_TO_LEFT] for c in offered(web)]
+    script = (f"window.AUDIO_STEMS_I18N = {json.dumps(dictionary, ensure_ascii=False)};\n"
+              f"window.AUDIO_STEMS_LANGUAGES = {json.dumps(languages, ensure_ascii=False)};")
+    attributes = f'lang="{code}"' + (" data-rtl" if code in RIGHT_TO_LEFT else "")
+    if code != "en":
+        attributes += ' class="i18n-pending"'
+        script += '\nsetTimeout(() => document.documentElement.classList.remove("i18n-pending"), 1500);'
+    script = script.replace("</", "<\\/")  # a text can never close the script element
+    assert '<html lang="en">' in html and '<link rel="stylesheet"' in html, "index.html changed its head"
+    html = html.replace('<html lang="en">', f"<html {attributes}>", 1)
+    return html.replace('<link rel="stylesheet"', f"<script>{script}</script>\n    <link rel=\"stylesheet\"", 1)
 
 
 if __name__ == "__main__":

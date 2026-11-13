@@ -15,6 +15,42 @@ function tn(count, one, other, values = {}) {
   return fillIn(form, { count, ...values });
 }
 
+// Static texts of index.html are English in the file. translatePage() puts every text and labelled attribute into
+// the chosen language and remembers each one's English, so the language changes in place, without a reload. Texts
+// app.js built with t() are found by their translation in the previous language; one with values in it (a size, a
+// time) changes at its next update.
+const englishOf = new WeakMap();  // text node → its English; element → { attribute: its English }
+const TRANSLATED_ATTRIBUTES = ["aria-label", "title", "placeholder"];
+function translatePage(previous = {}) {
+  const reverse = new Map(Object.entries(previous).filter(([, text]) => typeof text === "string").map(([english, text]) => [text, english]));
+  const shownBefore = (english) => (typeof previous[english] === "string" ? previous[english] : english);
+  // The remembered English while the text is still what this function put there; else what is shown now.
+  const englishFor = (remembered, shown) => (remembered !== undefined && shownBefore(remembered) === shown ? remembered : reverse.get(shown) ?? shown);
+  const skipped = (element) => !element || element.closest('[translate="no"], script, style, svg');
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const shown = node.nodeValue.trim();
+    if (!/\p{L}/u.test(shown) || skipped(node.parentElement)) continue;
+    const english = englishFor(englishOf.get(node), shown);
+    englishOf.set(node, english);
+    node.nodeValue = node.nodeValue.replace(shown, t(english));
+  }
+  for (const element of document.body.querySelectorAll(TRANSLATED_ATTRIBUTES.map((name) => `[${name}]`).join())) {
+    if (skipped(element)) continue;
+    const remembered = englishOf.get(element) || {};
+    for (const name of TRANSLATED_ATTRIBUTES) {
+      const shown = element.getAttribute(name);
+      if (!shown || !/\p{L}/u.test(shown)) continue;
+      remembered[name] = englishFor(remembered[name], shown);
+      element.setAttribute(name, t(remembered[name]));
+    }
+    englishOf.set(element, remembered);
+  }
+}
+translatePage();
+document.documentElement.classList.remove("i18n-pending");
+const formatDecimal = (value) => new Intl.NumberFormat(document.documentElement.lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+
 const stateDescriptions = {
   queued: N_("Queued"),
   searching: N_("Finding the source"),
@@ -1559,7 +1595,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         transport.alwaysStretch = true;
         if (!transport.playing) transport.seek(transport.currentTime);  // the engine takes the paused position
         speedWrap.dataset.engine = "stretch";
-        if (decodedTrial) decodedNote.textContent = t("Decoded mode: ready in {seconds} s", { seconds: ((performance.now() - started) / 1000).toFixed(1) });
+        if (decodedTrial) decodedNote.textContent = t("Decoded mode: ready in {seconds} s", { seconds: formatDecimal((performance.now() - started) / 1000) });
         else {
           decodedNote.textContent = "";  // the panel may be rebuilt later: an empty note is not put back
           decodedNote.remove();
@@ -2037,7 +2073,7 @@ async function uploadFiles(files) {
 }
 
 function formatBytes(bytes) {
-  if (bytes >= 2 ** 30) return t("{n} GB", { n: (bytes / 2 ** 30).toFixed(1) });
+  if (bytes >= 2 ** 30) return t("{n} GB", { n: formatDecimal(bytes / 2 ** 30) });
   return t("{n} MB", { n: Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20)) });
 }
 
@@ -2155,6 +2191,10 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !searchOverlay.hidden) {
     closeSearch();
+    return;
+  }
+  if (event.key === "Escape" && !languageMenu.hidden) {
+    closeLanguageMenu();
     return;
   }
   if (event.key === "Escape" && !settingsOverlay.hidden) {
@@ -2294,6 +2334,72 @@ document.querySelector("#confirm-cancel").addEventListener("click", () => confir
 checkUpdatesButton.addEventListener("click", checkUpdates);
 cleanStorageButton.addEventListener("click", cleanStorage);
 deleteAllButton.addEventListener("click", deleteAllProjects);
+
+// Settings → Appearance → Language: the offered languages (the server lists those whose translation ships). A choice
+// applies at once, in place: the project keeps playing; the cookie lets the server send the page in it next time.
+const languageButton = document.querySelector("#language-button");
+const languageMenu = document.querySelector("#language-menu");
+const LANGUAGES = window.AUDIO_STEMS_LANGUAGES || [["en", "English", "English", false]];
+
+function renderLanguageMenu() {
+  const current = document.documentElement.lang;
+  const language = LANGUAGES.find(([code]) => code === current) || LANGUAGES[0];
+  document.querySelector("#language-current").textContent = language[1];
+  languageMenu.replaceChildren(...LANGUAGES.map(([code, own, english]) => {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.setAttribute("role", "option");
+    item.setAttribute("aria-selected", String(code === current));
+    item.dataset.language = code;
+    item.translate = false;
+    item.innerHTML = '<span class="language-own"></span><span class="language-english"></span>';
+    item.firstChild.textContent = own;
+    if (english !== own) item.lastChild.textContent = english;
+    return item;
+  }));
+}
+
+function closeLanguageMenu() {
+  languageMenu.hidden = true;
+  languageButton.setAttribute("aria-expanded", "false");
+}
+
+async function setLanguage(code) {
+  const previous = window.AUDIO_STEMS_I18N || {};
+  let dictionary = {};
+  if (code !== "en") {
+    const response = await fetch(`i18n/${code}.json`);
+    if (!response.ok) throw new Error(t("The request failed"));
+    dictionary = await response.json();
+  }
+  window.AUDIO_STEMS_I18N = dictionary;
+  document.documentElement.lang = code;
+  document.documentElement.toggleAttribute("data-rtl", Boolean(LANGUAGES.find(([c]) => c === code)?.[3]));
+  document.cookie = `audio-stems-language=${code}; path=/; max-age=315360000; SameSite=Lax`;
+  translatePage(previous);
+  renderLanguageMenu();
+  document.querySelector("#hotkey-list").replaceChildren();  // built again in the new language when opened
+  loadProjects();
+  loadModels();
+  loadStorage();
+  refreshQueue();
+}
+
+languageButton.addEventListener("click", () => {
+  languageMenu.hidden = !languageMenu.hidden;
+  languageButton.setAttribute("aria-expanded", String(!languageMenu.hidden));
+  languageMenu.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+});
+languageMenu.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-language]");
+  if (!item) return;
+  closeLanguageMenu();
+  setLanguage(item.dataset.language).catch((error) => { document.querySelector("#language-current").textContent = error.message; });
+});
+document.addEventListener("click", (event) => {
+  if (!languageMenu.hidden && !languageMenu.contains(event.target) && !languageButton.contains(event.target)) closeLanguageMenu();
+});
+renderLanguageMenu();
 
 loadProjects();
 loadModels();

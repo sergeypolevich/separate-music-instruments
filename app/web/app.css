@@ -333,6 +333,21 @@ h1, h2, h3, p { margin-top: 0; }
 .theme-button { width: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; font-size: 18px; }
 .theme-switch button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--text); }
 .accent-swatch { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); }
+/* Language (version 21): the languages named in themselves, the English name in grey; the list scrolls. */
+.language-row { position: relative; }
+.language-button { min-width: 180px; min-height: 34px; display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px 0 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text); font-size: 13px; }
+.language-button:hover { background: var(--panel-soft); }
+.language-button .chevron { color: var(--muted); }
+.language-menu { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: min(300px, calc(100vw - 80px)); max-height: min(420px, 60vh); overflow-y: auto; padding: 6px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--panel); box-shadow: 0 18px 50px var(--shadow); }
+.language-menu[hidden] { display: none; }
+.language-menu button { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font-size: 13px; text-align: left; }
+.language-menu button:hover, .language-menu button[aria-selected="true"] { background: var(--panel-soft); }
+.language-menu button[aria-selected="true"] .language-own { color: var(--accent); }
+.language-menu .language-english { color: var(--muted); font-size: 12px; }
+/* Until app.js has put the page's static texts into the chosen language nothing shows (no English for a moment). */
+.i18n-pending body { visibility: hidden; }
+/* Arabic, Hebrew, Persian: every text finds its own direction; the layout stays as it is (not mirrored). */
+:root[data-rtl] body * { unicode-bidi: plaintext; }
 
 .search-overlay { position: fixed; z-index: 10; inset: 0; display: flex; align-items: flex-start; justify-content: center; overflow-y: auto; padding: clamp(22px, 9vh, 80px) 18px 24px; background: var(--overlay); backdrop-filter: blur(8px); }
 .search-overlay[hidden] { display: none; }

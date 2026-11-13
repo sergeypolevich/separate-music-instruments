@@ -220,80 +220,86 @@
     {
      "id": "e4",
      "widget": "span",
-     "text": "Theme",
+     "text": "Language",
      "index": 4
     },
     {
      "id": "e5",
-     "widget": "button[aria-label]",
-     "text": "Dark theme",
+     "widget": "span",
+     "text": "Theme",
      "index": 5
     },
     {
      "id": "e6",
-     "widget": "button[title]",
-     "text": "Dark",
+     "widget": "button[aria-label]",
+     "text": "Dark theme",
      "index": 6
     },
     {
      "id": "e7",
-     "widget": "button[aria-label]",
-     "text": "Light theme",
+     "widget": "button[title]",
+     "text": "Dark",
      "index": 7
     },
     {
      "id": "e8",
-     "widget": "button[title]",
-     "text": "Light",
+     "widget": "button[aria-label]",
+     "text": "Light theme",
      "index": 8
     },
     {
      "id": "e9",
-     "widget": "label",
-     "text": "Accent color",
+     "widget": "button[title]",
+     "text": "Light",
      "index": 9
     },
     {
      "id": "e10",
-     "widget": "h2",
-     "text": "Separation",
+     "widget": "label",
+     "text": "Accent color",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "h2",
-     "text": "Disk space",
+     "text": "Separation",
      "index": 11
     },
     {
      "id": "e12",
-     "widget": "button",
-     "text": "Clean up",
+     "widget": "h2",
+     "text": "Disk space",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "button",
-     "text": "Delete all projects",
+     "text": "Clean up",
      "index": 13
     },
     {
      "id": "e14",
-     "widget": "h2",
-     "text": "Updates",
+     "widget": "button",
+     "text": "Delete all projects",
      "index": 14
     },
     {
      "id": "e15",
-     "widget": "button",
-     "text": "Check",
+     "widget": "h2",
+     "text": "Updates",
      "index": 15
     },
     {
      "id": "e16",
+     "widget": "button",
+     "text": "Check",
+     "index": 16
+    },
+    {
+     "id": "e17",
      "widget": "p",
      "text": "Updates are checked only when you ask.",
-     "index": 16
+     "index": 17
     }
    ]
   },
@@ -1332,6 +1338,17 @@
      "widget": "Text",
      "text": "{n} MB",
      "index": 1
+    }
+   ]
+  },
+  {
+   "block": "setLanguage",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "The request failed",
+     "index": 0
     }
    ]
   }

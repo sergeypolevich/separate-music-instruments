@@ -17,7 +17,7 @@ from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from fastapi.staticfiles import StaticFiles
 
@@ -32,6 +32,7 @@ from audio_stems.models import (
     disk_full_error,
     is_disk_full,
 )
+from audio_stems import i18n
 from audio_stems.beats import ALGORITHM as BEATS_ALGORITHM
 from audio_stems.separator import BEST_MODEL, StemSeparator
 from audio_stems.storage import LocalMediaStorage
@@ -810,6 +811,15 @@ def create_app(
         return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
 
     web_root = Path(__file__).resolve().parents[1] / "web"
+
+    @app.get("/", include_in_schema=False)
+    @app.get("/index.html", include_in_schema=False)
+    def index_page(request: Request) -> HTMLResponse:
+        """The page in the user's language from the first byte (version 21): the Settings choice from the cookie,
+        on the first start the browser's language when its translation ships, else English."""
+        offered = i18n.offered(web_root)
+        code = i18n.choose(request.cookies.get(i18n.COOKIE), request.headers.get("accept-language", ""), offered)
+        return HTMLResponse(i18n.page(code, web_root), headers={"Cache-Control": "no-cache", "Vary": "Cookie, Accept-Language"})
 
     app.mount("/", _UiFiles(directory=web_root, html=True), name="web")
 
