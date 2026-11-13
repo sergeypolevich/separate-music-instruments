@@ -35,7 +35,7 @@ function tServer(text) {
 // app.js built with t() are found by their translation in the previous language; one with values in it (a size, a
 // time) changes at its next update.
 const englishOf = new WeakMap();  // text node → its English; element → { attribute: its English }
-const TRANSLATED_ATTRIBUTES = ["aria-label", "title", "placeholder"];
+const TRANSLATED_ATTRIBUTES = ["aria-label", "title", "placeholder", "data-short"];  // data-short: the phone's shorter text
 function translatePage(previous = {}) {
   const reverse = new Map(Object.entries(previous).filter(([, text]) => typeof text === "string").map(([english, text]) => [text, english]));
   const shownBefore = (english) => (typeof previous[english] === "string" ? previous[english] : english);

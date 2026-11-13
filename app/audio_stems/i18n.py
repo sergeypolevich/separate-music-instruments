@@ -42,7 +42,7 @@ _LETTER = re.compile(r"[^\W\d_]")
 _STRING = r'"((?:[^"\\]|\\.)*)"'
 _CALL = re.compile(r"\b(?:t|N_)\(\s*" + _STRING + r"|\btn\([^,]+,\s*" + _STRING + r"\s*,\s*" + _STRING)
 _TOP = re.compile(r"^(?:async\s+)?function\s+(\w+)|^(?:const|let|class)\s+(\w+)")
-_ATTRIBUTES = ("aria-label", "title", "placeholder")
+_ATTRIBUTES = ("aria-label", "title", "placeholder", "data-short")
 # Server texts the page shows: API error messages, errors that become a job's summary or an analysis' error,
 # the models' names and descriptions.
 _SERVER = re.compile(r'"message":\s*' + _STRING + r'|AdapterError\(\s*' + _STRING

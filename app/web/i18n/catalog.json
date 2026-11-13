@@ -11,27 +11,33 @@
     },
     {
      "id": "e1",
-     "widget": "span",
-     "text": "Open an audio file or find a song…",
+     "widget": "span[data-short]",
+     "text": "Open a file or find a song",
      "index": 1
     },
     {
      "id": "e2",
-     "widget": "nav[aria-label]",
-     "text": "Navigation",
+     "widget": "span",
+     "text": "Open an audio file or find a song…",
      "index": 2
     },
     {
      "id": "e3",
-     "widget": "button[aria-label]",
-     "text": "Keyboard shortcuts",
+     "widget": "nav[aria-label]",
+     "text": "Navigation",
      "index": 3
     },
     {
      "id": "e4",
+     "widget": "button[aria-label]",
+     "text": "Keyboard shortcuts",
+     "index": 4
+    },
+    {
+     "id": "e5",
      "widget": "a[aria-label]",
      "text": "Settings",
-     "index": 4
+     "index": 5
     }
    ]
   },
