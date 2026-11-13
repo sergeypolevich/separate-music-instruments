@@ -41,6 +41,11 @@ _STRING = r'"((?:[^"\\]|\\.)*)"'
 _CALL = re.compile(r"\b(?:t|N_)\(\s*" + _STRING + r"|\btn\([^,]+,\s*" + _STRING + r"\s*,\s*" + _STRING)
 _TOP = re.compile(r"^(?:async\s+)?function\s+(\w+)|^(?:const|let|class)\s+(\w+)")
 _ATTRIBUTES = ("aria-label", "title", "placeholder")
+# Server texts the page shows: API error messages, errors that become a job's summary or an analysis' error,
+# the models' names and descriptions.
+_SERVER = re.compile(r'"message":\s*' + _STRING + r'|AdapterError\(\s*' + _STRING
+                     + r'|_Model\(\s*' + _STRING + r',\s*' + _STRING
+                     + r'|fail_analysis\([^,]+,[^,]+,\s*' + _STRING)
 _BLOCK_TAGS = {"header", "section", "dialog", "nav"}
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
@@ -103,12 +108,23 @@ def script_texts(js: str) -> list[tuple[str, str, str, str | None]]:
     return found
 
 
+def server_texts(python: str, module: str) -> list[tuple[str, str, str, None]]:
+    """Literal server texts (a template such as "The file is larger than {limit} MB" keeps its placeholders)."""
+    found = []
+    for groups in _SERVER.findall(python):
+        for text in filter(None, groups):
+            found.append((f"server: {module}", "Message", json.loads(f'"{text}"'), None))
+    return found
+
+
 def build_catalog(web: Path = WEB) -> dict:
     """The blocks in the shape the translation service takes (block, elements with id, widget, text, index);
     a plural element also carries its singular as "one"."""
     blocks: dict[str, list[dict]] = {}
     entries = [(block, widget, text, None) for block, widget, text in page_texts((web / "index.html").read_text(encoding="utf-8"))]
     entries += script_texts((web / "app.js").read_text(encoding="utf-8"))
+    for module in sorted((web.parent / "audio_stems").glob("*.py")):
+        entries += server_texts(module.read_text(encoding="utf-8"), module.stem)
     for block, widget, text, one in entries:
         elements = blocks.setdefault(block, [])
         if any(element["text"] == text for element in elements):

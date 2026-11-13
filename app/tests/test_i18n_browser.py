@@ -14,6 +14,7 @@ GERMAN = {
     "Settings": "Einstellungen", "Language": "Sprache", "Appearance": "Darstellung", "Theme": "Design",
     "Open an audio file or find a song…": "Audiodatei öffnen oder Song suchen…", "Close settings": "Einstellungen schließen",
     "Projects will appear here": "Projekte erscheinen hier", "Separation models": "Trennmodelle",
+    "The file is larger than {limit} MB": "Die Datei ist größer als {limit} MB",
 }
 POLISH = {
     "Settings": "Ustawienia", "Queue: {count} tasks": {
@@ -82,6 +83,9 @@ def test_the_page_shows_the_chosen_language_from_the_first_frame_and_switches_in
             assert page.locator("#search-preview").text_content() == "Audiodatei öffnen oder Song suchen…"
             assert page.locator('a[data-screen="settings"]').get_attribute("aria-label") == "Einstellungen"
             assert page.locator("#project-tabs .tabs-empty").text_content() == "Projekte erscheinen hier"
+            # A server message with a value in it is found by its template; an unknown one stays as it came.
+            assert page.evaluate("tServer('The file is larger than 500 MB')") == "Die Datei ist größer als 500 MB"
+            assert page.evaluate("tServer('Separator exited with status 3')") == "Separator exited with status 3"
 
             # Settings → Language lists the shipped languages, each in itself; a choice applies in place.
             page.evaluate("window.notReloaded = true")

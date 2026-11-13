@@ -15,6 +15,21 @@ function tn(count, one, other, values = {}) {
   return fillIn(form, { count, ...values });
 }
 
+// Texts from the server (errors, the models' names) come in English; the catalog has them too, some with {values}:
+// "The file is larger than 500 MB" is found as "The file is larger than {limit} MB".
+function tServer(text) {
+  const dictionary = window.AUDIO_STEMS_I18N || {};
+  if (!text || typeof dictionary[text] === "string") return t(text || "");
+  for (const [english, translated] of Object.entries(dictionary)) {
+    if (typeof translated !== "string" || !english.includes("{")) continue;
+    const names = [];
+    const source = english.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{(\w+)\}/g, (_match, name) => { names.push(name); return "(.+?)"; });
+    const match = new RegExp(`^${source}$`).exec(text);
+    if (match) return fillIn(translated, Object.fromEntries(names.map((name, index) => [name, match[index + 1]])));
+  }
+  return text;
+}
+
 // Static texts of index.html are English in the file. translatePage() puts every text and labelled attribute into
 // the chosen language and remembers each one's English, so the language changes in place, without a reload. Texts
 // app.js built with t() are found by their translation in the previous language; one with values in it (a size, a
@@ -160,7 +175,7 @@ async function requestJson(url, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error?.message || t("The request failed"));
+  if (!response.ok) throw new Error(tServer(body.error?.message) || t("The request failed"));
   return body;
 }
 
@@ -1014,7 +1029,7 @@ function renderProject(project) {
   if (document.activeElement !== detailTitle) detailTitle.textContent = selectedProjectTitle;  // a poll never undoes typing
   detailTitle.title = selectedProjectTitle;
   markClippedTitle();
-  detailError.textContent = project.job.error_summary || "";
+  detailError.textContent = tServer(project.job.error_summary || "");
   detailError.hidden = !project.job.error_summary;
   deleteProjectButton.dataset.projectId = project.project_id;
   selectedProjectBytes = { disk: project.disk_bytes || 0, shared: project.shared_bytes || 0 };
@@ -1655,7 +1670,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         if (setupId !== playbackSetupId) return;
       }
       showUpgrade(state);
-      if (state.status === "failed") error.textContent = state.error || t("Could not improve the quality");
+      if (state.status === "failed") error.textContent = tServer(state.error) || t("Could not improve the quality");
       if (state.status === "done" && state.best) {
         pendingResume = activeControls ? activeControls.snapshot() : null;
         await openProject(projectId);  // new stem files: the player is rebuilt on them
@@ -1701,7 +1716,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         delete metronomeButton.dataset.analyzing;
         metronomeButton.style.removeProperty("--job-progress");
         nameMetronome(t("Metronome"));
-        if (state.status !== "done") throw new Error(state.error || t("Could not find the beats"));
+        if (state.status !== "done") throw new Error(tServer(state.error) || t("Could not find the beats"));
         if (!rhythmFound(state.result)) {
           setMetronome(false);
           nameMetronome(t("No beat found"));
@@ -1993,10 +2008,10 @@ async function loadModels() {
       });
       const name = document.createElement("span");
       name.className = "model-option-name";
-      name.textContent = `${t(model.label || model.name)} · ${tn(model.stems.length, "{count} stem", "{count} stems")}`;
+      name.textContent = `${tServer(model.label || model.name)} · ${tn(model.stems.length, "{count} stem", "{count} stems")}`;
       const note = document.createElement("span");
       note.className = "model-option-note";
-      note.textContent = t(model.description || "");
+      note.textContent = tServer(model.description || "");
       if (model.seconds_per_audio_second) {
         const time = document.createElement("span");
         time.className = "model-option-time";
@@ -2055,7 +2070,7 @@ async function uploadFiles(files) {
         method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file,
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(`${t("“{title}”", { title: file.name })}: ${body.error?.message || t("could not upload")}`);
+      if (!response.ok) throw new Error(`${t("“{title}”", { title: file.name })}: ${tServer(body.error?.message) || t("could not upload")}`);
       created = body;
     }
     setFormMessage("");

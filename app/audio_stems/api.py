@@ -512,7 +512,7 @@ def create_app(
         separation_options(model_name)  # refuse a bad model before receiving the whole file
         limit = settings.upload_limit_mb * 2**20
         too_large = HTTPException(status_code=413, detail={
-            "code": "file_too_large", "message": f"The file is larger than {settings.upload_limit_mb} MB"})
+            "code": "file_too_large", "message": "The file is larger than {limit} MB".format(limit=settings.upload_limit_mb)})
         if int(request.headers.get("content-length") or 0) > limit:
             raise too_large
         partial = storage.new_upload_path()

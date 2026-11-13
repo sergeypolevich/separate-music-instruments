@@ -90,3 +90,20 @@ def test_the_api_serves_the_page_in_the_chosen_language(tmp_path):
     assert page.status_code == 200 and page.headers["cache-control"] == "no-cache"
     assert "window.AUDIO_STEMS_LANGUAGES" in page.text and '<html lang="en">' in page.text
     assert request("GET", "/index.html").text == page.text
+
+
+def test_server_texts_are_the_messages_the_page_shows():
+    python = '''raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+raise AdapterError("Video search failed", FailureCategory.TRANSIENT)
+"message": "The file is larger than {limit} MB".format(limit=limit)
+store.fail_analysis(project_id, "beats", "Could not find the beats of this song")
+"hdemucs_mmi": _Model(
+    "Demucs, fast",
+    "Fast separation into four stems.",
+logger.info("Not a message for the user")
+'''
+    assert [text for _block, _widget, text, _one in i18n.server_texts(python, "api")] == [
+        "Project not found", "Video search failed", "The file is larger than {limit} MB",
+        "Could not find the beats of this song", "Demucs, fast", "Fast separation into four stems."]
+    blocks = {block["block"] for block in i18n.build_catalog()["blocks"]}
+    assert {"server: api", "server: models", "server: separator", "server: analysis"} <= blocks

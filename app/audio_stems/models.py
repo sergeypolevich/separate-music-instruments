@@ -40,13 +40,11 @@ def is_disk_full(exc: OSError) -> bool:
 
 def disk_full_error(needed_bytes: int | None = None, free_bytes: int | None = None) -> AdapterError:
     """The user-facing message is the job's error summary, so it is written for the user."""
-    detail = ""
+    # Whole templates, so the page can translate the message (the catalog takes AdapterError texts).
     if needed_bytes is not None and free_bytes is not None:
-        detail = f": ~{needed_bytes // 2**20} MB needed, {free_bytes // 2**20} MB free"
-    return AdapterError(
-        f"Not enough disk space{detail}. Free some space and start the separation again.",
-        FailureCategory.DISK_FULL,
-    )
+        return AdapterError("Not enough disk space: ~{needed} MB needed, {free} MB free. Free some space and start the separation again."
+                            .format(needed=needed_bytes // 2**20, free=free_bytes // 2**20), FailureCategory.DISK_FULL)
+    return AdapterError("Not enough disk space. Free some space and start the separation again.", FailureCategory.DISK_FULL)
 
 
 class SourceKind(Enum):

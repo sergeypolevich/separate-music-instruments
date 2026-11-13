@@ -1351,6 +1351,676 @@
      "index": 0
     }
    ]
+  },
+  {
+   "block": "server: analysis",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Could not find the beats of this song",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "server: api",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Request data is invalid",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Could not retrieve release information from GitHub",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Project not found",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Beats need the source audio of a finished project",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "The project is already separated with the best model",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "Improving needs the source audio of a finished project",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "No quality improvement is running",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Confirm the cleanup first",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "Wait until the separation ends, then clean up",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Message",
+     "text": "Confirm the update before continuing",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Message",
+     "text": "The update could not be installed",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Message",
+     "text": "Batch exceeds the configured item limit",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Message",
+     "text": "File name is required",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Message",
+     "text": "The file is larger than {limit} MB",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Message",
+     "text": "This does not look like an audio file that can be separated",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "Message",
+     "text": "Upload could not be saved",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "Message",
+     "text": "Batch not found",
+     "index": 16
+    },
+    {
+     "id": "e17",
+     "widget": "Message",
+     "text": "The project list has changed",
+     "index": 17
+    },
+    {
+     "id": "e18",
+     "widget": "Message",
+     "text": "This project cannot be deleted while its batch is active",
+     "index": 18
+    },
+    {
+     "id": "e19",
+     "widget": "Message",
+     "text": "Project files could not all be removed; retry delete to continue cleanup",
+     "index": 19
+    },
+    {
+     "id": "e20",
+     "widget": "Message",
+     "text": "Job not found",
+     "index": 20
+    },
+    {
+     "id": "e21",
+     "widget": "Message",
+     "text": "The job has already finished",
+     "index": 21
+    },
+    {
+     "id": "e22",
+     "widget": "Message",
+     "text": "Asset not found",
+     "index": 22
+    },
+    {
+     "id": "e23",
+     "widget": "Message",
+     "text": "Waveform data is available for WAV and FLAC assets",
+     "index": 23
+    },
+    {
+     "id": "e24",
+     "widget": "Message",
+     "text": "Asset file is not available",
+     "index": 24
+    }
+   ]
+  },
+  {
+   "block": "server: db",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "A batch needs an owner and at least one source",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Queued batch has no jobs",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Job was not found",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Batch was not found",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "Job is already finished",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "Project was not found",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "Project is not stopped",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Project has no stored source audio",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "Project job was not found",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Message",
+     "text": "Asset job was not found",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Message",
+     "text": "Project batch is currently processing",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Message",
+     "text": "Project quality is being upgraded",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Message",
+     "text": "Queued multi-job batches cannot be partially deleted",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Message",
+     "text": "Project job is active",
+     "index": 13
+    }
+   ]
+  },
+  {
+   "block": "server: models",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Not enough disk space: ~{needed} MB needed, {free} MB free. Free some space and start the separation again.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Not enough disk space. Free some space and start the separation again.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Input cannot be empty",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Malformed video URL",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "Only credential-free HTTPS video URLs are supported",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "Video URLs with custom ports are not supported",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "Invalid video URL authority",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Video URL host is not allowed",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "URL does not identify a supported video",
+     "index": 8
+    }
+   ]
+  },
+  {
+   "block": "server: pipeline",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Batch source list does not match its jobs",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Batch owner context is required",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Job was not found",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Downloader returned a different video",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "Processing failed",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "No source candidates found",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "Stored stem set is incomplete",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Only a finished project can be improved",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "The project's source audio is missing on disk",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Message",
+     "text": "Separator returned incomplete output",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Message",
+     "text": "Separator returned an invalid stem",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Message",
+     "text": "Could not improve the quality",
+     "index": 11
+    }
+   ]
+  },
+  {
+   "block": "server: separator",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Demucs, fast",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Fast separation into four stems: guitar and keys go to Other.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "BS-RoFormer SW",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Sounds clearly better, six stems with separate guitar and piano, but many times slower.",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "Demucs htdemucs_6s",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "The earlier fast six-stem model.",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "Audio could not be decoded for separation",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Unsupported separation model",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "Model weights could not be downloaded",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Message",
+     "text": "Model weights failed the integrity check",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Message",
+     "text": "Separator executable is unavailable",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Message",
+     "text": "Separator could not be started",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Message",
+     "text": "Separator did not produce all expected stems",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Message",
+     "text": "Unsupported compute device",
+     "index": 13
+    }
+   ]
+  },
+  {
+   "block": "server: storage",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Local storage identity index could not be read",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Local storage identity index has an invalid format",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Local storage identity index could not be saved",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Storage path is outside the configured root",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Message",
+     "text": "Invalid storage key",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Message",
+     "text": "Absolute storage keys are not allowed",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Message",
+     "text": "Storage key traversal is not allowed",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Message",
+     "text": "Storage key escapes the configured root",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Message",
+     "text": "Invalid audio extension",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Message",
+     "text": "Audio storage directory could not be created",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Message",
+     "text": "Audio storage could not be searched",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Message",
+     "text": "Invalid audio could not be preserved for recovery",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Message",
+     "text": "Stem directory escapes the configured root",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Message",
+     "text": "Stem directory could not be created",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Message",
+     "text": "Invalid stem name",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "Message",
+     "text": "Upload folder could not be created",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "Message",
+     "text": "Unsupported or damaged audio file",
+     "index": 16
+    },
+    {
+     "id": "e17",
+     "widget": "Message",
+     "text": "Upload could not be saved",
+     "index": 17
+    },
+    {
+     "id": "e18",
+     "widget": "Message",
+     "text": "Invalid upload reference",
+     "index": 18
+    },
+    {
+     "id": "e19",
+     "widget": "Message",
+     "text": "The uploaded file is no longer there",
+     "index": 19
+    },
+    {
+     "id": "e20",
+     "widget": "Message",
+     "text": "Audio asset could not be saved",
+     "index": 20
+    },
+    {
+     "id": "e21",
+     "widget": "Message",
+     "text": "Downloaded audio has an invalid container header",
+     "index": 21
+    },
+    {
+     "id": "e22",
+     "widget": "Message",
+     "text": "Stem asset could not be saved",
+     "index": 22
+    },
+    {
+     "id": "e23",
+     "widget": "Message",
+     "text": "Separator returned an unreadable stem",
+     "index": 23
+    },
+    {
+     "id": "e24",
+     "widget": "Message",
+     "text": "Storage key points to a directory",
+     "index": 24
+    },
+    {
+     "id": "e25",
+     "widget": "Message",
+     "text": "Media asset could not be deleted",
+     "index": 25
+    }
+   ]
+  },
+  {
+   "block": "server: youtube",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Message",
+     "text": "Video search failed",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Video has no audio-only stream",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Message",
+     "text": "Downloaded audio failed container validation",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Message",
+     "text": "Video audio download failed",
+     "index": 3
+    }
+   ]
   }
  ]
 }
