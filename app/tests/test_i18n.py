@@ -107,3 +107,26 @@ logger.info("Not a message for the user")
         "Could not find the beats of this song", "Demucs, fast", "Fast separation into four stems."]
     blocks = {block["block"] for block in i18n.build_catalog()["blocks"]}
     assert {"server: api", "server: models", "server: separator", "server: analysis"} <= blocks
+
+
+def test_translation_asks_again_for_what_the_service_missed_and_keeps_plural_forms():
+    catalog = {"blocks": [
+        {"block": "renderQueue", "elements": [
+            {"id": "e0", "widget": "Text", "text": "Queue: {count} tasks", "index": 0, "one": "Queue: {count} task"},
+            {"id": "e1", "widget": "Text", "text": "Cancel", "index": 1}]},
+        {"block": "screen-settings", "elements": [{"id": "e0", "widget": "h1", "text": "Settings", "index": 0},
+                                                  {"id": "e1", "widget": "button", "text": "Cancel", "index": 1}]}]}
+    queue, settings = (i18n.block_hash(block) for block in catalog["blocks"])
+    calls = []
+
+    def post(body):  # the service: the first time the plural is missing, the second time it comes
+        calls.append(len(body["blocks"]))
+        if len(calls) == 1:
+            return {"translations": {queue: {"e1": "Abbrechen"}, settings: {"e0": "Einstellungen", "e1": "Abbruch"}}}
+        return {"translations": {queue: {"e0": '{"one": "Warteschlange: {count} Aufgabe", "other": "Warteschlange: {count} Aufgaben"}'}}}
+
+    dictionary, missing = i18n.translate("de", catalog, post)
+    assert calls == [2, 1] and missing == 0  # only the unfinished block is asked again
+    assert dictionary == {"Queue: {count} tasks": {"one": "Warteschlange: {count} Aufgabe", "other": "Warteschlange: {count} Aufgaben"},
+                          "Cancel": "Abbrechen", "Settings": "Einstellungen"}  # a text in two blocks: the first one's
+    assert i18n.translate("de", catalog, lambda body: {"translations": {}}, attempts=2)[1] == 3

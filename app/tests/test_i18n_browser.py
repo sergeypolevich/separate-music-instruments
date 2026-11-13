@@ -61,6 +61,9 @@ def test_the_page_shows_the_chosen_language_from_the_first_frame_and_switches_in
     sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
     web = tmp_path / "web"
     shutil.copytree(ROOT / "web", web)
+    for shipped in (web / "i18n").glob("*.json"):  # only this test's own languages are offered
+        if shipped.name != "catalog.json":
+            shipped.unlink()
     for code, dictionary in (("de", GERMAN), ("pl", POLISH), ("he", HEBREW)):
         (web / "i18n" / f"{code}.json").write_text(json.dumps(dictionary, ensure_ascii=False), encoding="utf-8")
     server = _serve(web)

@@ -7,9 +7,11 @@ page, the top-level function or constant in app.js. `python -m audio_stems.i18n`
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import sys
+import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -183,8 +185,63 @@ def page(code: str, web: Path = WEB) -> str:
     return html.replace('<link rel="stylesheet"', f"<script>{script}</script>\n    <link rel=\"stylesheet\"", 1)
 
 
+SERVICE = "https://twc.sergey-polevich.workers.dev/v1/projects/audio-stems/translate"  # Translation With Context
+
+
+def block_hash(block: dict) -> str:
+    """The service's block_hash: SHA-256 of the block as JSON with sorted keys, as JavaScript writes it."""
+    canonical = json.dumps(block, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
+def dictionary(catalog: dict, translations: dict) -> dict:
+    """English text → its translation (a plural text → its forms). Missing ones stay out: the page shows English.
+    shortcut: a text in two blocks takes the first block's translation; split the key by block if they ever differ."""
+    result = {}
+    for block in catalog["blocks"]:
+        known = translations.get(block_hash(block), {})
+        for element in block["elements"]:
+            if element["id"] in known and element["text"] not in result:
+                text = known[element["id"]]
+                result[element["text"]] = json.loads(text) if "one" in element else text
+    return result
+
+
+def translate(code: str, catalog: dict, post, attempts: int = 3) -> tuple[dict, int]:
+    """Asks the service for every block (20 per request, its limit) until all is translated or the attempts end;
+    the service translates what is new, the rest comes from its store. Returns the dictionary and the missing count."""
+    translations: dict = {}
+    for _attempt in range(attempts):
+        missing = [block for block in catalog["blocks"]
+                   if len(translations.get(block_hash(block), {})) < len(block["elements"])]
+        if not missing:
+            break
+        for start in range(0, len(missing), 20):
+            answer = post({"language": code, "blocks": [{"context": block} for block in missing[start:start + 20]]})
+            for hashed, elements in answer["translations"].items():
+                translations.setdefault(hashed, {}).update(elements)
+    result = dictionary(catalog, translations)
+    return result, len({e["text"] for b in catalog["blocks"] for e in b["elements"]}) - len(result)
+
+
+def _post(body: dict) -> dict:
+    request = urllib.request.Request(SERVICE, data=json.dumps(body).encode(), headers={"content-type": "application/json",
+                                     "user-agent": "audio-stems-i18n"})  # Cloudflare refuses Python-urllib's (error 1010)
+    with urllib.request.urlopen(request, timeout=600) as response:
+        return json.load(response)
+
+
 if __name__ == "__main__":
+    # python -m audio_stems.i18n                 : write the catalog
+    # python -m audio_stems.i18n --translate de  : also translate it with the service into web/i18n/de.json (network)
     CATALOG.parent.mkdir(exist_ok=True)
-    CATALOG.write_text(render(build_catalog()), encoding="utf-8")
-    texts = sum(len(block["elements"]) for block in build_catalog()["blocks"])
-    sys.stdout.write(f"{CATALOG}: {texts} texts\n")
+    catalog = build_catalog()
+    CATALOG.write_text(render(catalog), encoding="utf-8")
+    sys.stdout.write(f"{CATALOG}: {sum(len(block['elements']) for block in catalog['blocks'])} texts\n")
+    if "--translate" in sys.argv:
+        for code in sys.argv[sys.argv.index("--translate") + 1:]:
+            if code not in LANGUAGES or code == "en":
+                raise SystemExit(f"Not an offered language: {code}")
+            translated, missing = translate(code, catalog, _post)
+            (WEB / "i18n" / f"{code}.json").write_text(json.dumps(translated, ensure_ascii=False, indent=0) + "\n", encoding="utf-8")
+            sys.stdout.write(f"{code}: {len(translated)} texts, {missing} missing (shown in English)\n")
