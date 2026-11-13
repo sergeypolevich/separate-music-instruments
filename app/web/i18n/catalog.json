@@ -1,0 +1,1339 @@
+{
+ "blocks": [
+  {
+   "block": "page",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "a[aria-label]",
+     "text": "Audio Stems — project",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "span",
+     "text": "Open an audio file or find a song…",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "nav[aria-label]",
+     "text": "Navigation",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "button[aria-label]",
+     "text": "Keyboard shortcuts",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "a[aria-label]",
+     "text": "Settings",
+     "index": 4
+    }
+   ]
+  },
+  {
+   "block": "queue-popover",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "div[aria-label]",
+     "text": "Queue",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "screen-project",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "section[aria-label]",
+     "text": "Project workspace",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "div[aria-label]",
+     "text": "Projects",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "p",
+     "text": "Projects will appear here",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "button[aria-label]",
+     "text": "All projects",
+     "index": 3
+    }
+   ]
+  },
+  {
+   "block": "tabs-popover",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "div[aria-label]",
+     "text": "All projects",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "project-workspace",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "p",
+     "text": "Open an audio file or drop it into the window to start.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "button[aria-label]",
+     "text": "Delete project",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "playback-panel",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "section[aria-label]",
+     "text": "Synchronized playback",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "search-overlay",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "h1",
+     "text": "What shall we separate?",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "button[aria-label]",
+     "text": "Close search",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "button[title]",
+     "text": "Close",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "button",
+     "text": "Open audio file",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "p",
+     "text": "Or drop files into the window.",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "p",
+     "text": "or find a song",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "label",
+     "text": "Song title or link",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "textarea[placeholder]",
+     "text": "Artist — Song",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "p",
+     "text": "Several songs: one per line.",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "span",
+     "text": "Start separation",
+     "index": 9
+    }
+   ]
+  },
+  {
+   "block": "drop-overlay",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "p",
+     "text": "Drop to separate",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "screen-settings",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "h1",
+     "text": "Settings",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "button[aria-label]",
+     "text": "Close settings",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "button[title]",
+     "text": "Close",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "h2",
+     "text": "Appearance",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "span",
+     "text": "Theme",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "button[aria-label]",
+     "text": "Dark theme",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "button[title]",
+     "text": "Dark",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "button[aria-label]",
+     "text": "Light theme",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "button[title]",
+     "text": "Light",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "label",
+     "text": "Accent color",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "h2",
+     "text": "Separation",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "h2",
+     "text": "Disk space",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "button",
+     "text": "Clean up",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "button",
+     "text": "Delete all projects",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "h2",
+     "text": "Updates",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "button",
+     "text": "Check",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "p",
+     "text": "Updates are checked only when you ask.",
+     "index": 16
+    }
+   ]
+  },
+  {
+   "block": "help-overlay",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "h1",
+     "text": "Keyboard shortcuts",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "button[aria-label]",
+     "text": "Close help",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "button[title]",
+     "text": "Close",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "confirm-dialog",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "button",
+     "text": "Cancel",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "stateDescriptions",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Queued",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Finding the source",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Downloading audio",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Audio downloaded",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Separating stems",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Done",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Processing failed",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Task cancelled",
+     "index": 7
+    }
+   ]
+  },
+  {
+   "block": "requestJson",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "The request failed",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "loadStorage",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Projects",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Files without a project",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Temporary files",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Separation models",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Delete all projects ({size})",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Delete all projects",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Clean up {size}",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Clean up",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "Wait until the separation ends: cleaning up and deleting are unavailable while it runs.",
+     "index": 8
+    }
+   ]
+  },
+  {
+   "block": "cleanStorage",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Clean up storage?",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Files without a project and temporary files ({size}) will be deleted. Projects stay as they are.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Delete",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Freed {size}.",
+     "index": 3
+    }
+   ]
+  },
+  {
+   "block": "deleteAllProjects",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "No projects.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Delete all projects ({count})?",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "With their audio and stems: {size}. This cannot be undone.",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Delete all",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Could not delete: {names}.",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Projects deleted: {count}. Freed {size}.",
+     "index": 5
+    }
+   ]
+  },
+  {
+   "block": "HOTKEYS",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Play / pause",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Space, Enter",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Back / forward 5 seconds",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "To the start",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "To the start and pause",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Next / previous stem, in a loop",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Open tab 1–9",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Tab: previous / next",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "Select Vocal, Drums, Bass, Guitar, Piano, Other",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Solo the selected stem",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Text",
+     "text": "Mute the selected stem",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Text",
+     "text": "Selected stem volume +10% / −10%",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Text",
+     "text": "Master volume +5% / −5%",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Text",
+     "text": "Open a file or find a song",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Text",
+     "text": "New line in the search field",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "Text",
+     "text": "Clear loop",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "Text",
+     "text": "Close the window",
+     "index": 16
+    }
+   ]
+  },
+  {
+   "block": "queueText",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{time} left",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Quality improvement",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "queued",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "renderQueue",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Queue: {count} tasks",
+     "index": 0,
+     "one": "Queue: {count} task"
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Cancel: {title}",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Cancel",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "cancelTask",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "the quality improvement of “{title}”",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "“{title}”",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Cancel {what}?",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "What is already done will be lost.",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Cancel task",
+     "index": 4
+    }
+   ]
+  },
+  {
+   "block": "perMinuteOfSong",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "~{n} s",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "~{n} min",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "formatMinutes",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "less than a minute",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "~{n} min",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "etaText",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{time} left",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "separation will take {time}",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "renderJobProgress",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Cancel",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "renderProjects",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Projects will appear here",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "renameInTab",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Project name",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "renderTabList",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Delete: {name}",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Delete",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "askToDelete",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Cancel and delete the project?",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "“{name}” is still processing: the processing will stop, the project and its files will be deleted.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Cancel and delete",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "askDeleteProject",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{size} of shared files stay: another project uses them.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Delete the project?",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "The project “{name}”, its source audio and all stems will be deleted. This frees {size}.",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Delete",
+     "index": 3
+    }
+   ]
+  },
+  {
+   "block": "cancelAndDelete",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "The processing is still stopping. Try deleting the project a little later.",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "drawWaveform",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Waveform unavailable",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "renderMissingFiles",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "source audio",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Files of the project were deleted from the disk: {names}.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Delete the project and open the file again.",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Separate again",
+     "index": 3
+    }
+   ]
+  },
+  {
+   "block": "renderSeparateAgain",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Separation cancelled.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "The separation failed.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Separate",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "renderProject",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Disk space: source audio and stems",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "setupProjectPlayback",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Synchronized playback needs all stems of the project.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Web Audio is not supported in this browser",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Playback position",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Play",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "To the start and pause",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Count-in and play",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Pause",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "No beat found",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "{stem} volume",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Waveform: {stem}",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Text",
+     "text": "Master volume",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Text",
+     "text": "The browser did not allow all stems to start. Press ▶ again.",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Text",
+     "text": "Metronome",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Text",
+     "text": "Metronome volume",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Text",
+     "text": "Playback speed",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "Text",
+     "text": "over http from another device the browser does not allow it, only on this computer or over https",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "Text",
+     "text": "preparing {percent}%",
+     "index": 16
+    },
+    {
+     "id": "e17",
+     "widget": "Text",
+     "text": "Speed change: only on this computer or over https",
+     "index": 17
+    },
+    {
+     "id": "e18",
+     "widget": "Text",
+     "text": "Could not turn on the speed change: {error}",
+     "index": 18
+    },
+    {
+     "id": "e19",
+     "widget": "Text",
+     "text": "Decoded mode: preparing…",
+     "index": 19
+    },
+    {
+     "id": "e20",
+     "widget": "Text",
+     "text": "Preparing stems…",
+     "index": 20
+    },
+    {
+     "id": "e21",
+     "widget": "Text",
+     "text": "Decoded mode: ready in {seconds} s",
+     "index": 21
+    },
+    {
+     "id": "e22",
+     "widget": "Text",
+     "text": "Decoded mode did not start: the stems play as usual.",
+     "index": 22
+    },
+    {
+     "id": "e23",
+     "widget": "Text",
+     "text": "Cancel the improvement",
+     "index": 23
+    },
+    {
+     "id": "e24",
+     "widget": "Text",
+     "text": "{time} left",
+     "index": 24
+    },
+    {
+     "id": "e25",
+     "widget": "Text",
+     "text": "Improved separation quality",
+     "index": 25
+    },
+    {
+     "id": "e26",
+     "widget": "Text",
+     "text": "Improvement queued",
+     "index": 26
+    },
+    {
+     "id": "e27",
+     "widget": "Text",
+     "text": "Improving",
+     "index": 27
+    },
+    {
+     "id": "e28",
+     "widget": "Text",
+     "text": "Improve quality",
+     "index": 28
+    },
+    {
+     "id": "e29",
+     "widget": "Text",
+     "text": "Could not improve the quality",
+     "index": 29
+    },
+    {
+     "id": "e30",
+     "widget": "Text",
+     "text": "Could not find the beats",
+     "index": 30
+    },
+    {
+     "id": "e31",
+     "widget": "Text",
+     "text": "Could not prepare synchronized playback in this browser.",
+     "index": 31
+    }
+   ]
+  },
+  {
+   "block": "renderReleases",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Version {version} is installed. It is the latest.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Version {version} is installed. A new one is available:",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "This release has no description.",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Open on GitHub",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Update to {tag}",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Install “{name}”?",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "The app will restart by itself. A running download or separation continues after the restart (a separation starts over). Your songs and settings are not affected.",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Install",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "Downloading…",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Downloading the update…",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Text",
+     "text": "Restarting…",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Text",
+     "text": "The app is restarting with the new version. If it needs new libraries, this takes a few minutes: the progress shows in the Audio Stems window.",
+     "index": 11
+    }
+   ]
+  },
+  {
+   "block": "checkUpdates",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Checking GitHub for new versions…",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "loadModels",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{count} stems",
+     "index": 0,
+     "one": "{count} stem"
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "{time} per minute of song",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "from the latest separations on this computer",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "an estimate, refined after the first separation",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Could not load the models: {error}",
+     "index": 4
+    }
+   ]
+  },
+  {
+   "block": "submitSearch",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Enter a song title or a link.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Adding to the queue…",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "This link does not fit: YouTube links are supported (youtube.com, youtu.be).",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "uploadFiles",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Uploading “{name}”…",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "“{title}”",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "could not upload",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "formatBytes",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{n} GB",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "{n} MB",
+     "index": 1
+    }
+   ]
+  }
+ ]
+}

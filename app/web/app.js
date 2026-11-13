@@ -1,12 +1,29 @@
+// The page's texts: English in the code, the chosen language from the dictionary the server puts before app.js
+// (version 21). t() fills {name} placeholders; tn() picks the plural form by the language's rules; N_() only marks a
+// text for the catalog (python -m audio_stems.i18n) where it is stored, and t() translates it where it is shown.
+const N_ = (text) => text;
+const fillIn = (template, values) => template.replace(/\{(\w+)\}/g, (match, name) => (name in values ? String(values[name]) : match));
+function t(text, values = {}) {
+  const translated = (window.AUDIO_STEMS_I18N || {})[text];
+  return fillIn(typeof translated === "string" ? translated : text, values);
+}
+function tn(count, one, other, values = {}) {
+  const forms = (window.AUDIO_STEMS_I18N || {})[other];
+  const form = forms && typeof forms === "object"
+    ? forms[new Intl.PluralRules(document.documentElement.lang).select(count)] || forms.other
+    : count === 1 ? one : other;
+  return fillIn(form, { count, ...values });
+}
+
 const stateDescriptions = {
-  queued: "Queued",
-  searching: "Finding the source",
-  downloading: "Downloading audio",
-  downloaded: "Audio downloaded",
-  separating: "Separating stems",
-  completed: "Done",
-  failed: "Processing failed",
-  cancelled: "Task cancelled",
+  queued: N_("Queued"),
+  searching: N_("Finding the source"),
+  downloading: N_("Downloading audio"),
+  downloaded: N_("Audio downloaded"),
+  separating: N_("Separating stems"),
+  completed: N_("Done"),
+  failed: N_("Processing failed"),
+  cancelled: N_("Task cancelled"),
 };
 
 const batchActiveStates = new Set(["queued", "processing"]);
@@ -107,7 +124,7 @@ async function requestJson(url, options = {}) {
     headers: { "Content-Type": "application/json", ...(options.headers || {}) },
   });
   const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error?.message || "The request failed");
+  if (!response.ok) throw new Error(body.error?.message || t("The request failed"));
   return body;
 }
 
@@ -140,8 +157,8 @@ async function loadStorage() {
   try {
     const report = await requestJson("/api/v1/storage");
     cleanableBytes = report.unused_bytes + report.temp_bytes;
-    const rows = [["Projects", report.projects_bytes], ["Files without a project", report.unused_bytes],
-      ["Temporary files", report.temp_bytes], ["Separation models", report.models_bytes]];
+    const rows = [[t("Projects"), report.projects_bytes], [t("Files without a project"), report.unused_bytes],
+      [t("Temporary files"), report.temp_bytes], [t("Separation models"), report.models_bytes]];
     diskUsage.replaceChildren(...rows.flatMap(([label, bytes]) => {
       const term = document.createElement("dt");
       term.textContent = label;
@@ -152,22 +169,22 @@ async function loadStorage() {
     cleanStorageButton.disabled = report.busy || cleanableBytes === 0;
     projectsBytes = report.projects_bytes;
     deleteAllButton.disabled = report.busy;
-    deleteAllButton.textContent = projectsBytes ? `Delete all projects (${formatBytes(projectsBytes)})` : "Delete all projects";
-    cleanStorageButton.textContent = cleanableBytes ? `Clean up ${formatBytes(cleanableBytes)}` : "Clean up";
-    diskMessage.textContent = report.busy ? "Wait until the separation ends: cleaning up and deleting are unavailable while it runs." : "";
+    deleteAllButton.textContent = projectsBytes ? t("Delete all projects ({size})", { size: formatBytes(projectsBytes) }) : t("Delete all projects");
+    cleanStorageButton.textContent = cleanableBytes ? t("Clean up {size}", { size: formatBytes(cleanableBytes) }) : t("Clean up");
+    diskMessage.textContent = report.busy ? t("Wait until the separation ends: cleaning up and deleting are unavailable while it runs.") : "";
   } catch (error) {
     diskMessage.textContent = error.message;
   }
 }
 
 async function cleanStorage() {
-  const confirmed = await askConfirm({ title: "Clean up storage?", text: `Files without a project and temporary files (${formatBytes(cleanableBytes)}) will be deleted. Projects stay as they are.`, action: "Delete" });
+  const confirmed = await askConfirm({ title: t("Clean up storage?"), text: t("Files without a project and temporary files ({size}) will be deleted. Projects stay as they are.", { size: formatBytes(cleanableBytes) }), action: t("Delete") });
   if (!confirmed) return;
   cleanStorageButton.disabled = true;
   try {
     const result = await requestJson("/api/v1/storage/cleanup", { method: "POST", body: JSON.stringify({ confirmed: true }) });
     await loadStorage();
-    diskMessage.textContent = `Freed ${formatBytes(result.freed_bytes)}.`;
+    diskMessage.textContent = t("Freed {size}.", { size: formatBytes(result.freed_bytes) });
   } catch (error) {
     diskMessage.textContent = error.message;
     cleanStorageButton.disabled = false;
@@ -185,11 +202,11 @@ async function deleteAllProjects() {
     return;
   }
   if (!projects.length) {
-    diskMessage.textContent = "No projects.";
+    diskMessage.textContent = t("No projects.");
     return;
   }
   const freed = projectsBytes;
-  if (!(await askConfirm({ title: `Delete all projects (${projects.length})?`, text: `With their audio and stems: ${formatBytes(freed)}. This cannot be undone.`, action: "Delete all" }))) return;
+  if (!(await askConfirm({ title: t("Delete all projects ({count})?", { count: projects.length }), text: t("With their audio and stems: {size}. This cannot be undone.", { size: formatBytes(freed) }), action: t("Delete all") }))) return;
   deleteAllButton.disabled = cleanStorageButton.disabled = true;
   cleanupPlayback();  // Windows cannot delete a file the browser is still reading
   const failed = [];
@@ -204,7 +221,7 @@ async function deleteAllProjects() {
   selectedProjectTitle = "";
   await loadProjects();
   await loadStorage();
-  diskMessage.textContent = failed.length ? `Could not delete: ${failed.join(", ")}.` : `Projects deleted: ${projects.length}. Freed ${formatBytes(freed)}.`;
+  diskMessage.textContent = failed.length ? t("Could not delete: {names}.", { names: failed.join(", ") }) : t("Projects deleted: {count}. Freed {size}.", { count: projects.length, size: formatBytes(freed) });
 }
 
 // Settings open over the project (which keeps playing) and close on a click outside, Esc or ×.
@@ -225,28 +242,28 @@ function closeSettings() {
 
 // What the keydown handler below does, for the help window («?» in the header). Keep the two in step.
 const HOTKEYS = [
-  ["Play / pause", "Space, Enter"],
-  ["Back / forward 5 seconds", "←, →"],
-  ["To the start", "Home"],
-  ["To the start and pause", "Backspace"],
-  ["Next / previous stem, in a loop", "Tab, Shift+Tab"],
-  ["Open tab 1–9", "1–9"],
-  ["Tab: previous / next", "Q, W"],
-  ["Select Vocal, Drums, Bass, Guitar, Piano, Other", "V, D, B, G, P, O"],
-  ["Solo the selected stem", "S"],
-  ["Mute the selected stem", "M"],
-  ["Selected stem volume +10% / −10%", "+, −"],
-  ["Master volume +5% / −5%", "↑, ↓"],
-  ["Open a file or find a song", /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘F" : "Ctrl+F"],
-  ["New line in the search field", "Shift+Enter"],
-  ["Clear loop", "Esc"],
-  ["Close the window", "Esc"],
+  [N_("Play / pause"), N_("Space, Enter")],
+  [N_("Back / forward 5 seconds"), "←, →"],
+  [N_("To the start"), "Home"],
+  [N_("To the start and pause"), "Backspace"],
+  [N_("Next / previous stem, in a loop"), "Tab, Shift+Tab"],
+  [N_("Open tab 1–9"), "1–9"],
+  [N_("Tab: previous / next"), "Q, W"],
+  [N_("Select Vocal, Drums, Bass, Guitar, Piano, Other"), "V, D, B, G, P, O"],
+  [N_("Solo the selected stem"), "S"],
+  [N_("Mute the selected stem"), "M"],
+  [N_("Selected stem volume +10% / −10%"), "+, −"],
+  [N_("Master volume +5% / −5%"), "↑, ↓"],
+  [N_("Open a file or find a song"), /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘F" : "Ctrl+F"],
+  [N_("New line in the search field"), "Shift+Enter"],
+  [N_("Clear loop"), "Esc"],
+  [N_("Close the window"), "Esc"],
 ];
 
 function openHelp() {
   const list = document.querySelector("#hotkey-list");
   if (!list.childElementCount) {
-    list.innerHTML = HOTKEYS.map(([action, keys]) => `<div><dt>${action}</dt><dd>${keys.split(", ").map((key) => `<kbd>${key}</kbd>`).join(", ")}</dd></div>`).join("");
+    list.innerHTML = HOTKEYS.map(([action, keys]) => `<div><dt>${t(action)}</dt><dd>${t(keys).split(", ").map((key) => `<kbd>${key}</kbd>`).join(", ")}</dd></div>`).join("");
   }
   helpOverlay.hidden = false;
   document.body.classList.add("search-open");
@@ -264,9 +281,9 @@ let queueTimer = null;
 
 // The share done is the row's background fill, not a number.
 function queueText(item) {
-  const left = item.eta_seconds !== null && item.eta_seconds !== undefined ? ` · ${formatMinutes(item.eta_seconds)} left` : "";
-  if (item.kind === "upgrade") return `Quality improvement${item.status === "queued" ? " · queued" : ""}${left}`;
-  return `${stateDescriptions[item.status] || item.status}${left}`;
+  const left = item.eta_seconds !== null && item.eta_seconds !== undefined ? ` · ${t("{time} left", { time: formatMinutes(item.eta_seconds) })}` : "";
+  if (item.kind === "upgrade") return `${t("Quality improvement")}${item.status === "queued" ? ` · ${t("queued")}` : ""}${left}`;
+  return `${t(stateDescriptions[item.status] || item.status)}${left}`;
 }
 
 function renderQueue(items) {
@@ -280,7 +297,7 @@ function renderQueue(items) {
     delete queueTrigger.dataset.share;
     queueTrigger.style.removeProperty("--queue-progress");
   }
-  const label = items.length === 1 ? "Queue: 1 task" : `Queue: ${items.length} tasks`;
+  const label = tn(items.length, "Queue: {count} task", "Queue: {count} tasks");
   queueTrigger.setAttribute("aria-label", label);
   queueTrigger.title = label;
   document.querySelector("#queue-list").replaceChildren(...items.map((item) => {
@@ -299,8 +316,8 @@ function renderQueue(items) {
     cancel.type = "button";
     cancel.className = "icon-button";
     cancel.dataset.action = "cancel-task";
-    cancel.setAttribute("aria-label", `Cancel: ${item.title}`);
-    cancel.title = "Cancel";
+    cancel.setAttribute("aria-label", t("Cancel: {title}", { title: item.title }));
+    cancel.title = t("Cancel");
     cancel.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     cancel.addEventListener("click", () => cancelTask(item));
     row.append(title, meta, cancel);
@@ -320,8 +337,8 @@ async function refreshQueue() {
 
 // A task that runs loses its progress when cancelled, so that one asks first.
 async function cancelTask(item) {
-  const what = item.kind === "upgrade" ? `the quality improvement of “${item.title}”` : `“${item.title}”`;
-  if (workingStates.has(item.status) && !(await askConfirm({ title: `Cancel ${what}?`, text: "What is already done will be lost.", action: "Cancel task" }))) return;
+  const what = item.kind === "upgrade" ? t("the quality improvement of “{title}”", { title: item.title }) : t("“{title}”", { title: item.title });
+  if (workingStates.has(item.status) && !(await askConfirm({ title: t("Cancel {what}?", { what }), text: t("What is already done will be lost."), action: t("Cancel task") }))) return;
   try {
     if (item.kind === "upgrade") {
       await requestJson(`/api/v1/projects/${encodeURIComponent(item.project_id)}/upgrade`, { method: "DELETE" });
@@ -375,7 +392,7 @@ function scheduleProjectPoll(projects) {
 
 function updateProjectTab(button, project) {
   const nameText = projectName(project);
-  const state = stateDescriptions[project.job_status] || project.job_status;
+  const state = t(stateDescriptions[project.job_status] || project.job_status);
   button.dataset.status = statusBucket(project.job_status);
   button.style.setProperty("--job-progress", `${Math.round((project.progress || 0) * 100)}%`);
   button.setAttribute("aria-selected", String(project.project_id === selectedProjectId));
@@ -390,18 +407,18 @@ let selectedJobState = null;
 // Separation time for one minute of music: "~55 s" or "~11 min".
 function perMinuteOfSong(secondsPerSecond) {
   const seconds = secondsPerSecond * 60;
-  return seconds < 60 ? `~${Math.max(5, Math.round(seconds / 5) * 5)} s` : `~${Math.round(seconds / 60)} min`;
+  return seconds < 60 ? t("~{n} s", { n: Math.max(5, Math.round(seconds / 5) * 5) }) : t("~{n} min", { n: Math.round(seconds / 60) });
 }
 
 function formatMinutes(seconds) {
-  return seconds < 60 ? "less than a minute" : `~${Math.round(seconds / 60)} min`;
+  return seconds < 60 ? t("less than a minute") : t("~{n} min", { n: Math.round(seconds / 60) });
 }
 
 function etaText(state) {
   if (state.eta_seconds === null || state.eta_seconds === undefined) return "";
   return state.job_status === "separating"
-    ? ` · ${formatMinutes(state.eta_seconds)} left`
-    : ` · separation will take ${formatMinutes(state.eta_seconds)}`;
+    ? ` · ${t("{time} left", { time: formatMinutes(state.eta_seconds) })}`
+    : ` · ${t("separation will take {time}", { time: formatMinutes(state.eta_seconds) })}`;
 }
 
 function renderJobProgress(state) {
@@ -419,8 +436,8 @@ function renderJobProgress(state) {
     cancel.type = "button";
     cancel.className = "icon-button job-cancel";
     cancel.dataset.action = "cancel-job";
-    cancel.setAttribute("aria-label", "Cancel");
-    cancel.title = "Cancel";
+    cancel.setAttribute("aria-label", t("Cancel"));
+    cancel.title = t("Cancel");
     setIcon(cancel, "close");
     cancel.addEventListener("click", () => cancelTask({
       kind: "job", job_id: selectedJobId, title: selectedProjectTitle, status: selectedJobState?.job_status || "searching" }));
@@ -438,7 +455,7 @@ function renderJobProgress(state) {
   bar.firstElementChild.style.width = `${percent}%`;
   bar.setAttribute("aria-valuenow", String(percent));
   playbackPanel.querySelector(".job-progress-label").textContent =
-    `${stateDescriptions[state.job_status] || state.job_status} · ${percent}%${etaText(state)}`;
+    `${t(stateDescriptions[state.job_status] || state.job_status)} · ${percent}%${etaText(state)}`;
 }
 
 function followSelectedJob(projects) {
@@ -471,7 +488,7 @@ function renderProjects(projects) {
   if (projects.length === 0) {
     const empty = document.createElement("p");
     empty.className = "tabs-empty";
-    empty.textContent = "Projects will appear here";
+    empty.textContent = t("Projects will appear here");
     projectTabs.replaceChildren(empty);
     selectedProjectId = null;
     selectedProjectTitle = "";
@@ -549,7 +566,7 @@ function renameInTab(button) {
   field.className = "tab-rename";
   field.value = button.firstElementChild.textContent;
   field.maxLength = 200;
-  field.setAttribute("aria-label", "Project name");
+  field.setAttribute("aria-label", t("Project name"));
   Object.assign(field.style, { left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
   document.body.append(field);
   editName(field, () => field.value, () => {}, (text) => renameProject(button.dataset.projectId, text));
@@ -578,8 +595,8 @@ function renderTabList(projects) {
     remove.type = "button";
     remove.className = "icon-button";
     remove.dataset.action = "delete-project";
-    remove.setAttribute("aria-label", `Delete: ${nameText}`);
-    remove.title = "Delete";
+    remove.setAttribute("aria-label", t("Delete: {name}", { name: nameText }));
+    remove.title = t("Delete");
     remove.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     remove.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -597,9 +614,9 @@ function renderTabList(projects) {
 async function askToDelete(project, nameText) {
   if (!finishedStates.has(project.job_status)) {
     askConfirm({
-      title: "Cancel and delete the project?",
-      text: `“${nameText}” is still processing: the processing will stop, the project and its files will be deleted.`,
-      action: "Cancel and delete",
+      title: t("Cancel and delete the project?"),
+      text: t("“{name}” is still processing: the processing will stop, the project and its files will be deleted.", { name: nameText }),
+      action: t("Cancel and delete"),
       run: () => cancelAndDelete(project),
     });
     return;
@@ -617,11 +634,11 @@ async function askToDelete(project, nameText) {
 // The one deletion question, for the bin and for the project list.
 function askDeleteProject(projectId, nameText, bytes) {
   const shared = bytes.shared
-    ? ` ${formatBytes(bytes.shared)} of shared files stay: another project uses them.` : "";
+    ? ` ${t("{size} of shared files stay: another project uses them.", { size: formatBytes(bytes.shared) })}` : "";
   askConfirm({
-    title: "Delete the project?",
-    text: `The project “${nameText}”, its source audio and all stems will be deleted. This frees ${formatBytes(bytes.disk)}.${shared}`,
-    action: "Delete",
+    title: t("Delete the project?"),
+    text: t("The project “{name}”, its source audio and all stems will be deleted. This frees {size}.", { name: nameText, size: formatBytes(bytes.disk) }) + shared,
+    action: t("Delete"),
     run: () => deleteProject(projectId),
   });
 }
@@ -637,7 +654,7 @@ async function cancelAndDelete(project) {
     await new Promise((resolve) => { window.setTimeout(resolve, 500); });
   }
   if (answer.state !== "deleted" && (await requestJson("/api/v1/projects")).some((item) => item.project_id === project.project_id)) {
-    throw new Error("The processing is still stopping. Try deleting the project a little later.");
+    throw new Error(t("The processing is still stopping. Try deleting the project a little later."));
   }
   if (project.project_id === selectedProjectId) {
     cleanupPlayback();
@@ -854,7 +871,7 @@ async function drawWaveform(svg, assetId) {
     shape.setAttribute("d", waveformPath(waveform.levels));
     svg.replaceChildren(axis, shape);
   } catch (_error) {
-    svg.setAttribute("aria-label", "Waveform unavailable");
+    svg.setAttribute("aria-label", t("Waveform unavailable"));
   }
 }
 
@@ -886,10 +903,10 @@ const STEM_LABELS = { vocals: "Vocal", drums: "Drums", bass: "Bass", guitar: "Gu
 function renderMissingFiles(project, missing) {
   const message = document.createElement("p");
   message.className = "playback-message";
-  const names = missing.map((asset) => (asset.asset_type === "stem" ? STEM_LABELS[asset.stem_name] || asset.stem_name : "source audio"));
-  message.textContent = `Files of the project were deleted from the disk: ${names.join(", ")}.`;
+  const names = missing.map((asset) => (asset.asset_type === "stem" ? STEM_LABELS[asset.stem_name] || asset.stem_name : t("source audio")));
+  message.textContent = t("Files of the project were deleted from the disk: {names}.", { names: names.join(", ") });
   if (project.input_type === "local_file") {  // nothing to download again: the user has the file
-    message.textContent += " Delete the project and open the file again.";
+    message.textContent += ` ${t("Delete the project and open the file again.")}`;
     playbackPanel.replaceChildren(message);
     playbackPanel.hidden = false;
     return;
@@ -897,7 +914,7 @@ function renderMissingFiles(project, missing) {
   const retry = document.createElement("button");
   retry.type = "button";
   retry.className = "primary-button";
-  retry.textContent = "Separate again";
+  retry.textContent = t("Separate again");
   retry.addEventListener("click", async () => {
     retry.disabled = true;
     try {
@@ -926,12 +943,12 @@ function renderSeparateAgain(project) {
   box.className = "separate-again";
   const note = document.createElement("p");
   note.className = "playback-message";
-  note.textContent = project.job.status === "cancelled" ? "Separation cancelled." : "The separation failed.";
+  note.textContent = project.job.status === "cancelled" ? t("Separation cancelled.") : t("The separation failed.");
   const button = document.createElement("button");
   button.type = "button";
   button.className = "primary-button";
   button.dataset.action = "separate";
-  button.textContent = "Separate";
+  button.textContent = t("Separate");
   button.addEventListener("click", async () => {
     button.disabled = true;
     try {
@@ -966,7 +983,7 @@ function renderProject(project) {
   deleteProjectButton.dataset.projectId = project.project_id;
   selectedProjectBytes = { disk: project.disk_bytes || 0, shared: project.shared_bytes || 0 };
   detailSize.textContent = formatBytes(selectedProjectBytes.disk + selectedProjectBytes.shared);
-  detailSize.title = "Disk space: source audio and stems";
+  detailSize.title = t("Disk space: source audio and stems");
   if (rebuild) {
     playbackKey = key;
     const missing = project.assets.filter((asset) => !asset.available);
@@ -999,7 +1016,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   const heading = document.createElement("p");
   heading.className = "playback-message";
   if (!stems.length || stems.some((asset) => !asset.available || (!original && !["wav", "flac"].includes(asset.media_format)))) {
-    heading.textContent = "Synchronized playback needs all stems of the project.";
+    heading.textContent = t("Synchronized playback needs all stems of the project.");
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;
     return;
@@ -1027,7 +1044,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       return audio;
     });
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-    if (!AudioContextClass) throw new Error("Web Audio is not supported in this browser");
+    if (!AudioContextClass) throw new Error(t("Web Audio is not supported in this browser"));
     // The stems' own rate (both models write 44.1 kHz). At the device's rate (usually 48 kHz) Chrome resamples
     // every <audio> stem on its own and the six no longer add up cleanly: crackle on bright sounds. At 44.1 kHz
     // the mix reaches the output unchanged and is resampled once, as a whole, by the audio output.
@@ -1060,7 +1077,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     playheadLayer.dataset.control = "seek";
     playheadLayer.tabIndex = 0;
     playheadLayer.setAttribute("role", "slider");
-    playheadLayer.setAttribute("aria-label", "Playback position");
+    playheadLayer.setAttribute("aria-label", t("Playback position"));
     playheadLayer.setAttribute("aria-valuemin", "0");
     playheadLayer.setAttribute("aria-valuemax", "0");
     playheadLayer.setAttribute("aria-valuenow", "0");
@@ -1105,22 +1122,22 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     play.className = "transport-button";
     play.dataset.action = "toggle";
     setIcon(play, "play");
-    play.setAttribute("aria-label", "Play");
-    play.title = "Play";
+    play.setAttribute("aria-label", t("Play"));
+    play.title = t("Play");
     const reset = document.createElement("button");
     reset.type = "button";
     reset.className = "transport-button";
     reset.dataset.action = "reset";
     setIcon(reset, "start");
-    reset.setAttribute("aria-label", "To the start and pause");
-    reset.title = "To the start and pause";
+    reset.setAttribute("aria-label", t("To the start and pause"));
+    reset.title = t("To the start and pause");
     const countIn = document.createElement("button");
     countIn.type = "button";
     countIn.className = "transport-button";
     countIn.dataset.action = "count-in";
     setIcon(countIn, "countin");
-    countIn.setAttribute("aria-label", "Count-in and play");
-    countIn.title = "Count-in and play";
+    countIn.setAttribute("aria-label", t("Count-in and play"));
+    countIn.title = t("Count-in and play");
     const buttons = document.createElement("div");
     buttons.className = "playback-buttons";
     buttons.append(play, countIn, reset);
@@ -1132,8 +1149,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
 
     const updateTransportButton = (isPlaying) => {
       setIcon(play, isPlaying ? "pause" : "play");
-      play.setAttribute("aria-label", isPlaying ? "Pause" : "Play");
-      play.title = isPlaying ? "Pause" : "Play";
+      play.setAttribute("aria-label", isPlaying ? t("Pause") : t("Play"));
+      play.title = isPlaying ? t("Pause") : t("Play");
     };
     let selectedStem = 0;
     const selectStem = (index) => {
@@ -1156,7 +1173,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const bpmLabel = document.createElement("span");
     bpmLabel.className = "metronome-bpm";
     const showTempo = (seconds) => {
-      const text = noRhythm ? "No beat found" : formatBpm(tempoAt(songTempo, seconds), metronome.rate);
+      const text = noRhythm ? t("No beat found") : formatBpm(tempoAt(songTempo, seconds), metronome.rate);
       if (bpmLabel.textContent !== text) bpmLabel.textContent = text;  // changes at most every four beats
     };
     const transport = new SynchronizedTransport(tracks, {
@@ -1289,7 +1306,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       showFill();
       gain.dataset.control = "gain";
       gain.tabIndex = -1; // volume is mouse-only; arrow keys belong to the global hotkeys
-      gain.setAttribute("aria-label", `${stemLabels[asset.stem_name]} volume`);
+      gain.setAttribute("aria-label", t("{stem} volume", { stem: stemLabels[asset.stem_name] }));
       gain.addEventListener("input", () => {
         const percent = snapFaderPercent(Number(gain.value));
         gain.value = String(percent);
@@ -1308,7 +1325,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       waveSvg.setAttribute("viewBox", "0 0 1024 100");
       waveSvg.setAttribute("preserveAspectRatio", "none");
       waveSvg.setAttribute("role", "img");
-      waveSvg.setAttribute("aria-label", `Waveform: ${stemLabels[asset.stem_name]}`);
+      waveSvg.setAttribute("aria-label", t("Waveform: {stem}", { stem: stemLabels[asset.stem_name] }));
       wave.append(waveSvg);
       if (!original) drawWaveform(waveSvg, asset.asset_id);  // none for the source audio (WAV/FLAC only)
       row.append(left, wave);
@@ -1330,7 +1347,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     master.step = "1";
     master.dataset.control = "master-volume";
     master.tabIndex = -1;
-    master.setAttribute("aria-label", "Master volume");
+    master.setAttribute("aria-label", t("Master volume"));
     const masterKey = `audio-stems-master-volume:${projectId}`;
     let savedMaster = "100";
     try { savedMaster = localStorage.getItem(masterKey) || "100"; } catch (_error) { /* storage blocked */ }
@@ -1376,7 +1393,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         updateTransportButton(transport.playing);
       } catch (_reason) {
         updateTransportButton(false);
-        error.textContent = "The browser did not allow all stems to start. Press ▶ again.";
+        error.textContent = t("The browser did not allow all stems to start. Press ▶ again.");
       }
     };
     play.addEventListener("click", togglePlayback);
@@ -1400,7 +1417,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       metronomeButton.title = text;
       metronomeButton.setAttribute("aria-label", text);
     };
-    nameMetronome("Metronome");
+    nameMetronome(t("Metronome"));
     const volumeWrap = document.createElement("div");
     volumeWrap.className = "mixer-fader footer-fader";
     const volume = document.createElement("input");
@@ -1410,7 +1427,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     volume.step = "1";
     volume.dataset.control = "metronome-volume";
     volume.tabIndex = -1;
-    volume.setAttribute("aria-label", "Metronome volume");
+    volume.setAttribute("aria-label", t("Metronome volume"));
     let savedVolume = "50";
     try { savedVolume = localStorage.getItem("audio-stems-metronome-volume") || "50"; } catch (_error) { /* storage blocked */ }
     volume.value = savedVolume;
@@ -1445,7 +1462,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     speed.value = "100";
     speed.dataset.control = "speed";
     speed.tabIndex = -1;
-    speed.setAttribute("aria-label", "Playback speed");
+    speed.setAttribute("aria-label", t("Playback speed"));
     const speedValue = document.createElement("span");  // a tooltip over the thumb (hover, drag, preparing)
     speedValue.className = "footer-speed-value";
     speedValue.setAttribute("aria-hidden", "true");  // the slider itself reports its value
@@ -1459,18 +1476,18 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // plain: without AudioWorklet (a page over http from another device) the decoded mode plays at 100 % only.
     const loadStretch = ({ plain = false } = {}) => {
       stretchLoading = stretchLoading || (async () => {
-        if (!audioContext.audioWorklet && !plain) throw new Error("over http from another device the browser does not allow it, only on this computer or over https");
+        if (!audioContext.audioWorklet && !plain) throw new Error(t("over http from another device the browser does not allow it, only on this computer or over https"));
         // Three steps per stem (downloaded, decoded, handed to its node), shown as a fill on the block.
         let steps = 0;
         const step = () => {
           steps += 1;
           const percent = Math.round((steps / (3 * tracks.length)) * 100);
           speedWrap.style.setProperty("--job-progress", `${percent}%`);
-          speedValue.textContent = `preparing ${percent}%`;
+          speedValue.textContent = t("preparing {percent}%", { percent });
         };
         speedWrap.dataset.loading = "true";
         speedWrap.style.setProperty("--job-progress", "0%");
-        speedValue.textContent = "preparing 0%";
+        speedValue.textContent = t("preparing {percent}%", { percent: 0 });
         const decoded = await Promise.all(tracks.map(async (audio) => {
           const response = await fetch(audio.currentSrc || audio.src);
           const data = await response.arrayBuffer();
@@ -1485,7 +1502,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         } else {
           transport.stretch = new BufferEngine(audioContext, decoded, gainNodes);
           speed.disabled = true;
-          speedWrap.title = "Speed change: only on this computer or over https";
+          speedWrap.title = t("Speed change: only on this computer or over https");
         }
         delete speedWrap.dataset.loading;
         speedWrap.style.removeProperty("--job-progress");
@@ -1493,7 +1510,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         stretchLoading = null;
         delete speedWrap.dataset.loading;
         speedWrap.style.removeProperty("--job-progress");
-        error.textContent = `Could not turn on the speed change: ${reason.message}`;
+        error.textContent = t("Could not turn on the speed change: {error}", { error: reason.message });
         throw reason;
       });
       return stretchLoading;
@@ -1536,20 +1553,20 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
     if (decodedTrial || apple) {
       const started = performance.now();
-      decodedNote.textContent = decodedTrial ? "Decoded mode: preparing…" : "Preparing stems…";
+      decodedNote.textContent = decodedTrial ? t("Decoded mode: preparing…") : t("Preparing stems…");
       decodedReady = loadStretch({ plain: true }).then(() => {
         if (setupId !== playbackSetupId) return;
         transport.alwaysStretch = true;
         if (!transport.playing) transport.seek(transport.currentTime);  // the engine takes the paused position
         speedWrap.dataset.engine = "stretch";
-        if (decodedTrial) decodedNote.textContent = `Decoded mode: ready in ${((performance.now() - started) / 1000).toFixed(1)} s`;
+        if (decodedTrial) decodedNote.textContent = t("Decoded mode: ready in {seconds} s", { seconds: ((performance.now() - started) / 1000).toFixed(1) });
         else {
           decodedNote.textContent = "";  // the panel may be rebuilt later: an empty note is not put back
           decodedNote.remove();
         }
       }).catch(() => {
         decodedReady = null;
-        decodedNote.textContent = "Decoded mode did not start: the stems play as usual.";
+        decodedNote.textContent = t("Decoded mode did not start: the stems play as usual.");
       });
     }
 
@@ -1565,8 +1582,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     upgradeCancel.type = "button";
     upgradeCancel.className = "icon-button upgrade-cancel";
     upgradeCancel.dataset.action = "cancel-upgrade";
-    upgradeCancel.setAttribute("aria-label", "Cancel the improvement");
-    upgradeCancel.title = "Cancel the improvement";
+    upgradeCancel.setAttribute("aria-label", t("Cancel the improvement"));
+    upgradeCancel.title = t("Cancel the improvement");
     upgradeCancel.innerHTML = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     upgradeCancel.hidden = true;
     let upgradeStatus = "none";
@@ -1582,16 +1599,16 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       // here kept a full fill on its finished button while one separated with the best model had none.
       if (busy) upgradeButton.style.setProperty("--job-progress", `${Math.round((state.progress || 0) * 100)}%`);
       else upgradeButton.style.removeProperty("--job-progress");
-      const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · ${formatMinutes(state.eta_seconds)} left` : "";
+      const left = state.eta_seconds !== null && state.eta_seconds !== undefined ? ` · ${t("{time} left", { time: formatMinutes(state.eta_seconds) })}` : "";
       const icon = state.best ? "check" : "sparkles";  // done: a check mark instead of the sparkles
       if (upgradeButton.dataset.icon !== icon) {
         upgradeButton.dataset.icon = icon;
         upgradeButton.querySelector("svg").outerHTML = iconSvg(icon);
       }
-      if (state.best) upgradeText.textContent = "Improved separation quality";
-      else if (state.status === "queued") upgradeText.textContent = `Improvement queued${left}`;
-      else if (state.status === "running") upgradeText.textContent = `Improving · ${Math.round(state.progress * 100)}%${left}`;
-      else upgradeText.textContent = `Improve quality${state.estimate_seconds ? ` · ${formatMinutes(state.estimate_seconds)}` : ""}`;
+      if (state.best) upgradeText.textContent = t("Improved separation quality");
+      else if (state.status === "queued") upgradeText.textContent = `${t("Improvement queued")}${left}`;
+      else if (state.status === "running") upgradeText.textContent = `${t("Improving")} · ${Math.round(state.progress * 100)}%${left}`;
+      else upgradeText.textContent = `${t("Improve quality")}${state.estimate_seconds ? ` · ${formatMinutes(state.estimate_seconds)}` : ""}`;
     };
     const followUpgrade = async (state) => {
       while (state.status === "queued" || state.status === "running") {
@@ -1602,7 +1619,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         if (setupId !== playbackSetupId) return;
       }
       showUpgrade(state);
-      if (state.status === "failed") error.textContent = state.error || "Could not improve the quality";
+      if (state.status === "failed") error.textContent = state.error || t("Could not improve the quality");
       if (state.status === "done" && state.best) {
         pendingResume = activeControls ? activeControls.snapshot() : null;
         await openProject(projectId);  // new stem files: the player is rebuilt on them
@@ -1641,17 +1658,17 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           if (setupId !== playbackSetupId) return null;
           metronomeButton.dataset.analyzing = "true";
           metronomeButton.style.setProperty("--job-progress", `${Math.round(state.progress * 100)}%`);
-          nameMetronome(`Metronome · ${Math.round(state.progress * 100)}%`);
+          nameMetronome(`${t("Metronome")} · ${Math.round(state.progress * 100)}%`);
           await new Promise((resolve) => window.setTimeout(resolve, 1000));
           state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/beats`);
         }
         delete metronomeButton.dataset.analyzing;
         metronomeButton.style.removeProperty("--job-progress");
-        nameMetronome("Metronome");
-        if (state.status !== "done") throw new Error(state.error || "Could not find the beats");
+        nameMetronome(t("Metronome"));
+        if (state.status !== "done") throw new Error(state.error || t("Could not find the beats"));
         if (!rhythmFound(state.result)) {
           setMetronome(false);
-          nameMetronome("No beat found");
+          nameMetronome(t("No beat found"));
           noRhythm = true;
           showTempo(transport.currentTime);
           metronomeButton.disabled = volume.disabled = countIn.disabled = true;
@@ -1665,7 +1682,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         beatsRequest = null;
         delete metronomeButton.dataset.analyzing;
         metronomeButton.style.removeProperty("--job-progress");
-        nameMetronome("Metronome");
+        nameMetronome(t("Metronome"));
         error.textContent = reason.message;
         setMetronome(false);
         return null;
@@ -1767,7 +1784,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     else if (original) renderJobProgress(selectedJobState || { job_status: project.job.status, progress: 0 });
   } catch (reason) {
     console.error("Playback setup failed", reason);
-    heading.textContent = "Could not prepare synchronized playback in this browser.";
+    heading.textContent = t("Could not prepare synchronized playback in this browser.");
     playbackPanel.replaceChildren(heading);
     playbackPanel.hidden = false;
   }
@@ -1838,52 +1855,52 @@ function renderReleases(result) {
   const releases = result.releases;
   if (releases.length === 0) {
     releaseList.replaceChildren();
-    updatesMessage.textContent = `Version ${result.current} is installed. It is the latest.`;
+    updatesMessage.textContent = t("Version {version} is installed. It is the latest.", { version: result.current });
     return;
   }
-  updatesMessage.textContent = `Version ${result.current} is installed. A new one is available:`;
+  updatesMessage.textContent = t("Version {version} is installed. A new one is available:", { version: result.current });
   releaseList.replaceChildren(...releases.map((release, index) => {
     const card = document.createElement("article");
     card.className = "release-card";
     const title = document.createElement("h3");
     title.textContent = release.name || release.tag_name;
     const published = document.createElement("p");
-    published.textContent = new Date(release.published_at).toLocaleDateString("en-US", { dateStyle: "medium" });
+    published.textContent = new Date(release.published_at).toLocaleDateString(document.documentElement.lang, { dateStyle: "medium" });
     const notes = document.createElement("p");
     notes.className = "release-notes";
-    notes.textContent = release.notes || "This release has no description.";
+    notes.textContent = release.notes || t("This release has no description.");
     const link = document.createElement("a");
     link.href = release.url;
     link.target = "_blank";
     link.rel = "noopener noreferrer";
-    link.textContent = "Open on GitHub";
+    link.textContent = t("Open on GitHub");
     card.append(title, published, notes, link);
     if (index === 0) {
       const apply = document.createElement("button");
       apply.type = "button";
       apply.className = "primary-button";
       apply.dataset.action = "install-update";
-      apply.textContent = `Update to ${release.tag_name}`;
+      apply.textContent = t("Update to {tag}", { tag: release.tag_name });
       apply.addEventListener("click", async () => {
-        if (!(await askConfirm({ title: `Install “${release.name || release.tag_name}”?`, text: "The app will restart by itself. A running download or separation continues after the restart (a separation starts over). Your songs and settings are not affected.", action: "Install", danger: false }))) return;
+        if (!(await askConfirm({ title: t("Install “{name}”?", { name: release.name || release.tag_name }), text: t("The app will restart by itself. A running download or separation continues after the restart (a separation starts over). Your songs and settings are not affected."), action: t("Install"), danger: false }))) return;
         // The button itself shows each step: a message above the card went unnoticed (a user's report).
         apply.disabled = true;
         apply.setAttribute("aria-busy", "true");
-        apply.textContent = "Downloading…";
-        updatesMessage.textContent = "Downloading the update…";
+        apply.textContent = t("Downloading…");
+        updatesMessage.textContent = t("Downloading the update…");
         try {
           const before = (await requestJson("/api/v1/health")).process;
           await requestJson("/api/v1/updates/apply", {
             method: "POST",
             body: JSON.stringify({ tag_name: release.tag_name, confirmed: true }),
           });
-          apply.textContent = "Restarting…";
-          updatesMessage.textContent = "The app is restarting with the new version. If it needs new libraries, this takes a few minutes: the progress shows in the Audio Stems window.";
+          apply.textContent = t("Restarting…");
+          updatesMessage.textContent = t("The app is restarting with the new version. If it needs new libraries, this takes a few minutes: the progress shows in the Audio Stems window.");
           await waitForRestart(before);
           window.location.reload();
         } catch (error) {
           updatesMessage.textContent = error.message;
-          apply.textContent = `Update to ${release.tag_name}`;
+          apply.textContent = t("Update to {tag}", { tag: release.tag_name });
           apply.disabled = false;
           apply.removeAttribute("aria-busy");
         }
@@ -1909,7 +1926,7 @@ async function waitForRestart(before) {
 
 async function checkUpdates() {
   checkUpdatesButton.disabled = true;
-  updatesMessage.textContent = "Checking GitHub for new versions…";
+  updatesMessage.textContent = t("Checking GitHub for new versions…");
   try {
     renderReleases(await requestJson("/api/v1/updates"));
   } catch (error) {
@@ -1940,22 +1957,22 @@ async function loadModels() {
       });
       const name = document.createElement("span");
       name.className = "model-option-name";
-      name.textContent = `${model.label || model.name} · ${model.stems.length} stems`;
+      name.textContent = `${t(model.label || model.name)} · ${tn(model.stems.length, "{count} stem", "{count} stems")}`;
       const note = document.createElement("span");
       note.className = "model-option-note";
-      note.textContent = model.description || "";
+      note.textContent = t(model.description || "");
       if (model.seconds_per_audio_second) {
         const time = document.createElement("span");
         time.className = "model-option-time";
-        time.textContent = `${perMinuteOfSong(model.seconds_per_audio_second)} per minute of song · ${model.measured
-          ? "from the latest separations on this computer" : "an estimate, refined after the first separation"}`;
+        time.textContent = `${t("{time} per minute of song", { time: perMinuteOfSong(model.seconds_per_audio_second) })} · ${model.measured
+          ? t("from the latest separations on this computer") : t("an estimate, refined after the first separation")}`;
         note.append(document.createElement("br"), time);
       }
       option.append(radio, name, note);
       return option;
     }));
   } catch (error) {
-    modelOptions.textContent = `Could not load the models: ${error.message}`;
+    modelOptions.textContent = t("Could not load the models: {error}", { error: error.message });
   }
 }
 
@@ -1964,11 +1981,11 @@ async function submitSearch(event) {
   if (pollingTimer !== null) window.clearTimeout(pollingTimer);
   const inputs = inputField.value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   if (inputs.length === 0) {
-    setFormMessage("Enter a song title or a link.", true);
+    setFormMessage(t("Enter a song title or a link."), true);
     return;
   }
   submitButton.disabled = true;
-  setFormMessage("Adding to the queue…");
+  setFormMessage(t("Adding to the queue…"));
   try {
     const created = await requestJson("/api/v1/batches", {
       method: "POST",
@@ -1981,7 +1998,7 @@ async function submitSearch(event) {
     pollingTimer = window.setTimeout(() => refreshBatch(created.batch_id, created.job_ids[0]), 1200);
   } catch (error) {
     // The API names the problem with a link in English; the only place the dialog mentions YouTube.
-    setFormMessage(/URL/.test(error.message) ? "This link does not fit: YouTube links are supported (youtube.com, youtu.be)." : error.message, true);
+    setFormMessage(/URL/.test(error.message) ? t("This link does not fit: YouTube links are supported (youtube.com, youtu.be).") : error.message, true);
   } finally {
     submitButton.disabled = false;
   }
@@ -1995,14 +2012,14 @@ async function uploadFiles(files) {
   let created = null;
   try {
     for (const file of files) {
-      setFormMessage(`Uploading “${file.name}”…`);
+      setFormMessage(t("Uploading “{name}”…", { name: file.name }));
       const query = selectedModel ? `?model_name=${encodeURIComponent(selectedModel)}` : "";
       // The body is the file itself (no form encoding); the server reads its name from X-Filename.
       const response = await fetch(`/api/v1/uploads${query}`, {
         method: "POST", headers: { "X-Filename": encodeURIComponent(file.name) }, body: file,
       });
       const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(`“${file.name}”: ${body.error?.message || "could not upload"}`);
+      if (!response.ok) throw new Error(`${t("“{title}”", { title: file.name })}: ${body.error?.message || t("could not upload")}`);
       created = body;
     }
     setFormMessage("");
@@ -2020,8 +2037,8 @@ async function uploadFiles(files) {
 }
 
 function formatBytes(bytes) {
-  if (bytes >= 2 ** 30) return `${(bytes / 2 ** 30).toFixed(1)} GB`;
-  return `${Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20))} MB`;
+  if (bytes >= 2 ** 30) return t("{n} GB", { n: (bytes / 2 ** 30).toFixed(1) });
+  return t("{n} MB", { n: Math.max(bytes ? 1 : 0, Math.round(bytes / 2 ** 20)) });
 }
 
 // The app's own confirmation (not window.confirm): resolves true when the action's button is pressed, false on
