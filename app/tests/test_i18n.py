@@ -129,4 +129,5 @@ def test_translation_asks_again_for_what_the_service_missed_and_keeps_plural_for
     assert calls == [2, 1] and missing == 0  # only the unfinished block is asked again
     assert dictionary == {"Queue: {count} tasks": {"one": "Warteschlange: {count} Aufgabe", "other": "Warteschlange: {count} Aufgaben"},
                           "Cancel": "Abbrechen", "Settings": "Einstellungen"}  # a text in two blocks: the first one's
-    assert i18n.translate("de", catalog, lambda body: {"translations": {}}, attempts=2)[1] == 3
+    empty = []  # a service out of model quota answers nothing: one pass, no repeats that only spend its budget
+    assert i18n.translate("de", catalog, lambda body: empty.append(body) or {"translations": {}})[1] == 3 and len(empty) == 1

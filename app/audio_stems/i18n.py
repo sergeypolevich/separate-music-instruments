@@ -216,10 +216,13 @@ def translate(code: str, catalog: dict, post, attempts: int = 3) -> tuple[dict, 
                    if len(translations.get(block_hash(block), {})) < len(block["elements"])]
         if not missing:
             break
+        before = sum(map(len, translations.values()))
         for start in range(0, len(missing), 20):
             answer = post({"language": code, "blocks": [{"context": block} for block in missing[start:start + 20]]})
             for hashed, elements in answer["translations"].items():
                 translations.setdefault(hashed, {}).update(elements)
+        if sum(map(len, translations.values())) == before:
+            break  # nothing came: the model is out of its daily quota, and asking again only spends the budget
     result = dictionary(catalog, translations)
     return result, len({e["text"] for b in catalog["blocks"] for e in b["elements"]}) - len(result)
 
