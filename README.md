@@ -22,7 +22,7 @@ window; you can also find a song on YouTube.
 - **Keeps your projects**: songs and tracks stay on your disk, and the settings show how much space they take,
   with buttons to free it.
 
-Everything runs on your computer; your music never leaves it. The interface is in Russian.
+Everything runs on your computer; your music never leaves it. The interface is in English and 19 more languages; pick one in Settings → Appearance → Language.
 
 ## Requirements
 

@@ -23,7 +23,7 @@ Ihre eigene Audiodatei oder ziehen Sie sie ins Fenster; einen Song können Sie a
 - **Bewahrt Ihre Projekte auf**: Songs und Spuren bleiben auf der Festplatte; die Einstellungen zeigen, wie viel
   Platz sie belegen, und haben Knöpfe, um ihn freizugeben.
 
-Alles läuft auf Ihrem Computer; Ihre Musik verlässt ihn nicht. Die Oberfläche ist auf Russisch.
+Alles läuft auf Ihrem Computer; Ihre Musik verlässt ihn nicht. Die Oberfläche gibt es auf Englisch und in 19 weiteren Sprachen, darunter Deutsch; die Sprache wählen Sie unter Einstellungen → Darstellung → Sprache.
 
 ## Voraussetzungen
 
