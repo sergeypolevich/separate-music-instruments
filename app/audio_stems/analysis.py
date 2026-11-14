@@ -13,7 +13,7 @@ from typing import Callable
 import imageio_ffmpeg
 import numpy as np
 
-from audio_stems import beats
+from audio_stems import beats, chords
 from audio_stems.config import Settings, configure_logging
 from audio_stems.db import SqliteMetadataStore
 from audio_stems.separator import sha256_file
@@ -78,35 +78,56 @@ def song_result(found, downbeats, mode: str, start_seconds: float) -> dict[str, 
             "tempo": tempo, "mode": mode, "algorithm": beats.ALGORITHM}
 
 
+def detect_chords(request: dict[str, object]) -> dict[str, object]:
+    """Chords in song time from the stems without vocals and drums (summed), on the beats when they are known."""
+    start = float(request.get("start_seconds", 0.0))
+    signals = [decode_mono(Path(path), chords.RATE) for path in request["stem_paths"]]
+    mix = np.zeros(max(len(signal) for signal in signals), np.float32)
+    for signal in signals:
+        mix[:len(signal)] += signal
+    found = chords.detect(mix, [b + start for b in request.get("beats", [])])
+    spans = [{**span, "start": round(max(0.0, span["start"] - start), 3), "end": round(span["end"] - start, 3)}
+             for span in found if span["end"] - start > 0]
+    return {"chords": spans, "algorithm": chords.ALGORITHM}
+
+
 def run_queue(
     store: SqliteMetadataStore,
-    detect: Callable[[Path, float], dict[str, object]] = detect_beats,
+    detect: Callable[..., dict[str, object]] = detect_beats,
     *,
     tick: float = 0.5,
+    kind: str = "beats",
 ) -> int:
-    """Work queued beat analyses one by one until none is left; return how many ran."""
+    """Work queued analyses of a kind (beats, chords) one by one until none is left; return how many ran."""
     done = 0
-    while (task := store.claim_analysis("beats")) is not None:
+    while (task := store.claim_analysis(kind)) is not None:
         project_id, request = task
-        expected = max(5.0, STARTUP_SECONDS + request.get("minutes", 4) * SECONDS_PER_MINUTE)
+        minutes = request.get("minutes", 4)
+        expected = max(5.0, STARTUP_SECONDS + minutes * SECONDS_PER_MINUTE) if kind == "beats" else 2.0 + minutes
         finished = threading.Event()
 
         def report(started=time.monotonic()):
             # beat_this has no progress callback: estimate from elapsed time, never past 95 %.
             while not finished.wait(tick):
-                store.set_analysis_progress(project_id, "beats", min(0.95, (time.monotonic() - started) / expected))
+                store.set_analysis_progress(project_id, kind, min(0.95, (time.monotonic() - started) / expected))
 
         reporter = threading.Thread(target=report, daemon=True)
         reporter.start()
         try:
-            result = detect(Path(request["audio_path"]), float(request.get("start_seconds", 0.0)))
+            if kind == "beats":
+                result = detect(Path(request["audio_path"]), float(request.get("start_seconds", 0.0)))
+            else:
+                result = detect(request)
         except Exception:
-            logger.exception("Beat analysis failed", extra={"event": "beat_analysis_failed", "project_id": project_id})
+            logger.exception("Analysis failed", extra={"event": f"{kind}_analysis_failed", "project_id": project_id})
             finished.set()
-            store.fail_analysis(project_id, "beats", "Could not find the beats of this song")
+            if kind == "beats":
+                store.fail_analysis(project_id, kind, "Could not find the beats of this song")
+            else:
+                store.fail_analysis(project_id, kind, "Could not find the chords of this song")
         else:
             finished.set()
-            store.finish_analysis(project_id, "beats", result)
+            store.finish_analysis(project_id, kind, result)
         reporter.join()
         done += 1
     return done
@@ -116,7 +137,10 @@ def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     settings = Settings.load()
     configure_logging(settings)
-    run_queue(SqliteMetadataStore(Path(arguments[0])))
+    store = SqliteMetadataStore(Path(arguments[0]))
+    # Chords take seconds and beats half a minute: chords first, and again after the beats in case one came meanwhile.
+    while run_queue(store, detect_chords, kind="chords") + run_queue(store) + run_queue(store, detect_chords, kind="chords"):
+        pass
     return 0
 
 

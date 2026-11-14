@@ -797,6 +797,42 @@ class SqliteMetadataStore:
             ).fetchone()
         return self._asset(row) if row else None
 
+    # --- plugins (version 22) --------------------------------------------------------------------
+    def list_plugins(self) -> dict[str, dict[str, object]]:
+        """Installed plugins: id → {"enabled", "error"}."""
+        with self._connection() as connection:
+            rows = connection.execute("SELECT id, enabled, error FROM plugins").fetchall()
+        return {row["id"]: {"enabled": bool(row["enabled"]), "error": row["error"]} for row in rows}
+
+    def set_plugin(self, plugin_id: str, enabled: bool, error: str | None = None) -> None:
+        """Install a plugin or switch an installed one on or off (an error is kept only while it is off)."""
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO plugins(id, enabled, error, installed_at) VALUES (?, ?, ?, ?)
+                   ON CONFLICT(id) DO UPDATE SET enabled = excluded.enabled, error = excluded.error""",
+                (plugin_id, int(enabled), None if enabled else error, _utc_now()),
+            )
+
+    def remove_plugin(self, plugin_id: str) -> bool:
+        """Uninstall a plugin; its data in every project goes with it."""
+        with self._connection() as connection:
+            return connection.execute("DELETE FROM plugins WHERE id = ?", (plugin_id,)).rowcount == 1
+
+    def get_plugin_data(self, plugin_id: str, project_id: UUID | str) -> dict[str, object]:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT data_json FROM plugin_data WHERE plugin_id = ? AND project_id = ?", (plugin_id, str(project_id))
+            ).fetchone()
+        return json.loads(row["data_json"]) if row else {}
+
+    def set_plugin_data(self, plugin_id: str, project_id: UUID | str, data: dict[str, object]) -> None:
+        with self._connection() as connection:
+            connection.execute(
+                """INSERT INTO plugin_data(plugin_id, project_id, data_json, updated_at) VALUES (?, ?, ?, ?)
+                   ON CONFLICT(plugin_id, project_id) DO UPDATE SET data_json = excluded.data_json, updated_at = excluded.updated_at""",
+                (plugin_id, str(project_id), json.dumps(data), _utc_now()),
+            )
+
     def get_waveform(self, asset_id: UUID) -> dict[str, object] | None:
         with self._connection() as connection:
             row = connection.execute("SELECT waveform_json FROM media_assets WHERE id = ?", (str(asset_id),)).fetchone()

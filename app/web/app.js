@@ -907,9 +907,10 @@ function waveformPath(levels) {
   return `M0 50L${top.join("L")}L1024 50L${bottom.join("L")}Z`;
 }
 
-async function drawWaveform(svg, assetId) {
+async function drawWaveform(svg, assetId, points = 1024) {
   try {
-    const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform`);
+    const query = points === 1024 ? "" : `?points=${points}`;  // 8192 for the zoom plugin
+    const waveform = await requestJson(`/api/v1/assets/${encodeURIComponent(assetId)}/waveform${query}`);
     if (waveform.asset_id !== assetId) return;
     const axis = document.createElementNS(SVG_NS, "line");
     axis.setAttribute("class", "waveform-axis");
@@ -927,6 +928,7 @@ async function drawWaveform(svg, assetId) {
 }
 
 function cleanupPlayback() {
+  stopPlugins();
   playbackSetupId += 1;
   if (activeTransport) activeTransport.stop();
   activeTransport = null;
@@ -1107,13 +1109,27 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       const source = audioContext.createMediaElementSource(audio);
       const gain = audioContext.createGain();
       source.connect(gain);
-      gain.connect(masterGain);
+      gain.connect(masterGain);  // a plugin may put an effect between them (setEffect)
       audio.volume = 1;
       audio.dataset.effectiveGain = "1";
       return gain;
     });
     activeAudioContext = audioContext;
+    // A plugin's effect after a stem's volume, before the master (version 22): playback only, the files stay.
+    const effects = gainNodes.map(() => null);
+    const setEffect = (index, chain) => {
+      const gain = gainNodes[index];
+      gain.disconnect();
+      if (effects[index]) effects[index].output.disconnect();
+      effects[index] = chain || null;
+      if (chain) {
+        gain.connect(chain.input);
+        chain.output.connect(masterGain);
+      } else gain.connect(masterGain);
+    };
     const mixerRowElements = [];
+    const waveSvgs = [];
+    const stemControls = [];  // the S/M group of each row; a plugin's stem button goes before them
     const mixer = new MixerSession(gainNodes, (values, audible) => {
       tracks.forEach((audio, index) => { audio.dataset.effectiveGain = String(values[index]); });
       mixerRowElements.forEach((row, index) => { row.dataset.silenced = String(!audible[index]); });
@@ -1138,7 +1154,9 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const loopRegion = document.createElement("span");
     loopRegion.className = "loop-region";
     loopRegion.hidden = true;
-    playheadLayer.append(loopRegion, playhead);
+    const pluginLayer = document.createElement("div");
+    pluginLayer.className = "plugin-layer";
+    playheadLayer.append(pluginLayer, loopRegion, playhead);
     // One screen pixel wide, on whole screen pixels: at 125-150 % scaling a 1px line at a fractional position was
     // drawn one or two pixels wide by turns (it flickered). A transform moves it without a layout.
     const playheadClock = new PlayheadClock();
@@ -1156,13 +1174,37 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       drawPlayhead();
     }).observe(playheadLayer);
     let duration = 0;
+    // What the waveforms show, in song time (version 22): the whole song, or a plugin's zoom (view) inside its
+    // play range (range: playback stays between its ends, the trim plugin).
+    let view = null;
+    let range = null;
+    const viewListeners = new Set();
+    const timeListeners = new Set();
+    const visible = () => {
+      const outer = { start: range ? range.start : 0, end: range ? Math.min(range.end, duration) : duration };
+      if (!view) return outer;
+      return { start: Math.max(outer.start, view.start), end: Math.min(outer.end, view.end) };
+    };
+    const drawView = () => {
+      const { start, end } = visible();
+      if (duration > 0 && end > start) {
+        const box = `${(start / duration) * 1024} 0 ${((end - start) / duration) * 1024} 100`;
+        waveSvgs.forEach((svg) => svg.setAttribute("viewBox", box));
+      }
+      showLoop(transport.loop);
+      updateTime(transport.currentTime, transport.playing, transport.rate);
+      viewListeners.forEach((listener) => listener(visible()));
+    };
     const formatTime = (seconds) => {
       const safe = Math.max(0, Math.floor(seconds || 0));
       return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
     };
     const updateTime = (seconds, playing = false, rate = 1) => {
       const shown = playheadClock.position(seconds, performance.now(), playing, rate);
-      playheadRatio = duration > 0 ? Math.min(1, Math.max(0, shown / duration)) : 0;
+      const { start, end } = visible();
+      const ratio = end > start ? (shown - start) / (end - start) : 0;
+      playhead.style.visibility = ratio < 0 || ratio > 1 ? "hidden" : "";  // zoomed in elsewhere
+      playheadRatio = Math.min(1, Math.max(0, ratio));
       drawPlayhead();
       playheadLayer.setAttribute("aria-valuenow", seconds.toFixed(1));
       playheadLayer.setAttribute("aria-valuetext", formatTime(seconds));
@@ -1229,6 +1271,8 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     };
     const transport = new SynchronizedTransport(tracks, {
       onTimeUpdate: (seconds) => {
+        if (range && keepInRange(seconds)) return;
+        timeListeners.forEach((listener) => listener(seconds, transport.playing));
         updateTime(seconds, transport.playing, transport.rate);
         showTempo(seconds);
         if (metronomeOn && transport.playing) metronome.update(seconds);
@@ -1248,17 +1292,39 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       startOffset,
     });
     activeTransport = transport;
+    // Out of the range: before it, to its start; past its end, playing stops there and goes back to its start.
+    const keepInRange = (seconds) => {
+      if (seconds < range.start - 0.05) {
+        transport.seek(range.start);
+        return true;
+      }
+      if (seconds >= range.end && transport.playing) {
+        transport.pause();
+        metronome.reset();
+        updateTransportButton(false);
+        transport.seek(range.start);
+        return true;
+      }
+      if (seconds > range.end + 0.05) {
+        transport.seek(range.end);
+        return true;
+      }
+      return false;
+    };
     const showLoop = (loop) => {
-      loopRegion.hidden = !loop || !(duration > 0);
+      const { start, end } = visible();
+      loopRegion.hidden = !loop || !(end > start) || loop.end <= start || loop.start >= end;
       if (loopRegion.hidden) return;
-      loopRegion.style.left = `${(loop.start / duration) * 100}%`;
-      loopRegion.style.width = `${((loop.end - loop.start) / duration) * 100}%`;
+      const from = Math.max(loop.start, start);
+      loopRegion.style.left = `${((from - start) / (end - start)) * 100}%`;
+      loopRegion.style.width = `${((Math.min(loop.end, end) - from) / (end - start)) * 100}%`;
       loopRegion.dataset.start = String(loop.start);
       loopRegion.dataset.end = String(loop.end);
     };
     const timeAt = (event) => {
       const rect = playheadLayer.getBoundingClientRect();
-      return Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * duration;
+      const { start, end } = visible();
+      return start + Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)) * (end - start);
     };
     // A drag over the waveforms makes a loop, its ends on the nearest beats. The stems play it decoded (gapless,
     // sample-locked), prepared on the first loop; beats not detected yet are detected then and the loop snaps.
@@ -1277,10 +1343,15 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // drops it), a drag of more than 4 px makes a loop, a double click on the loop drops it.
     let loopDrag = null;
     playheadLayer.addEventListener("pointerdown", (event) => {
+      if (loopDrag && loopDrag.pointerId !== event.pointerId) {  // a second finger: a pinch (zoom plugin), not a loop
+        loopDrag = null;
+        showLoop(transport.loop);
+        return;
+      }
       if (event.button !== 0 || !(duration > 0)) return;
       playheadLayer.setPointerCapture(event.pointerId);
       loopRequest += 1;  // a loop still being prepared is forgotten
-      loopDrag = { x: event.clientX, from: timeAt(event), moved: false };
+      loopDrag = { x: event.clientX, from: timeAt(event), moved: false, pointerId: event.pointerId };
       transport.seek(loopDrag.from);
     });
     playheadLayer.addEventListener("pointermove", (event) => {
@@ -1344,6 +1415,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         mixer.setMute(index, muted);
       });
       switches.append(solo, mute);
+      stemControls.push(switches);
       const fader = document.createElement("div");
       fader.className = "mixer-fader";
       const gain = document.createElement("input");
@@ -1378,6 +1450,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       waveSvg.setAttribute("role", "img");
       waveSvg.setAttribute("aria-label", t("Waveform: {stem}", { stem: stemLabels[asset.stem_name] }));
       wave.append(waveSvg);
+      waveSvgs.push(waveSvg);
       if (!original) drawWaveform(waveSvg, asset.asset_id);  // none for the source audio (WAV/FLAC only)
       row.append(left, wave);
       mixerRows.append(row);
@@ -1702,6 +1775,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     };
     // Beats are detected on the first use only (it takes about half a minute), with progress on the button.
     let beatsRequest = null;
+    let beatsResult = null;  // beats, bar starts and tempo, for the plugins
     const loadBeats = () => {
       beatsRequest = beatsRequest || (async () => {
         let state = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/beats`, { method: "POST" });
@@ -1725,6 +1799,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           metronomeButton.disabled = volume.disabled = countIn.disabled = true;
           return null;
         }
+        beatsResult = state.result;
         metronome.setBeats(state.result.beats);
         songTempo = state.result.tempo && state.result.tempo.length ? state.result.tempo : [[0, state.result.bpm]];
         showTempo(transport.currentTime);
@@ -1774,6 +1849,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (transport.duration > 0) {
         duration = transport.duration;
         playheadLayer.setAttribute("aria-valuemax", duration.toFixed(1));
+        drawView();  // the plugins learn the length here
         // Once all stems know their length, move them past the leading silence.
         if (!positioned) {
           positioned = true;
@@ -1831,6 +1907,28 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       },
     };
     tracks.forEach((audio) => audio.load());
+    if (!original) {
+      startPlugins({
+        projectId, footer, overlay: pluginLayer, timeline: playheadLayer, waves: mixerRows, stemControls, audioContext, setEffect, viewListeners, timeListeners,
+        stems: stems.map((asset) => ({ name: asset.stem_name, label: stemLabels[asset.stem_name] || asset.stem_name })),
+        duration: () => duration,
+        position: () => transport.currentTime,
+        playing: () => transport.playing,
+        seek: (seconds) => transport.seek(seconds),
+        view: visible,
+        setView: (next) => { view = next; drawView(); },
+        range: () => range,
+        setRange: (next) => {
+          range = next;
+          drawView();
+          if (range) keepInRange(transport.currentTime);
+        },
+        dropLoop: () => activeControls?.dropLoop(),
+        beats: async () => { await loadBeats(); return beatsResult; },
+        detailedWaveforms: () => Promise.all(stems.map((asset, index) => drawWaveform(waveSvgs[index], asset.asset_id, 8192))),
+        current: () => setupId === playbackSetupId,
+      });
+    }
     if (original && finishedStates.has(project.job.status)) renderSeparateAgain(project);
     else if (original) renderJobProgress(selectedJobState || { job_status: project.job.status, progress: 0 });
   } catch (reason) {
@@ -2190,6 +2288,9 @@ helpOverlay.addEventListener("click", (event) => {
 settingsOverlay.addEventListener("click", (event) => {
   if (event.target === settingsOverlay) closeSettings();
 });
+const windowOpen = () => !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || !storeOverlay.hidden
+  || Boolean(document.querySelector("dialog[open]"));
+
 function isTextEntry(target) {
   if (!(target instanceof Element)) return false;
   if (target.isContentEditable || target.matches("textarea, select")) return true;
@@ -2206,6 +2307,14 @@ document.addEventListener("keydown", (event) => {
   }
   if (event.key === "Escape" && !searchOverlay.hidden) {
     closeSearch();
+    return;
+  }
+  if (event.key === "Escape" && !storeOverlay.hidden && !document.querySelector("dialog[open]")) {
+    closeStore();
+    return;
+  }
+  if (event.key === "Escape" && !pluginAlertPopover.hidden) {
+    pluginAlertPopover.hidden = true;
     return;
   }
   if (event.key === "Escape" && !languageMenu.hidden) {
@@ -2229,7 +2338,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
   // Tab never walks the focus (and its focus rings) outside dialogs; in a project it picks the next track.
-  if (event.key === "Tab" && searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !confirmDialog.open && !isTextEntry(event.target)) {
+  if (event.key === "Tab" && !windowOpen() && !isTextEntry(event.target)) {
     event.preventDefault();
     if (activeControls && !event.ctrlKey && !event.metaKey && !event.altKey) {
       activeControls.cycleSelection(event.shiftKey ? -1 : 1);
@@ -2238,8 +2347,7 @@ document.addEventListener("keydown", (event) => {
   }
   // Tabs, also while a project has no player yet: 1-9 open the first nine, Q and W the previous and next (by key
   // position, so any layout works), round the ends.
-  if (searchOverlay.hidden && settingsOverlay.hidden && helpOverlay.hidden && !confirmDialog.open
-      && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextEntry(event.target)) {
+  if (!windowOpen() && !event.ctrlKey && !event.metaKey && !event.altKey && !isTextEntry(event.target)) {
     const tabs = [...projectTabs.querySelectorAll(".project-tab")];
     const digit = /^(?:Digit|Numpad)([1-9])$/.exec(event.code);
     let target = null;
@@ -2260,7 +2368,7 @@ document.addEventListener("keydown", (event) => {
       return;
     }
   }
-  if (!activeControls || !searchOverlay.hidden || !settingsOverlay.hidden || !helpOverlay.hidden || confirmDialog.open) return;
+  if (!activeControls || windowOpen()) return;
   if (event.ctrlKey || event.metaKey || event.altKey || isTextEntry(event.target)) return;
   const controls = activeControls;
   const actions = {
@@ -2350,6 +2458,367 @@ checkUpdatesButton.addEventListener("click", checkUpdates);
 cleanStorageButton.addEventListener("click", cleanStorage);
 deleteAllButton.addEventListener("click", deleteAllProjects);
 
+// Plugins (version 22): page modules from the app's own store (web/plugins/<id>/plugin.mjs). A plugin exports
+// project(ctx), called for every finished project opened; it may return a function that undoes what it added.
+// ctx gives the extension points (docs/PLUGINS.md); parts that change sound or playback or run an analysis only
+// for the permissions its manifest names. A plugin that throws is turned off, its error shown under ⚠.
+const PERMISSION_LABELS = {
+  sound: N_("Changes the sound while playing"),
+  playback: N_("Changes what is played"),
+  analysis: N_("Runs an analysis on this computer"),
+};
+const storeOverlay = document.querySelector("#store-overlay");
+const storeList = document.querySelector("#store-list");
+const pluginAlert = document.querySelector("#plugin-alert");
+const pluginAlertPopover = document.querySelector("#plugin-alert-popover");
+let pluginList = [];  // the store: every plugin with installed, enabled and error
+const loadedPlugins = new Map();  // id → its module, for the enabled ones
+let pluginHost = null;  // the open project's extension points
+const runningPlugins = new Map();  // id → undo everything it added to the open project
+
+async function loadPlugins() {
+  try {
+    pluginList = await requestJson("/api/v1/plugins");
+  } catch (_error) {
+    pluginList = [];  // an older server or a broken answer: the app works without plugins
+  }
+  for (const plugin of pluginList.filter((item) => item.enabled && !loadedPlugins.has(item.id))) {
+    try {
+      loadedPlugins.set(plugin.id, await import(`./plugins/${plugin.id}/plugin.mjs`));
+      startPlugin(plugin.id);
+    } catch (error) {
+      await pluginFailed(plugin.id, error);
+    }
+  }
+  renderPluginViews();
+}
+
+function renderPluginViews() {
+  renderStore();
+  renderPluginAlert();
+  const installed = pluginList.filter((plugin) => plugin.installed).length;
+  document.querySelector("#plugins-summary").textContent = pluginList.length
+    ? t("{installed} of {count} installed", { installed, count: pluginList.length })
+    : t("No plugins are available.");
+}
+
+// Calls of a plugin's code: an error (also a rejected promise) turns the plugin off instead of breaking the player.
+function guarded(id, callback) {
+  return (...args) => {
+    try {
+      const result = callback(...args);
+      if (result && typeof result.catch === "function") result.catch((error) => pluginFailed(id, error));
+      return result;
+    } catch (error) {
+      pluginFailed(id, error);
+      return undefined;
+    }
+  };
+}
+
+function pluginContext(id, permissions, host) {
+  const undo = [];
+  const listen = (listeners, callback) => {
+    const wrapped = guarded(id, callback);
+    listeners.add(wrapped);
+    undo.push(() => listeners.delete(wrapped));
+  };
+  const data = `/api/v1/projects/${encodeURIComponent(host.projectId)}/plugins/${encodeURIComponent(id)}`;
+  const ctx = {
+    id, projectId: host.projectId, stems: host.stems, overlay: host.overlay, timeline: host.timeline, waves: host.waves,
+    t, tn, formatDecimal,
+    get duration() { return host.duration(); },
+    get position() { return host.position(); },
+    get playing() { return host.playing(); },
+    get view() { return host.view(); },
+    get bounds() {  // what a view may show: the play range, else the whole song
+      const range = host.range();
+      return range ? { start: range.start, end: Math.min(range.end, host.duration()) } : { start: 0, end: host.duration() };
+    },
+    get current() { return host.current(); },
+    seek: (seconds) => host.seek(seconds),
+    setView: (view) => {
+      undo.push(() => host.setView(null));
+      host.setView(view);
+    },
+    onView: (callback) => listen(host.viewListeners, callback),
+    onTime: (callback) => listen(host.timeListeners, callback),
+    on: (target, type, callback, options) => {
+      const wrapped = guarded(id, callback);
+      target.addEventListener(type, wrapped, options);
+      undo.push(() => target.removeEventListener(type, wrapped, options));
+    },
+    add: (parent, element) => {  // an element of the plugin; it goes when the plugin stops
+      parent.append(element);
+      undo.push(() => element.remove());
+      return element;
+    },
+    addFooter: (element) => ctx.add(host.footer, element),
+    addStemControl: (index, element) => {
+      host.stemControls[index].prepend(element);
+      undo.push(() => element.remove());
+      return element;
+    },
+    detailedWaveforms: () => host.detailedWaveforms(),
+    loadData: async () => (await requestJson(data)).data,
+    saveData: (value) => requestJson(data, { method: "PUT", body: JSON.stringify({ data: value }) }),
+  };
+  if (permissions.includes("playback")) {
+    Object.assign(ctx, {
+      range: () => host.range(),
+      setRange: (range) => {
+        undo.push(() => host.setRange(null));
+        host.setRange(range);
+      },
+      dropLoop: () => host.dropLoop(),
+    });
+  }
+  if (permissions.includes("sound")) {
+    Object.assign(ctx, {
+      audioContext: host.audioContext,
+      setEffect: (index, chain) => {
+        undo.push(() => host.setEffect(index, null));  // a removed plugin leaves the sound as it was
+        host.setEffect(index, chain);
+      },
+    });
+  }
+  if (permissions.includes("analysis")) {
+    Object.assign(ctx, {
+      beats: () => host.beats(),
+      analyze: (kind, onProgress = () => {}) => analyzeProject(host, kind, guarded(id, onProgress)),
+      analysisState: (kind) => requestJson(`/api/v1/projects/${encodeURIComponent(host.projectId)}/${kind}`),
+    });
+  }
+  return { ctx, undo: () => undo.splice(0).reverse().forEach((step) => step()) };
+}
+
+// A background analysis of the project (chords): asked for, then followed until it is done.
+async function analyzeProject(host, kind, onProgress) {
+  const url = `/api/v1/projects/${encodeURIComponent(host.projectId)}/${kind}`;
+  let state = await requestJson(url, { method: "POST" });
+  while (state.status === "queued" || state.status === "running") {
+    onProgress(state.progress || 0);
+    await new Promise((resolve) => window.setTimeout(resolve, 1000));
+    if (!host.current()) return null;
+    state = await requestJson(url);
+  }
+  if (state.status !== "done") throw new Error(tServer(state.error) || t("The analysis failed"));
+  return state.result;
+}
+
+function startPlugins(host) {
+  pluginHost = host;
+  loadedPlugins.forEach((_module, id) => startPlugin(id));
+}
+
+function startPlugin(id) {
+  const plugin = pluginList.find((item) => item.id === id);
+  const module = loadedPlugins.get(id);
+  if (!pluginHost || !plugin || !plugin.enabled || !module || runningPlugins.has(id)) return;
+  const { ctx, undo } = pluginContext(id, plugin.permissions || [], pluginHost);
+  const stop = () => undo();
+  runningPlugins.set(id, stop);
+  try {
+    const result = module.project(ctx);
+    Promise.resolve(result).then((cleanup) => {
+      if (typeof cleanup === "function" && runningPlugins.get(id) === stop) {
+        runningPlugins.set(id, () => {
+          try { cleanup(); } finally { undo(); }
+        });
+      }
+    }).catch((error) => pluginFailed(id, error));
+  } catch (error) {
+    pluginFailed(id, error);
+  }
+}
+
+function stopPlugin(id) {
+  const stop = runningPlugins.get(id);
+  runningPlugins.delete(id);
+  if (!stop) return;
+  try {
+    stop();
+  } catch (error) {
+    console.error(`Plugin ${id} could not stop`, error);
+  }
+}
+
+function stopPlugins() {
+  [...runningPlugins.keys()].forEach(stopPlugin);
+  pluginHost = null;
+}
+
+async function pluginFailed(id, error) {
+  const plugin = pluginList.find((item) => item.id === id);
+  if (!plugin || !plugin.enabled) return;  // already turned off (one error may come from several calls)
+  console.error(`Plugin ${id} failed`, error);
+  const message = String((error && error.message) || error || "").slice(0, 500) || "Unknown error";
+  plugin.enabled = false;
+  plugin.error = message;
+  stopPlugin(id);
+  loadedPlugins.delete(id);
+  renderPluginViews();
+  try {
+    Object.assign(plugin, await requestJson(`/api/v1/plugins/${encodeURIComponent(id)}/error`, {
+      method: "POST", body: JSON.stringify({ message }),
+    }));
+  } catch (_error) { /* shown here anyway; the server learns it next time */ }
+  renderPluginViews();
+}
+
+async function switchPlugin(plugin, enabled) {
+  Object.assign(plugin, await requestJson(`/api/v1/plugins/${encodeURIComponent(plugin.id)}`, {
+    method: "PUT", body: JSON.stringify({ enabled }),
+  }));
+  if (enabled) {
+    try {
+      loadedPlugins.set(plugin.id, await import(`./plugins/${plugin.id}/plugin.mjs`));
+      startPlugin(plugin.id);
+    } catch (error) {
+      await pluginFailed(plugin.id, error);
+    }
+  } else {
+    stopPlugin(plugin.id);
+    loadedPlugins.delete(plugin.id);
+  }
+  renderPluginViews();
+}
+
+async function removePlugin(plugin) {
+  const confirmed = await askConfirm({
+    title: t("Remove “{name}”?", { name: t(plugin.name) }),
+    text: t("What it keeps for your projects is deleted too. You can install it again from the store."),
+    action: t("Remove"),
+  });
+  if (!confirmed) return;
+  stopPlugin(plugin.id);
+  loadedPlugins.delete(plugin.id);
+  await requestJson(`/api/v1/plugins/${encodeURIComponent(plugin.id)}`, { method: "DELETE" });
+  Object.assign(plugin, { installed: false, enabled: false, error: null });
+  renderPluginViews();
+}
+
+function renderStore() {
+  storeList.replaceChildren(...pluginList.map((plugin) => {
+    const card = document.createElement("article");
+    card.className = "store-card";
+    card.dataset.plugin = plugin.id;
+    const image = document.createElement("img");
+    image.className = "store-image";
+    image.src = `plugins/${encodeURIComponent(plugin.id)}/image.svg`;
+    image.alt = "";
+    const body = document.createElement("div");
+    body.className = "store-body";
+    const name = document.createElement("h2");
+    name.textContent = t(plugin.name);
+    const description = document.createElement("p");
+    description.className = "store-description";
+    description.textContent = t(plugin.description);
+    const author = document.createElement("p");
+    author.className = "store-author";
+    author.textContent = t("By {author} · version {version}", { author: plugin.author, version: plugin.version });
+    body.append(name, description, author);
+    if ((plugin.permissions || []).length) {
+      const permissions = document.createElement("ul");
+      permissions.className = "store-permissions";
+      plugin.permissions.forEach((permission) => {
+        const item = document.createElement("li");
+        item.textContent = t(PERMISSION_LABELS[permission] || permission);
+        permissions.append(item);
+      });
+      body.append(permissions);
+    }
+    if (plugin.error) {
+      const error = document.createElement("p");
+      error.className = "store-error";
+      error.textContent = t("Turned off because of an error: {error}", { error: plugin.error });
+      body.append(error);
+    }
+    const actions = document.createElement("div");
+    actions.className = "store-actions";
+    const button = (text, className, action) => {
+      const element = document.createElement("button");
+      element.type = "button";
+      element.className = className;
+      element.textContent = text;
+      element.dataset.action = action;
+      element.addEventListener("click", async () => {
+        element.disabled = true;
+        try {
+          if (action === "remove") await removePlugin(plugin);
+          else await switchPlugin(plugin, action !== "disable");
+        } catch (error) {
+          element.disabled = false;
+          author.textContent = error.message;
+        }
+      });
+      actions.append(element);
+    };
+    if (!plugin.installed) button(t("Install"), "primary-button", "install");
+    else {
+      if (plugin.enabled) button(t("Turn off"), "quiet-button", "disable");
+      else button(t("Turn on"), "primary-button", "enable");
+      button(t("Remove"), "quiet-button danger-quiet", "remove");
+    }
+    body.append(actions);
+    card.append(image, body);
+    return card;
+  }));
+}
+
+function renderPluginAlert() {
+  const broken = pluginList.filter((plugin) => plugin.installed && plugin.error);
+  pluginAlert.hidden = !broken.length;
+  if (!broken.length) pluginAlertPopover.hidden = true;
+  document.querySelector("#plugin-alert-list").replaceChildren(...broken.map((plugin) => {
+    const item = document.createElement("div");
+    item.className = "queue-item plugin-alert-item";
+    const title = document.createElement("span");
+    title.className = "queue-title";
+    title.textContent = t("“{name}” is turned off", { name: t(plugin.name) });
+    const meta = document.createElement("span");
+    meta.className = "queue-meta";
+    meta.textContent = plugin.error;
+    const open = document.createElement("button");
+    open.type = "button";
+    open.className = "quiet-button";
+    open.dataset.action = "open-plugin";
+    open.textContent = t("Open");
+    open.addEventListener("click", () => {
+      pluginAlertPopover.hidden = true;
+      openStore(plugin.id);
+    });
+    item.append(title, open, meta);
+    return item;
+  }));
+}
+
+function openStore(pluginId = null) {
+  storeOverlay.hidden = false;
+  renderStore();
+  document.querySelector("#close-store").focus({ preventScroll: true });
+  const card = pluginId && storeList.querySelector(`[data-plugin="${CSS.escape(pluginId)}"]`);
+  if (card) {
+    card.scrollIntoView({ block: "center" });
+    card.dataset.highlight = "true";
+    window.setTimeout(() => delete card.dataset.highlight, 2000);
+  }
+}
+
+function closeStore() {
+  storeOverlay.hidden = true;
+}
+
+document.querySelector("#open-store").addEventListener("click", () => openStore());
+document.querySelector("#close-store").addEventListener("click", closeStore);
+storeOverlay.addEventListener("click", (event) => {
+  if (event.target === storeOverlay) closeStore();
+});
+pluginAlert.addEventListener("click", () => { pluginAlertPopover.hidden = !pluginAlertPopover.hidden; });
+document.addEventListener("click", (event) => {
+  if (!pluginAlertPopover.hidden && !pluginAlertPopover.contains(event.target) && !pluginAlert.contains(event.target)) pluginAlertPopover.hidden = true;
+});
+
 // Settings → Appearance → Language: the offered languages (the server lists those whose translation ships). A choice
 // applies at once, in place: the project keeps playing; the cookie lets the server send the page in it next time.
 const languageButton = document.querySelector("#language-button");
@@ -2398,6 +2867,7 @@ async function setLanguage(code) {
   loadModels();
   loadStorage();
   refreshQueue();
+  renderPluginViews();
 }
 
 languageButton.addEventListener("click", () => {
@@ -2416,6 +2886,7 @@ document.addEventListener("click", (event) => {
 });
 renderLanguageMenu();
 
+loadPlugins();
 loadProjects();
 loadModels();
 refreshQueue();

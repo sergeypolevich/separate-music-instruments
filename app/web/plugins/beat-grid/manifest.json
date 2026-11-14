@@ -1,0 +1,9 @@
+{
+  "id": "beat-grid",
+  "order": 2,
+  "name": "Beat grid",
+  "description": "Lines on the song's beats over the waveforms: bar starts strong, the other beats pale. Zoom in to see every beat.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["analysis"]
+}

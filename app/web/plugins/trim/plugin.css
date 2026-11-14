@@ -1,0 +1,7 @@
+.trim-buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+.footer-toggle.trim-button { min-width: 0; }
+.trim-button[hidden] { display: none; }
+@media (max-width: 600px) {
+  .trim-button span { display: none; }  /* icons only on a phone; the title names them */
+  .footer-toggle.trim-button { width: 42px; justify-content: center; padding: 0; }
+}

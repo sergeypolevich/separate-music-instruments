@@ -30,14 +30,31 @@
     {
      "id": "e4",
      "widget": "button[aria-label]",
-     "text": "Keyboard shortcuts",
+     "text": "A plugin stopped working",
      "index": 4
     },
     {
      "id": "e5",
+     "widget": "button[aria-label]",
+     "text": "Keyboard shortcuts",
+     "index": 5
+    },
+    {
+     "id": "e6",
      "widget": "a[aria-label]",
      "text": "Settings",
-     "index": 5
+     "index": 6
+    }
+   ]
+  },
+  {
+   "block": "plugin-alert-popover",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "div[aria-label]",
+     "text": "Plugin errors",
+     "index": 0
     }
    ]
   },
@@ -274,38 +291,56 @@
     {
      "id": "e12",
      "widget": "h2",
-     "text": "Disk space",
+     "text": "Plugins",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "button",
-     "text": "Clean up",
+     "text": "Open the store",
      "index": 13
     },
     {
      "id": "e14",
-     "widget": "button",
-     "text": "Delete all projects",
+     "widget": "p",
+     "text": "Extra features you turn on when you need them.",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "h2",
-     "text": "Updates",
+     "text": "Disk space",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "button",
-     "text": "Check",
+     "text": "Clean up",
      "index": 16
     },
     {
      "id": "e17",
+     "widget": "button",
+     "text": "Delete all projects",
+     "index": 17
+    },
+    {
+     "id": "e18",
+     "widget": "h2",
+     "text": "Updates",
+     "index": 18
+    },
+    {
+     "id": "e19",
+     "widget": "button",
+     "text": "Check",
+     "index": 19
+    },
+    {
+     "id": "e20",
      "widget": "p",
      "text": "Updates are checked only when you ask.",
-     "index": 17
+     "index": 20
     }
    ]
   },
@@ -329,6 +364,35 @@
      "widget": "button[title]",
      "text": "Close",
      "index": 2
+    }
+   ]
+  },
+  {
+   "block": "store-overlay",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "h1",
+     "text": "Plugin store",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "button[aria-label]",
+     "text": "Close the store",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "button[title]",
+     "text": "Close",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "p",
+     "text": "Plugins come only from this store and are made for Audio Stems. A plugin is on for every project; it changes only what you see and hear, never your files.",
+     "index": 3
     }
    ]
   },
@@ -1348,6 +1412,138 @@
    ]
   },
   {
+   "block": "PERMISSION_LABELS",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Changes the sound while playing",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Changes what is played",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Runs an analysis on this computer",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "renderPluginViews",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "{installed} of {count} installed",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "No plugins are available.",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "analyzeProject",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "The analysis failed",
+     "index": 0
+    }
+   ]
+  },
+  {
+   "block": "removePlugin",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Remove “{name}”?",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "What it keeps for your projects is deleted too. You can install it again from the store.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Remove",
+     "index": 2
+    }
+   ]
+  },
+  {
+   "block": "renderStore",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "By {author} · version {version}",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Turned off because of an error: {error}",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Install",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Turn off",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Turn on",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Remove",
+     "index": 5
+    }
+   ]
+  },
+  {
+   "block": "renderPluginAlert",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "“{name}” is turned off",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Open",
+     "index": 1
+    }
+   ]
+  },
+  {
    "block": "setLanguage",
    "elements": [
     {
@@ -1359,6 +1555,211 @@
    ]
   },
   {
+   "block": "plugin: beat-grid",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Beat grid",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Lines on the song's beats over the waveforms: bar starts strong, the other beats pale. Zoom in to see every beat.",
+     "index": 1
+    }
+   ]
+  },
+  {
+   "block": "plugin: chords",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Chords",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Finds the song's chords in the background and shows their names over the waveforms. A click on a name corrects it.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Chords hidden",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Find chords",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Click to correct the chord",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Finding chords · {percent}%",
+     "index": 5
+    }
+   ]
+  },
+  {
+   "block": "plugin: eq",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Equalizer",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "A parametric equalizer for every stem: drag the four bands on the curve, set a bell's width with the wheel. It changes only what you hear, never the files.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "{n} kHz",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "{n} Hz",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Equalizer: {stem}",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Close",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Reset",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Low shelf",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "High shelf",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Bell",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Text",
+     "text": "{n} dB",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Text",
+     "text": "Equalizer · {stem}",
+     "index": 11
+    }
+   ]
+  },
+  {
+   "block": "plugin: trim",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Trim",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Cut off the start or the end of a song at the playhead, to practise only the part you need. The files stay whole: one button brings the whole song back.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Trim the start",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Cut off everything before the playhead",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Trim the end",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Cut off everything after the playhead",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Whole song",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Bring back the trimmed start and end",
+     "index": 7
+    }
+   ]
+  },
+  {
+   "block": "plugin: zoom",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Wheel zoom",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Zoom the waveforms with the mouse wheel or a trackpad pinch, around the pointer. Shift + wheel or a sideways swipe moves the view; while playing, the view follows the playhead.",
+     "index": 1
+    }
+   ]
+  },
+  {
    "block": "server: analysis",
    "elements": [
     {
@@ -1366,6 +1767,12 @@
      "widget": "Message",
      "text": "Could not find the beats of this song",
      "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Message",
+     "text": "Could not find the chords of this song",
+     "index": 1
     }
    ]
   },
@@ -1399,128 +1806,152 @@
     {
      "id": "e4",
      "widget": "Message",
-     "text": "The project is already separated with the best model",
+     "text": "Chords need the stems of a finished project",
      "index": 4
     },
     {
      "id": "e5",
      "widget": "Message",
-     "text": "Improving needs the source audio of a finished project",
+     "text": "Plugin not found",
      "index": 5
     },
     {
      "id": "e6",
      "widget": "Message",
-     "text": "No quality improvement is running",
+     "text": "The plugin is not installed",
      "index": 6
     },
     {
      "id": "e7",
      "widget": "Message",
-     "text": "Confirm the cleanup first",
+     "text": "The plugin data is too large",
      "index": 7
     },
     {
      "id": "e8",
      "widget": "Message",
-     "text": "Wait until the separation ends, then clean up",
+     "text": "The project is already separated with the best model",
      "index": 8
     },
     {
      "id": "e9",
      "widget": "Message",
-     "text": "Confirm the update before continuing",
+     "text": "Improving needs the source audio of a finished project",
      "index": 9
     },
     {
      "id": "e10",
      "widget": "Message",
-     "text": "The update could not be installed",
+     "text": "No quality improvement is running",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "Message",
-     "text": "Batch exceeds the configured item limit",
+     "text": "Confirm the cleanup first",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Message",
-     "text": "File name is required",
+     "text": "Wait until the separation ends, then clean up",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Message",
-     "text": "The file is larger than {limit} MB",
+     "text": "Confirm the update before continuing",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Message",
-     "text": "This does not look like an audio file that can be separated",
+     "text": "The update could not be installed",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Message",
-     "text": "Upload could not be saved",
+     "text": "Batch exceeds the configured item limit",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Message",
-     "text": "Batch not found",
+     "text": "File name is required",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Message",
-     "text": "The project list has changed",
+     "text": "The file is larger than {limit} MB",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Message",
-     "text": "This project cannot be deleted while its batch is active",
+     "text": "This does not look like an audio file that can be separated",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Message",
-     "text": "Project files could not all be removed; retry delete to continue cleanup",
+     "text": "Upload could not be saved",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Message",
-     "text": "Job not found",
+     "text": "Batch not found",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Message",
-     "text": "The job has already finished",
+     "text": "The project list has changed",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Message",
-     "text": "Asset not found",
+     "text": "This project cannot be deleted while its batch is active",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Message",
-     "text": "Waveform data is available for WAV and FLAC assets",
+     "text": "Project files could not all be removed; retry delete to continue cleanup",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Message",
-     "text": "Asset file is not available",
+     "text": "Job not found",
      "index": 24
+    },
+    {
+     "id": "e25",
+     "widget": "Message",
+     "text": "The job has already finished",
+     "index": 25
+    },
+    {
+     "id": "e26",
+     "widget": "Message",
+     "text": "Asset not found",
+     "index": 26
+    },
+    {
+     "id": "e27",
+     "widget": "Message",
+     "text": "Waveform data is available for WAV and FLAC assets",
+     "index": 27
+    },
+    {
+     "id": "e28",
+     "widget": "Message",
+     "text": "Asset file is not available",
+     "index": 28
     }
    ]
   },

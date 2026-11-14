@@ -125,6 +125,13 @@ def build_catalog(web: Path = WEB) -> dict:
     blocks: dict[str, list[dict]] = {}
     entries = [(block, widget, text, None) for block, widget, text in page_texts((web / "index.html").read_text(encoding="utf-8"))]
     entries += script_texts((web / "app.js").read_text(encoding="utf-8"))
+    # Plugins (version 22): the store card's name and description, and the texts of plugin.mjs, a block each.
+    for manifest_path in sorted((web / "plugins").glob("*/manifest.json")):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        block = f"plugin: {manifest_path.parent.name}"
+        entries += [(block, "Title", manifest["name"], None), (block, "Description", manifest["description"], None)]
+        entries += [(block, widget, text, one) for _top, widget, text, one
+                    in script_texts((manifest_path.parent / "plugin.mjs").read_text(encoding="utf-8"))]
     for module in sorted((web.parent / "audio_stems").glob("*.py")):
         entries += server_texts(module.read_text(encoding="utf-8"), module.stem)
     for block, widget, text, one in entries:

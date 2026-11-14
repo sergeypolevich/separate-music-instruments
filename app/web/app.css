@@ -443,3 +443,25 @@ button[aria-busy="true"] { cursor: progress; }
   .brand > span:last-child { display: none; }
   .project-detail { --columns: minmax(92px, 28%) minmax(0, 1fr); }
 }
+
+/* Plugins (version 22): the store, the ⚠ in the header, the layer over the waveforms for the plugins. */
+.plugin-alert { color: var(--warn); }
+.plugin-alert:hover { color: var(--warn); }
+.plugin-alert-item { grid-template-columns: minmax(0, 1fr) auto; }
+.plugin-alert-item .queue-meta { grid-column: 1 / -1; white-space: normal; }
+.store-overlay { z-index: 12; }  /* over Settings, which opens it */
+.search-dialog.store-dialog { width: min(100%, 1100px); min-height: min(640px, 86vh); }
+.store-note { margin: -12px 0 18px; }
+.store-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 14px; }
+.store-card { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--card-bg); }
+.store-card[data-highlight] { border-color: var(--warn); }
+.store-image { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; background: var(--panel-soft); }
+.store-body { display: flex; flex: 1; flex-direction: column; gap: 8px; padding: 14px 16px 16px; }
+.store-body h2 { margin: 0; font: 650 16px Manrope, sans-serif; }
+.store-description { margin: 0; color: var(--text-soft); font-size: 13px; line-height: 1.45; }
+.store-author { margin: 0; color: var(--muted); font-size: 11px; }
+.store-permissions { margin: 0; padding-left: 18px; color: var(--muted); font-size: 11px; }
+.store-error { margin: 0; color: var(--danger-text); font-size: 12px; }
+.store-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
+.store-actions .primary-button { min-height: 34px; }
+.plugin-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }

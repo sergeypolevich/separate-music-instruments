@@ -105,9 +105,9 @@ def test_schema_migrations_are_repeatable_and_enable_foreign_keys(tmp_path):
                 "VALUES ('orphan', 'missing-client', 'search_query', 'track', 'now', 'now')"
             )
 
-    assert version == 12
+    assert version == 13
     assert foreign_keys == 1
-    assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions"} <= tables
+    assert {"clients", "projects", "batches", "jobs", "media_assets", "job_events", "pending_project_deletions", "plugins", "plugin_data"} <= tables
 
 
 def test_invalid_job_state_transition_is_rejected_and_not_persisted(tmp_path):
@@ -180,7 +180,7 @@ def test_two_processes_migrating_a_new_database_at_once_both_succeed(tmp_path):
 
     assert all(code == 0 for code, _ in results), results
     with sqlite3.connect(database) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0] == 12
+        assert connection.execute("PRAGMA user_version").fetchone()[0] == 13
 
 
 def test_a_genuinely_broken_migration_still_fails(tmp_path, monkeypatch):

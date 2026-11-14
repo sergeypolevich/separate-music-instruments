@@ -1,0 +1,9 @@
+{
+  "id": "eq",
+  "order": 4,
+  "name": "Equalizer",
+  "description": "A parametric equalizer for every stem: drag the four bands on the curve, set a bell's width with the wheel. It changes only what you hear, never the files.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["sound"]
+}

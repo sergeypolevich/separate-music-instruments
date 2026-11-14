@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 import logging
 import mimetypes
 import os
@@ -32,7 +33,8 @@ from audio_stems.models import (
     disk_full_error,
     is_disk_full,
 )
-from audio_stems import i18n
+from audio_stems import i18n, plugins
+from audio_stems.chords import ALGORITHM as CHORDS_ALGORITHM
 from audio_stems.beats import ALGORITHM as BEATS_ALGORITHM
 from audio_stems.separator import BEST_MODEL, StemSeparator
 from audio_stems.storage import LocalMediaStorage
@@ -47,6 +49,7 @@ import soundfile
 _OWNER_ID = "local"
 # Fixed waveform resolution: enough detail for a full-width desktop mixer, small enough to store.
 WAVEFORM_POINTS = 1024
+DETAIL_POINTS = 8192  # for the zoom plugin (version 22): a few seconds of a song still show their shape
 _MEDIA_CHUNK_BYTES = 1024 * 1024
 logger = logging.getLogger("audio_stems.api")
 
@@ -73,6 +76,24 @@ class _UiFiles(StaticFiles):
 class ProjectUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     name: Annotated[str, Field(max_length=200)]
+
+
+class PluginSwitch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    enabled: StrictBool
+
+
+class PluginError(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    message: Annotated[str, Field(max_length=500)]
+
+
+class PluginData(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    data: dict
+
+
+_PLUGIN_DATA_BYTES = 64 * 1024  # trim bounds, EQ bands, edited chords: a few kilobytes
 
 
 class ProjectOrder(BaseModel):
@@ -120,7 +141,7 @@ _WAVEFORM_FORMATS = {"wav", "flac"}
 
 def waveform_data(path: Path, levels: int, start_seconds: float = 0.0) -> dict[str, object]:
     """Return at most ``levels`` peak points from ``start_seconds`` on, without loading the whole file."""
-    if levels < 1 or levels > 2048:
+    if levels < 1 or levels > DETAIL_POINTS:
         raise WaveformError("Waveform level count is outside supported bounds")
     try:
         stat = path.stat()
@@ -199,7 +220,8 @@ def create_app(
                          cwd=application_root, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     start_analysis = start_analysis or spawn_analysis_runner
-    if repository.requeue_interrupted_analyses("beats"):
+    interrupted = [repository.requeue_interrupted_analyses(kind) for kind in ("beats", "chords")]
+    if any(interrupted):
         start_analysis()
 
     # Finish cleanups that an earlier run could not complete (a file was locked at the time).
@@ -211,6 +233,7 @@ def create_app(
                            extra={"event": "project_cleanup_pending", "project_id": str(pending.project_id)})
 
     app = FastAPI(title="Audio Stems API", version="1.0.0")
+    web_root = Path(__file__).resolve().parents[1] / "web"
     # The UI loads stems from the other loopback name (see web/app.js); allow only those two origins.
     app.add_middleware(
         CORSMiddleware,
@@ -336,6 +359,109 @@ def create_app(
         }, redo=outdated)
         start_analysis()
         return JSONResponse(beats_state(project_id), status_code=202)
+
+    def chords_state(project_id: UUID) -> dict[str, object]:
+        state = repository.get_analysis(project_id, "chords") or {"status": "none", "progress": 0, "result": None, "error": None}
+        return {key: state[key] for key in ("status", "progress", "result", "error")}
+
+    @app.get("/api/v1/projects/{project_id}/chords")
+    def get_chords(project_id: UUID) -> dict[str, object]:
+        if repository.get_project(project_id, _OWNER_ID) is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        return chords_state(project_id)
+
+    @app.post("/api/v1/projects/{project_id}/chords")
+    def request_chords(project_id: UUID) -> JSONResponse:
+        """Chords for the chords plugin (version 22): a background analysis of the stems without vocals and drums."""
+        project = repository.get_project(project_id, _OWNER_ID)
+        job = repository.get_job(project.job_id, _OWNER_ID) if project else None
+        if job is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        state = repository.get_analysis(project_id, "chords")
+        outdated = bool(state and state["status"] == "done"
+                        and (state["result"] or {}).get("algorithm") != CHORDS_ALGORITHM)
+        if state and state["status"] != "failed" and not outdated:
+            return JSONResponse(chords_state(project_id), status_code=200 if state["status"] == "done" else 202)
+        stems = [a for a in repository.list_assets(job.job_id, _OWNER_ID)
+                 if a.asset_type is MediaAssetType.STEM and a.stem_name not in ("vocals", "drums")]
+        try:
+            paths = [storage.resolve_path(a.storage_key) for a in stems]
+        except AdapterError:
+            paths = []
+        if job.status is not JobStatus.COMPLETED or not paths or not all(path.is_file() for path in paths):
+            raise HTTPException(
+                status_code=409,
+                detail={"code": "source_unavailable", "message": "Chords need the stems of a finished project"},
+            )
+        found = repository.get_analysis(project_id, "beats") or {}
+        beats = (found.get("result") or {}).get("beats", []) if found.get("status") == "done" else []
+        try:
+            minutes = soundfile.info(paths[0]).duration / 60
+        except (OSError, RuntimeError):
+            minutes = 4.0
+        repository.queue_analysis(project_id, "chords", {
+            "stem_paths": [str(path) for path in paths], "start_seconds": job.start_seconds or 0.0,
+            "beats": beats, "minutes": minutes,
+        }, redo=outdated)
+        start_analysis()
+        return JSONResponse(chords_state(project_id), status_code=202)
+
+    # --- plugins (version 22): the store is the plugin folders shipped in web/plugins -----------------------
+    def plugin_manifest(plugin_id: str) -> dict[str, object]:
+        manifest = plugins.catalog(web_root).get(plugin_id)
+        if manifest is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Plugin not found"})
+        return manifest
+
+    def plugin_state(plugin_id: str, manifest: dict[str, object]) -> dict[str, object]:
+        installed = repository.list_plugins().get(plugin_id)
+        return {**manifest, "installed": installed is not None, "enabled": bool(installed and installed["enabled"]),
+                "error": installed["error"] if installed else None}
+
+    @app.get("/api/v1/plugins")
+    def list_plugins() -> list[dict[str, object]]:
+        return [plugin_state(plugin_id, manifest) for plugin_id, manifest in plugins.catalog(web_root).items()]
+
+    @app.put("/api/v1/plugins/{plugin_id}")
+    def switch_plugin(plugin_id: str, body: PluginSwitch) -> dict[str, object]:
+        """Install (the first time) and turn on, or turn off; turning on again clears an error."""
+        manifest = plugin_manifest(plugin_id)
+        repository.set_plugin(plugin_id, body.enabled)
+        return plugin_state(plugin_id, manifest)
+
+    @app.delete("/api/v1/plugins/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def remove_plugin(plugin_id: str) -> Response:
+        plugin_manifest(plugin_id)
+        repository.remove_plugin(plugin_id)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.post("/api/v1/plugins/{plugin_id}/error")
+    def plugin_failed(plugin_id: str, body: PluginError) -> dict[str, object]:
+        """The page caught an error in the plugin: it is turned off and keeps the message for its card."""
+        manifest = plugin_manifest(plugin_id)
+        if plugin_id in repository.list_plugins():
+            repository.set_plugin(plugin_id, False, body.message.strip() or "Unknown error")
+        return plugin_state(plugin_id, manifest)
+
+    def installed_plugin(plugin_id: str, project_id: UUID) -> None:
+        plugin_manifest(plugin_id)
+        if repository.get_project(project_id, _OWNER_ID) is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        if plugin_id not in repository.list_plugins():
+            raise HTTPException(status_code=409, detail={"code": "plugin_not_installed", "message": "The plugin is not installed"})
+
+    @app.get("/api/v1/projects/{project_id}/plugins/{plugin_id}")
+    def get_plugin_data(project_id: UUID, plugin_id: str) -> dict[str, object]:
+        installed_plugin(plugin_id, project_id)
+        return {"data": repository.get_plugin_data(plugin_id, project_id)}
+
+    @app.put("/api/v1/projects/{project_id}/plugins/{plugin_id}", status_code=status.HTTP_204_NO_CONTENT)
+    def save_plugin_data(project_id: UUID, plugin_id: str, body: PluginData) -> Response:
+        installed_plugin(plugin_id, project_id)
+        if len(json.dumps(body.data)) > _PLUGIN_DATA_BYTES:
+            raise HTTPException(status_code=413, detail={"code": "too_large", "message": "The plugin data is too large"})
+        repository.set_plugin_data(plugin_id, project_id, body.data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     def upgrade_state(project, job) -> dict[str, object]:
         """«Improve quality»: whether the project already has the best model, how long the upgrade takes
@@ -740,7 +866,7 @@ def create_app(
         return {"job_id": str(job_id)}
 
     @app.get("/api/v1/assets/{asset_id}/waveform")
-    def get_waveform(asset_id: UUID) -> dict[str, object]:
+    def get_waveform(asset_id: UUID, points: int = WAVEFORM_POINTS) -> dict[str, object]:
         asset = repository.get_asset(asset_id, _OWNER_ID)
         if asset is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Asset not found"})
@@ -749,6 +875,9 @@ def create_app(
                 status_code=415,
                 detail={"code": "unsupported_waveform_format", "message": "Waveform data is available for WAV and FLAC assets"},
             )
+        if points not in (WAVEFORM_POINTS, DETAIL_POINTS):
+            raise HTTPException(status_code=422, detail={"code": "invalid_request", "message": "Request data is invalid"})
+        key = "waveform" if points == WAVEFORM_POINTS else f"waveform_{points}"
         try:
             path = storage.resolve_path(asset.storage_key)
             if not path.is_file():
@@ -758,15 +887,16 @@ def create_app(
             start = (job.start_seconds if job else None) or 0.0
             # Peaks are computed once per file version and music start, and kept in the database.
             stored = repository.get_waveform(asset.asset_id)
-            if (stored and stored.get("byte_size") == stat.st_size and stored.get("mtime_ns") == stat.st_mtime_ns
-                    and stored.get("start_seconds", 0.0) == start):
-                data = stored["waveform"]
+            fresh = (stored and stored.get("byte_size") == stat.st_size and stored.get("mtime_ns") == stat.st_mtime_ns
+                     and stored.get("start_seconds", 0.0) == start)
+            if fresh and key in stored:
+                data = stored[key]
             else:
-                data = waveform_data(path, WAVEFORM_POINTS, start)
-                repository.save_waveform(
-                    asset.asset_id,
-                    {"byte_size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "start_seconds": start, "waveform": data},
-                )
+                data = waveform_data(path, points, start)
+                if points != WAVEFORM_POINTS:
+                    data["levels"] = [round(level, 3) for level in data["levels"]]  # 8192 of them: keep it small
+                base = stored if fresh else {"byte_size": stat.st_size, "mtime_ns": stat.st_mtime_ns, "start_seconds": start}
+                repository.save_waveform(asset.asset_id, {**base, key: data})
         except FileNotFoundError as exc:
             raise HTTPException(
                 status_code=404,
@@ -810,8 +940,6 @@ def create_app(
         # Starlette serves Range requests (206/416) itself.
         return FileResponse(path, headers={"X-Content-Type-Options": "nosniff"})
 
-    web_root = Path(__file__).resolve().parents[1] / "web"
-
     @app.get("/", include_in_schema=False)
     @app.get("/index.html", include_in_schema=False)
     def index_page(request: Request) -> HTMLResponse:
@@ -819,7 +947,12 @@ def create_app(
         on the first start the browser's language when its translation ships, else English."""
         offered = i18n.offered(web_root)
         code = i18n.choose(request.cookies.get(i18n.COOKIE), request.headers.get("accept-language", ""), offered)
-        return HTMLResponse(i18n.page(code, web_root), headers={"Cache-Control": "no-cache", "Vary": "Cookie, Accept-Language"})
+        # Plugins run in this page (version 22): it may talk only to the app itself (both loopback names, which
+        # the stems use), so no plugin can send anything out.
+        loopback = " ".join(f"http://{host}:{settings.api_port}" for host in ("127.0.0.1", "localhost"))
+        return HTMLResponse(i18n.page(code, web_root), headers={
+            "Cache-Control": "no-cache", "Vary": "Cookie, Accept-Language",
+            "Content-Security-Policy": f"connect-src 'self' {loopback}"})
 
     app.mount("/", _UiFiles(directory=web_root, html=True), name="web")
 

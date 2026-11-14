@@ -1,0 +1,9 @@
+{
+  "id": "zoom",
+  "order": 1,
+  "name": "Wheel zoom",
+  "description": "Zoom the waveforms with the mouse wheel or a trackpad pinch, around the pointer. Shift + wheel or a sideways swipe moves the view; while playing, the view follows the playhead.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": []
+}

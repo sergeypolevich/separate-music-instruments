@@ -64,7 +64,7 @@ jobs:
       - name: Player tests (node)
         if: ${{ !cancelled() && steps.tools.outcome == 'success' }}
         working-directory: app
-        run: node --test tests/test_playback.mjs
+        run: node --test tests/test_playback.mjs tests/test_plugins.mjs
 
       # The real BS-RoFormer on a 10-second file with no ffmpeg on PATH (a user's Mac had none); it downloads
       # its 650 MB weights first.

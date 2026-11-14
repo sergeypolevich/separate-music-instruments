@@ -1,0 +1,4 @@
+/* Over every stem row, under the loop and the playhead. */
+.beat-grid { position: absolute; inset: 0; }
+.beat-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text); opacity: .13; }
+.beat-line.strong { opacity: .38; }

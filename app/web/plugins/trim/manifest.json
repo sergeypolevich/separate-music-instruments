@@ -1,0 +1,9 @@
+{
+  "id": "trim",
+  "order": 3,
+  "name": "Trim",
+  "description": "Cut off the start or the end of a song at the playhead, to practise only the part you need. The files stay whole: one button brings the whole song back.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["playback"]
+}

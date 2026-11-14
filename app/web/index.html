@@ -29,6 +29,10 @@
           <span id="search-preview" data-short="Open a file or find a song">Open an audio file or find a song…</span>
         </button>
         <nav class="top-nav" aria-label="Navigation">
+          <button id="plugin-alert" class="settings-link plugin-alert" type="button" aria-haspopup="dialog" aria-controls="plugin-alert-popover" aria-label="A plugin stopped working" title="A plugin stopped working" hidden><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></button>
+          <div id="plugin-alert-popover" class="queue-popover" role="dialog" aria-label="Plugin errors" hidden>
+            <div id="plugin-alert-list" class="queue-list"></div>
+          </div>
           <button id="queue-trigger" class="settings-link queue-link" type="button" aria-haspopup="dialog" aria-controls="queue-popover" aria-expanded="false" hidden>
             <svg class="queue-ring" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle class="ring-track" cx="12" cy="12" r="8.5"/><circle class="ring-fill" cx="12" cy="12" r="8.5" pathLength="100"/></svg>
           </button>
@@ -132,6 +136,13 @@
           <div class="section-heading"><h2 id="separation-title">Separation</h2></div>
           <div id="model-options" class="model-options" role="radiogroup" aria-labelledby="separation-title"></div>
         </section>
+        <section class="settings-card" aria-labelledby="plugins-title">
+          <div class="section-heading">
+            <h2 id="plugins-title">Plugins</h2>
+            <button id="open-store" class="quiet-button" type="button">Open the store</button>
+          </div>
+          <p id="plugins-summary" class="empty-state">Extra features you turn on when you need them.</p>
+        </section>
         <section class="settings-card" aria-labelledby="disk-title">
           <div class="section-heading">
             <h2 id="disk-title">Disk space</h2>
@@ -159,6 +170,17 @@
           <button id="close-help" class="icon-button" type="button" aria-label="Close help" title="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
         </div>
         <dl id="hotkey-list" class="hotkey-list"></dl>
+      </section>
+    </div>
+
+    <div id="store-overlay" class="search-overlay store-overlay" hidden>
+      <section class="search-dialog store-dialog" role="dialog" aria-modal="true" aria-labelledby="store-title">
+        <div class="search-dialog-heading">
+          <h1 id="store-title">Plugin store</h1>
+          <button id="close-store" class="icon-button" type="button" aria-label="Close the store" title="Close"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+        </div>
+        <p class="field-hint store-note">Plugins come only from this store and are made for Audio Stems. A plugin is on for every project; it changes only what you see and hear, never your files.</p>
+        <div id="store-list" class="store-list"></div>
       </section>
     </div>
 

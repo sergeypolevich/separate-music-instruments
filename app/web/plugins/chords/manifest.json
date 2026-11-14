@@ -1,0 +1,9 @@
+{
+  "id": "chords",
+  "order": 5,
+  "name": "Chords",
+  "description": "Finds the song's chords in the background and shows their names over the waveforms. A click on a name corrects it.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["analysis"]
+}

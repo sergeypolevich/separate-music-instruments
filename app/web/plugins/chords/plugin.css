@@ -1,0 +1,8 @@
+/* The names on top of the first waveform, at the start of each chord. */
+.chord-layer { position: absolute; inset: 0; }
+.chord-layer[hidden] { display: none; }
+.chord-label { position: absolute; top: 2px; padding: 0 4px; border-left: 1px solid var(--accent); border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--panel) 82%, transparent);
+  color: var(--text); font-size: 11px; font-weight: 650; line-height: 16px; white-space: nowrap; cursor: text; pointer-events: auto; }
+.chord-label[contenteditable="plaintext-only"], .chord-label[contenteditable="true"] { z-index: 1; outline: 1px solid var(--accent); min-width: 2ch; }
+.footer-toggle.chords-toggle { min-width: 0; }
+.chords-toggle[data-analyzing] { background: linear-gradient(to right, color-mix(in srgb, var(--accent) 22%, transparent) var(--job-progress, 0%), transparent var(--job-progress, 0%)); }
