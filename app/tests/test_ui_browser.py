@@ -353,6 +353,13 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 window.AudioContext = class extends C { constructor(...a) { super(...a); window.__contexts.push(this); } }; })()""")
             errors = []
             page.on("pageerror", lambda error: errors.append(str(error)))
+
+            def navigate(go):
+                """WebKit reports a poll cut off by leaving the page as an access-control page error; only those, and
+                only while leaving, are not the page's errors."""
+                before = len(errors)
+                go()
+                errors[before:] = [e for e in errors[before:] if "due to access control checks" not in e]
             page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
             page.locator(".mixer-row").first.wait_for()
             # The player runs at the stems' own 44.1 kHz: at the device's rate Chrome resamples every stem on its own.
@@ -1124,7 +1131,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.locator("#accent-hue").evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             other_accent = page.evaluate(swatch)
             assert other_accent != default_accent
-            page.reload(wait_until="load")
+            navigate(lambda: page.reload(wait_until="load"))
             assert page.evaluate("document.documentElement.dataset.theme") == "light"
             assert page.evaluate(swatch) == other_accent and page.locator("#accent-hue").input_value() == "100"
             page.wait_for_function("document.querySelectorAll('#model-options input').length === 2")
@@ -1412,7 +1419,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert uploaded[-1][:2] == ("dropped.flac", b"fLaC")
             # ?engine=decoded (the iPhone trial): the decoded stems through the stretch engine at 100 % too; the
             # note says how long preparing took; pause and play keep the position; the streams stay silent.
-            page.goto(f"http://127.0.0.1:{server.server_port}/?engine=decoded", wait_until="load")
+            navigate(lambda: page.goto(f"http://127.0.0.1:{server.server_port}/?engine=decoded", wait_until="load"))
             page.wait_for_function("document.querySelector('.decoded-note')?.textContent.startsWith('Decoded mode: ready in')", timeout=30000)
             assert page.evaluate("document.querySelector('.footer-speed').dataset.engine") == "stretch"
             assert page.locator('[data-control="speed"]').input_value() == "100"
