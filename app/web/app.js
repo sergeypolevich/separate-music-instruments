@@ -2518,6 +2518,12 @@ function guarded(id, callback) {
 
 function pluginContext(id, permissions, host) {
   const undo = [];
+  const restored = new Set();  // what the plugin changed in the player, put back once when it stops
+  const restoreOnStop = (key, step) => {
+    if (restored.has(key)) return;
+    restored.add(key);
+    undo.push(step);
+  };
   const listen = (listeners, callback) => {
     const wrapped = guarded(id, callback);
     listeners.add(wrapped);
@@ -2538,7 +2544,7 @@ function pluginContext(id, permissions, host) {
     get current() { return host.current(); },
     seek: (seconds) => host.seek(seconds),
     setView: (view) => {
-      undo.push(() => host.setView(null));
+      restoreOnStop("view", () => host.setView(null));
       host.setView(view);
     },
     onView: (callback) => listen(host.viewListeners, callback),
@@ -2567,7 +2573,7 @@ function pluginContext(id, permissions, host) {
     Object.assign(ctx, {
       range: () => host.range(),
       setRange: (range) => {
-        undo.push(() => host.setRange(null));
+        restoreOnStop("range", () => host.setRange(null));
         host.setRange(range);
       },
       dropLoop: () => host.dropLoop(),
@@ -2577,7 +2583,7 @@ function pluginContext(id, permissions, host) {
     Object.assign(ctx, {
       audioContext: host.audioContext,
       setEffect: (index, chain) => {
-        undo.push(() => host.setEffect(index, null));  // a removed plugin leaves the sound as it was
+        restoreOnStop(`effect ${index}`, () => host.setEffect(index, null));  // a removed plugin leaves the sound as it was
         host.setEffect(index, chain);
       },
     });

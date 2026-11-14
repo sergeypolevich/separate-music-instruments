@@ -947,12 +947,12 @@ def create_app(
         on the first start the browser's language when its translation ships, else English."""
         offered = i18n.offered(web_root)
         code = i18n.choose(request.cookies.get(i18n.COOKIE), request.headers.get("accept-language", ""), offered)
-        # Plugins run in this page (version 22): it may talk only to the app itself (both loopback names, which
-        # the stems use), so no plugin can send anything out.
-        loopback = " ".join(f"http://{host}:{settings.api_port}" for host in ("127.0.0.1", "localhost"))
+        # Plugins run in this page (version 22): it may load from and talk to the app itself only (both loopback
+        # names, which the stems use), so a plugin cannot send anything out by a request, an image or a form.
+        app_only = "'self' " + " ".join(f"http://{host}:{settings.api_port}" for host in ("127.0.0.1", "localhost"))
         return HTMLResponse(i18n.page(code, web_root), headers={
             "Cache-Control": "no-cache", "Vary": "Cookie, Accept-Language",
-            "Content-Security-Policy": f"connect-src 'self' {loopback}"})
+            "Content-Security-Policy": f"connect-src {app_only}; img-src 'self' data:; media-src {app_only} blob:; form-action 'self'"})
 
     app.mount("/", _UiFiles(directory=web_root, html=True), name="web")
 

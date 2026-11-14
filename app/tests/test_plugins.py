@@ -91,7 +91,8 @@ def test_plugin_data_goes_with_the_project(tmp_path):
 def test_the_page_may_talk_only_to_the_app(tmp_path):
     call, _repository, _storage, _queued, settings = _app(tmp_path)
     policy = call("GET", "/").headers["content-security-policy"]
-    assert policy == f"connect-src 'self' http://127.0.0.1:{settings.api_port} http://localhost:{settings.api_port}"
+    app_only = f"'self' http://127.0.0.1:{settings.api_port} http://localhost:{settings.api_port}"
+    assert policy == f"connect-src {app_only}; img-src 'self' data:; media-src {app_only} blob:; form-action 'self'"
     assert call("GET", "/plugins/eq/plugin.mjs").status_code == 200  # the modules are page files
 
 
