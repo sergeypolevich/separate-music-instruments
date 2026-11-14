@@ -71,7 +71,7 @@ Shared infrastructure: database, local/object storage, structured logs
 
 ### Module responsibilities
 
-Code lives in the `app/audio_stems/` package; the responsibilities below map to these modules: `models` (shared data models and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, and `desktop` (local supervisor). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
+Code lives in the `app/audio_stems/` package; the responsibilities below map to these modules: `models` (shared data models and the `sources` input normalizer), `youtube` (downloader), `separator` (Demucs), `pipeline` (jobs orchestration and the worker loop), `storage`, `db` (metadata and `migrations/`), `config` (settings and observability/logging), `api` (routes and waveform peaks), `updates`, `desktop` (local supervisor), `plugins` (the plugin store, version 22; plugins themselves are page modules in `app/web/plugins/`, see `app/docs/PLUGINS.md`) and `chords` (chord detection, run by the analysis process). `run.py` at the project root is the bootstrap launcher. Auth is not implemented yet (single local owner).
 
 - `sources`: normalizes search-query and direct-URL submissions. It must not download audio itself.
 - `downloader`: searches source candidates and downloads audio. It must not know about web pages, browser extensions, user sessions, or stem models.

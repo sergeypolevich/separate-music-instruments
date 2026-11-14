@@ -22,6 +22,9 @@ Ihre eigene Audiodatei oder ziehen Sie sie ins Fenster; einen Song können Sie a
   - die Stille am Anfang wird übersprungen.
 - **Bewahrt Ihre Projekte auf**: Songs und Spuren bleiben auf der Festplatte; die Einstellungen zeigen, wie viel
   Platz sie belegen, und haben Knöpfe, um ihn freizugeben.
+- **Plugins** aus dem eigenen Store der App, wenn Sie mehr brauchen: Zoom der Wellenformen mit dem Mausrad, ein
+  Taktraster, Anfang oder Ende abschneiden, ein Equalizer für jede Spur und die Akkorde des Songs. Sie ändern nur,
+  was Sie sehen und hören, nie Ihre Dateien.
 
 Alles läuft auf Ihrem Computer; Ihre Musik verlässt ihn nicht. Die Oberfläche gibt es auf Englisch und in 19 weiteren Sprachen, darunter Deutsch; die Sprache wählen Sie unter Einstellungen → Darstellung → Sprache.
 

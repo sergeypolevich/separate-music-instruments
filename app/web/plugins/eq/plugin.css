@@ -9,6 +9,10 @@
 .eq-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .eq-readout { color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
 @media (max-width: 600px) {
-  .mixer-toggle.eq-toggle { width: 25px; font-size: 9px; }
+  /* Three buttons and the stem's letter fit the phone's narrow column: the stem's icon gives way, the letter stays. */
+  .mixer-heading:has(.eq-toggle) .mixer-name .icon { display: none; }
+  .mixer-heading:has(.eq-toggle) .mixer-switches { gap: 4px; }
+  .mixer-heading:has(.eq-toggle) .mixer-toggle { width: 23px; }
+  .mixer-toggle.eq-toggle { font-size: 9px; }
   .eq-graph { height: 200px; }
 }

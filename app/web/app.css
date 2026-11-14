@@ -464,4 +464,5 @@ button[aria-busy="true"] { cursor: progress; }
 .store-error { margin: 0; color: var(--danger-text); font-size: 12px; }
 .store-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
 .store-actions .primary-button { min-height: 34px; }
+.store-actions .danger-quiet { margin-top: 0; }
 .plugin-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }

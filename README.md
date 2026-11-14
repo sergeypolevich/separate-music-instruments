@@ -21,6 +21,9 @@ window; you can also find a song on YouTube.
   - the silence at the start is skipped.
 - **Keeps your projects**: songs and tracks stay on your disk, and the settings show how much space they take,
   with buttons to free it.
+- **Plugins** from the app's own store, when you need more: zoom the waveforms with the wheel, a beat grid, trim
+  the start or the end, an equalizer for every track, and the song's chords. They change only what you see and
+  hear, never your files.
 
 Everything runs on your computer; your music never leaves it. The interface is in English and 19 more languages; pick one in Settings → Appearance → Language.
 
