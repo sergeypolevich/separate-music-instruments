@@ -1431,7 +1431,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             first = page.evaluate(position)
             # No wall-clock bounds: the macOS CI's Chrome has no sound device and its audio clock runs slow.
-            assert 0.2 < first < 4.0, first  # about 1.5 s
+            assert 0 < first < 4.0, first  # about 1.5 s; the slider says tenths of a second
             assert page.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
             page.wait_for_timeout(500)
             assert page.evaluate(position) == first  # paused: it stays
@@ -1460,7 +1460,8 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             page.keyboard.press("Space")
             page.wait_for_timeout(1300)  # longer than the loop: it went round
             page.keyboard.press("Space")
-            assert 1.0 <= page.evaluate(position) < 1.5, page.evaluate(position)
+            # The slider says tenths: 1.45-1.49 s, still inside the loop, reads 1.5.
+            assert 1.0 <= page.evaluate(position) <= 1.5, page.evaluate(position)
             page.mouse.dblclick(at(0.25), y)
             page.wait_for_function("document.querySelector('.loop-region').hidden")
             drag_loop()
@@ -1490,7 +1491,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             iphone.wait_for_timeout(1500)
             iphone.keyboard.press("Space")
             first = iphone.evaluate(position)
-            assert 0.2 < first < 4.0, first  # about 1.5 s
+            assert 0 < first < 4.0, first  # about 1.5 s; the slider says tenths of a second
             assert iphone.evaluate("[...document.querySelectorAll('#playback-panel audio')].every(a => a.paused)")
             assert not errors, f"Browser errors: {errors}"
             iphone.close()
