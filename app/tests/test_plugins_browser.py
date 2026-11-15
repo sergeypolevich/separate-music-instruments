@@ -159,12 +159,23 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             box = page.locator(".playhead-layer").bounding_box()
             page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 20)
             page.mouse.wheel(0, -600)
-            page.wait_for_function("Number(document.querySelector('.waveform-preview').getAttribute('viewBox').split(' ')[2]) < 1000")
-            assert float(svg.get_attribute("viewBox").split(" ")[2]) == pytest.approx(3 / 5 * 1024, rel=0.02)  # 3 s of 5
+            # The waveform is the whole song at the zoom's width, moved into place; it is not drawn again per view.
+            widen = "document.querySelector('.waveform-preview').getBoundingClientRect().width / document.querySelector('.mixer-waveform').clientWidth"
+            page.wait_for_function(f"{widen} > 1.1")
+            assert page.evaluate(widen) == pytest.approx(5 / 3, rel=0.02)  # 3 s of 5
+            assert svg.get_attribute("viewBox") == "0 0 1024 100"
+            shifted = page.evaluate("""(() => { const s = document.querySelector('.waveform-preview').getBoundingClientRect();
+              const c = document.querySelector('.mixer-waveform').getBoundingClientRect(); return (c.left - s.left) / s.width; })()""")
+            assert shifted == pytest.approx(1 / 5, abs=0.01)  # the view starts at 1 s: zoomed around the middle (2.5 s)
+            # The grid moves with the waveforms: the bar line at 2 s stands a third into the 1-4 s view.
+            page.wait_for_function("document.querySelectorAll('.beat-line.strong').length === 3")
+            bar = page.evaluate("""(() => { const c = document.querySelector('.mixer-waveform').getBoundingClientRect();
+              const line = document.querySelectorAll('.beat-line.strong')[1].getBoundingClientRect(); return (line.left - c.left) / c.width; })()""")
+            assert bar == pytest.approx(1 / 3, abs=0.01)
             assert page.evaluate("window.scrollY") == 0
             assert any("points=8192" in request for request in state["requests"])
             page.mouse.wheel(0, 2000)  # back out: the whole song
-            page.wait_for_function("document.querySelector('.waveform-preview').getAttribute('viewBox').split(' ')[2] === '1024'")
+            page.wait_for_function("document.querySelector('.waveform-preview').style.width === '' && document.querySelector('.waveform-preview').style.transform === ''")
 
             # Trim: cut the start at the playhead (2 s); the bounds are saved and playback stays inside them.
             page.evaluate("activeTransport.seek(2)")
@@ -219,6 +230,18 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.keyboard.press("Enter")
             page.wait_for_function("document.querySelectorAll('.chord-label')[1].textContent === 'Dm'")
             assert state["data"]["chords"] == {"edits": {"2.000": "Dm"}}
+            # Zoomed in to 1-4 s the names move with the waveforms; C, already playing, keeps its name at the left edge.
+            page.mouse.move(waves["x"] + waves["width"] / 2, waves["y"] + 20)
+            page.mouse.wheel(0, -600)
+            page.wait_for_function("document.querySelector('.chord-current')?.textContent === 'C'")
+            edge = page.evaluate("""(() => { const lane = document.querySelector('.chord-layer').getBoundingClientRect();
+              const at = (el) => (el.getBoundingClientRect().left - lane.left) / lane.width;
+              return [at(document.querySelector('.chord-current')), at(document.querySelector('.chord-track [data-start="2.000"]')),
+                getComputedStyle(document.querySelector('.chord-track [data-start="0.000"]')).visibility]; })()""")
+            assert edge[0] == pytest.approx(0, abs=0.005) and edge[1] == pytest.approx(1 / 3, abs=0.01) and edge[2] == "hidden"
+            page.mouse.wheel(0, 2000)
+            page.wait_for_function("!document.querySelector('.chord-current')")
+            assert page.locator(".chord-label").all_text_contents() == ["C", "Dm"]
 
             # A broken plugin is turned off at once, its error under ⚠ and on its card; the others keep working.
             page.locator('a[data-screen="settings"]').click()

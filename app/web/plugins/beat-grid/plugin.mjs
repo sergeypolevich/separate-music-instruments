@@ -26,15 +26,28 @@ export function project(ctx) {
   const layer = ctx.add(ctx.overlay, document.createElement("div"));
   layer.className = "beat-grid";
   ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/beat-grid/plugin.css" }));
+  // The lines are drawn once per zoom over the whole song and only moved as the view moves (it follows the playhead).
+  const track = layer.appendChild(document.createElement("div"));
+  track.className = "beat-track";
   let found = null;
+  let drawn = "";  // the zoom and width the lines are drawn for
   const draw = () => {
     if (!found || !ctx.current) return;
-    layer.replaceChildren(...gridLines(found.beats || [], found.downbeats || [], ctx.view, layer.clientWidth).map(({ x, strong }) => {
-      const line = document.createElement("span");
-      line.className = strong ? "beat-line strong" : "beat-line";
-      line.style.left = `${(x * 100).toFixed(3)}%`;
-      return line;
-    }));
+    const view = ctx.view, whole = ctx.duration, width = layer.clientWidth;
+    const span = view.end - view.start;
+    if (!(whole > 0 && span > 0)) return;
+    const zoom = `${span.toFixed(6)} ${width}`;
+    if (zoom !== drawn) {
+      drawn = zoom;
+      track.style.width = `${(whole / span) * 100}%`;
+      track.replaceChildren(...gridLines(found.beats || [], found.downbeats || [], { start: 0, end: whole }, (width * whole) / span).map(({ x, strong }) => {
+        const line = document.createElement("span");
+        line.className = strong ? "beat-line strong" : "beat-line";
+        line.style.left = `${(x * 100).toFixed(4)}%`;
+        return line;
+      }));
+    }
+    track.style.transform = `translateX(${(-view.start / whole) * 100}%)`;
   };
   ctx.onView(draw);
   const resize = new ResizeObserver(() => draw());

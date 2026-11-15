@@ -63,20 +63,62 @@ export function project(ctx) {
     else label.textContent = ctx.t("Find chords");
     button.setAttribute("aria-pressed", String(Boolean(found) && shown));
   };
+  // The names are drawn once per zoom over the whole song and only moved as the view moves (it follows the
+  // playhead); the chord already playing at the view's left edge keeps its name there until the next one comes.
+  const track = layer.appendChild(document.createElement("div"));
+  track.className = "chord-track";
+  const current = Object.assign(document.createElement("span"), { className: "chord-label chord-current" });
+  let drawn = "";  // the zoom and width the names are drawn for
+  let chords = [];
+  let labels = [];
+  let covered = null;  // the name under the left edge's copy
   const draw = () => {
     if (!ctx.current || editing) return;
     layer.hidden = !found || !shown;
-    if (layer.hidden) return;
-    layer.replaceChildren(...visibleLabels(applyEdits(found, edits), ctx.view, layer.clientWidth, widthOf).map((chord) => {
-      const item = document.createElement("span");
-      item.className = "chord-label";
-      item.dataset.start = key(chord.start);
-      item.style.left = `${(chord.x * 100).toFixed(3)}%`;
-      item.textContent = chord.chord;
-      item.title = ctx.t("Click to correct the chord");
-      return item;
-    }));
+    const view = ctx.view, whole = ctx.duration, width = layer.clientWidth;
+    const span = view.end - view.start;
+    if (layer.hidden || !(whole > 0 && span > 0 && width > 0)) {
+      drawn = "";
+      return;
+    }
+    const zoom = `${span.toFixed(6)} ${width}`;
+    if (zoom !== drawn) {
+      drawn = zoom;
+      covered = null;
+      chords = applyEdits(found, edits);
+      labels = visibleLabels(chords, { start: 0, end: whole }, (width * whole) / span, widthOf);
+      track.style.width = `${(whole / span) * 100}%`;
+      track.replaceChildren(...labels.map((chord) => {
+        const item = document.createElement("span");
+        item.className = "chord-label";
+        item.dataset.start = key(chord.start);
+        item.style.left = `${(chord.x * 100).toFixed(4)}%`;
+        item.textContent = chord.chord;
+        item.title = ctx.t("Click to correct the chord");
+        chord.element = item;
+        return item;
+      }));
+    }
+    track.style.transform = `translateX(${(-view.start / whole) * 100}%)`;
+    const now = chords.find((chord) => chord.start < view.start && chord.end > view.start);
+    const next = labels.find((chord) => chord.start > view.start);
+    const keep = now && (!next || ((next.start - view.start) / span) * width >= widthOf(now.chord) + LABEL_SPACE);
+    if (keep) {
+      if (current.dataset.start !== key(now.start) || current.textContent !== now.chord) {
+        current.dataset.start = key(now.start);
+        current.textContent = now.chord;
+        current.title = ctx.t("Click to correct the chord");
+      }
+      if (!current.isConnected) layer.append(current);
+    } else current.remove();
+    const under = keep ? labels.find((chord) => chord.start === now.start)?.element || null : null;
+    if (under !== covered) {
+      covered?.style.removeProperty("visibility");
+      under?.style.setProperty("visibility", "hidden");
+      covered = under;
+    }
   };
+  const redraw = () => { drawn = ""; draw(); };
   const save = () => ctx.saveData({ edits });
 
   // A click on a name edits it in place.
@@ -99,7 +141,7 @@ export function project(ctx) {
         edits[item.dataset.start] = text;
         save();
       }
-      draw();
+      redraw();
     };
     const keys = (key) => {
       key.stopPropagation();  // the player's hotkeys wait
@@ -115,7 +157,7 @@ export function project(ctx) {
     if (found) {
       shown = !shown;
       name();
-      draw();
+      redraw();
       return;
     }
     button.disabled = true;
@@ -135,7 +177,7 @@ export function project(ctx) {
       button.style.removeProperty("--job-progress");
     }
     name();
-    draw();
+    redraw();
   });
   ctx.onView(draw);
   const resize = new ResizeObserver(() => draw());
@@ -146,7 +188,7 @@ export function project(ctx) {
     edits = saved.edits && typeof saved.edits === "object" ? saved.edits : {};
     if (state.status === "done" && state.result) found = state.result.chords;
     name();
-    draw();
+    redraw();
     return () => resize.disconnect();
   });
 }

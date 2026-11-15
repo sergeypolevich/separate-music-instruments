@@ -381,7 +381,8 @@ Plan: `~/.claude/plans/version-22.md` (plan item 46). Made while the user was aw
   - trim icons drawn for it (a track, the cut, scissors on the side cut off, that part hatched); the plugins' buttons in a row under the footer (`addFooter`);
   - the project title only as wide as its name: a click beside it no longer starts renaming;
   - Russian plugin texts translated by hand (the service's admin API is behind Cloudflare Access); the other languages wait for the AI quota.
-- **Not done:** plugin texts in the other languages (the AI quota); a real song's chords were not checked by ear (the screenshot song is synthetic); following was measured only on a 10-second song.
+- **Following without drawing every frame (2026-11-15):** a zoomed waveform is the whole song at the zoom's width, moved with `transform` (`drawView`); the beat grid and the chord names are drawn once per zoom over the whole song and moved the same way, the chord already playing keeping its name at the left edge (`.chord-current`). Measured on the user's 6:25 song (a copy, headless Edge, 1365 px): the first draw of a 145 000 px wide SVG at a 3 s view costs nothing seen (longest frame 23 ms, 1-3 % of a core, no memory growth) because the browser draws only the tiles in view; following at a 4x slower CPU went from 112-181 to 4-38 frames over 25 ms in 6 s. The detailed peaks (8192) stay: compared on the same song, the first 1024 merge drum hits into blobs from a 90 s view in. Scripts in the session scratchpad (`bench_long.py`, `bench_chords.py`, `detail_compare.py`), not in the suite: such timings differ per machine.
+- **Not done:** plugin texts in the other languages (the AI quota); a real song's chords were not checked by ear (the screenshot song is synthetic); following was measured only in headless Edge (not on a real screen or a phone).
 
 ## Version 21 — English app and instant translations
 

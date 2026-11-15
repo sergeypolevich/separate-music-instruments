@@ -1,6 +1,9 @@
 /* A row over the stems, the names at the start of each chord. */
 .chord-layer { position: relative; height: 18px; overflow: hidden; }
 .chord-layer[hidden] { display: none; }
+/* The whole song's names, as wide as the zoom makes the song, moved under the view. */
+.chord-track { position: absolute; top: 0; bottom: 0; left: 0; will-change: transform; }
+.chord-current { left: 0; z-index: 1; }
 .chord-label { position: absolute; top: 1px; padding: 0 1px; border-left: 1px solid var(--accent); border-radius: 0 4px 4px 0; background: color-mix(in srgb, var(--panel) 82%, transparent);
   color: var(--text); font-size: 11px; font-weight: 650; line-height: 16px; white-space: nowrap; cursor: text; pointer-events: auto; }
 .chord-label[contenteditable="plaintext-only"], .chord-label[contenteditable="true"] { z-index: 1; outline: 1px solid var(--accent); min-width: 2ch; }

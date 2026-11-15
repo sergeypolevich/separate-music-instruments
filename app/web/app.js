@@ -1185,11 +1185,19 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (!view) return outer;
       return { start: Math.max(outer.start, view.start), end: Math.min(outer.end, view.end) };
     };
+    let waveWidth = "";
     const drawView = () => {
       const { start, end } = visible();
       if (duration > 0 && end > start) {
-        const box = `${(start / duration) * 1024} 0 ${((end - start) / duration) * 1024} 100`;
-        waveSvgs.forEach((svg) => svg.setAttribute("viewBox", box));
+        // The waveforms are the whole song, as wide as the zoom makes it, and only moved: a view that follows the
+        // playhead moves a ready picture instead of drawing the waveforms again every frame.
+        const width = end - start < duration ? `${(duration / (end - start)) * 100}%` : "";
+        const shift = start > 0 ? `translateX(${(-start / duration) * 100}%)` : "";
+        waveSvgs.forEach((svg) => {
+          if (width !== waveWidth) svg.style.width = width;
+          svg.style.transform = shift;
+        });
+        waveWidth = width;
       }
       showLoop(transport.loop);
       updateTime(transport.currentTime, transport.playing, transport.rate);
