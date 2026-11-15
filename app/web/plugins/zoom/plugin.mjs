@@ -1,8 +1,10 @@
 // Wheel zoom: the wheel (or a trackpad pinch, or two fingers on a phone) zooms the waveforms around the pointer;
-// Shift + wheel, a sideways swipe or two fingers moving sideways move the view. While playing, the view turns a page
-// when the playhead leaves it; a zoom or a move by hand stops that until playback starts again.
+// Shift + wheel, a sideways swipe or two fingers moving sideways move the view. While playing, once the playhead
+// reaches the view's right edge the view moves with it, the playhead LEAD of the view from the left (at the song's
+// ends the view stays and the playhead runs on); a zoom or a move by hand stops that until playback starts again.
 
 export const MIN_SECONDS = 3;  // the shortest view
+export const LEAD = 0.1;  // while followed, the playhead's place in the view
 
 const clampView = (start, length, bounds) => {
   const from = Math.min(Math.max(bounds.start, start), bounds.end - length);
@@ -19,16 +21,20 @@ export function zoomAround(view, bounds, anchor, factor) {
 
 export const panBy = (view, bounds, seconds) => clampView(view.start + seconds, view.end - view.start, bounds);
 
-// While playing: the next page when the playhead has left the view (it starts at the view's left edge).
-export function followPlayhead(view, bounds, position) {
-  if (position >= view.start && position <= view.end) return null;
-  return clampView(position, view.end - view.start, bounds);
+// While playing: the view that keeps the playhead LEAD from its left edge, once `held` (the playhead has reached
+// the right edge or left the view); null while the playhead moves inside the view on its own.
+export function followPlayhead(view, bounds, position, held) {
+  const length = view.end - view.start;
+  if (!held && position >= view.start && position < view.end) return null;
+  return clampView(position - LEAD * length, length, bounds);
 }
 
 export function project(ctx) {
   const timeline = ctx.timeline;
   let detailed = false;
   let following = true;
+  let held = false;  // the view moves with the playhead
+  let last = 0;
   let wasPlaying = false;
   const whole = () => {
     const view = ctx.view, bounds = ctx.bounds;
@@ -87,9 +93,13 @@ export function project(ctx) {
 
   ctx.onTime((position, playing) => {
     if (playing && !wasPlaying) following = true;  // ▶ follows again
+    if (!playing || Math.abs(position - last) > 1) held = false;  // a seek: the playhead is free in the view again
     wasPlaying = playing;
+    last = position;
     if (!playing || !following || whole()) return;
-    const next = followPlayhead(ctx.view, ctx.bounds, position);
-    if (next) ctx.setView(next);
+    const next = followPlayhead(ctx.view, ctx.bounds, position, held);
+    if (!next) return;
+    held = true;
+    if (Math.abs(next.start - ctx.view.start) > 1e-4) ctx.setView(next);
   });
 }

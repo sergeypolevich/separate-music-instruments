@@ -48,7 +48,7 @@ API route), not to a plugin.
 project is open. It may return a cleanup function, or a promise of one. When the project closes or the plugin is
 turned off, the app calls the cleanup and then undoes what the plugin added through `ctx`:
 
-- elements added with `ctx.add`, `ctx.addFooter` and `ctx.addStemControl`;
+- elements added with `ctx.add`, `ctx.addFooter`, `ctx.addLane` and `ctx.addStemControl`;
 - listeners registered with `ctx.on`, `ctx.onTime` and `ctx.onView`;
 - the view, the play range and every stem effect it set.
 
@@ -69,12 +69,13 @@ should be caught by the plugin and shown on its own button.
 | `bounds` | `{start, end}` a view may cover: the play range, else the whole song |
 | `setView(view or null)` | Shows `view`; `null` shows the whole song |
 | `onView(callback(view))` | After every change of the view, also when the length becomes known |
-| `onTime(callback(position, playing))` | On every frame while playing, and after every seek |
+| `onTime(callback(position, playing))` | On every frame while playing, and after every seek; the position is the drawn playhead's (smooth between the player's readings) |
 | `timeline` | The element over the waveforms that takes the clicks (seek, loop): for wheel or touch gestures |
 | `overlay` | A layer over all waveforms, under the loop and the playhead, `pointer-events: none` (set `auto` on your own elements) |
 | `waves` | The grid of stem rows |
 | `add(parent, element)` | Appends a plugin element, removed when the plugin stops |
-| `addFooter(element)` | Into the footer under the stems (metronome, speed…) |
+| `addFooter(element)` | Into the plugins' row under the footer (the metronome, quality and speed row stays the app's) |
+| `addLane(element)` | A row over the stems, exactly as wide as the waveforms (give it a height); hidden while all its elements are `hidden` |
 | `addStemControl(index, element)` | Before the S and M buttons of a stem row |
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |

@@ -1,4 +1,5 @@
-/* Over every stem row, under the loop and the playhead. */
-.beat-grid { position: absolute; inset: 0; }
-.beat-line { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--text); opacity: .13; }
-.beat-line.strong { opacity: .38; }
+/* Over every stem row, under the loop and the playhead, and as tall as the playhead (the waveforms, not the rows' padding). */
+.beat-grid { position: absolute; inset: var(--row-pad) 0; }
+/* The accent at 70 % for the bar starts, the other beats half as strong. */
+.beat-line { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.beat-line.strong { background: color-mix(in srgb, var(--accent) 70%, transparent); }

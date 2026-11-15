@@ -11,9 +11,19 @@ export function trimmed(range, duration, side, position) {
   return end - start >= MIN_SECONDS ? { start: Math.max(0, start), end: Math.min(duration, end) } : null;
 }
 
+// A track with a cut in the middle and scissors on the side cut off; that part is hatched.
+const SCISSORS = '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M20 4 8.12 15.88"/><path d="M14.47 14.48 20 20"/><path d="M8.12 8.12 12 12"/>';
+const trimIcon = (side) => {
+  const cut = side === "start" ? 2 : 12;  // the hatched half
+  const scissors = side === "start" ? "translate(1 0) scale(.42)" : "translate(23 0) scale(-.42 .42)";
+  return `<defs><clipPath id="trim-cut-${side}"><rect x="${cut}" y="13" width="10" height="8"/></clipPath></defs>`
+    + `<g clip-path="url(#trim-cut-${side})" stroke-width="1"><path d="M0 23 6 11M4 23l6-12M8 23l6-12M12 23l6-12M16 23l6-12M20 23l6-12"/></g>`
+    + '<rect x="2" y="13" width="20" height="8" rx="1.5"/><path d="M12 10v14"/>'
+    + `<g transform="${scissors}" stroke-width="4">${SCISSORS}</g>`;
+};
 const ICONS = {
-  start: '<path d="M4 4v16"/><path d="M20 12H9"/><path d="m13 8-4 4 4 4"/>',
-  end: '<path d="M20 4v16"/><path d="M4 12h11"/><path d="m11 8 4 4-4 4"/>',
+  start: trimIcon("start"),
+  end: trimIcon("end"),
   restore: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
 };
 

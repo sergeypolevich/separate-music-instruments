@@ -6,7 +6,7 @@ import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/z
 import { gridLines, WEAK_GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
-import { applyEdits, visibleLabels, LABEL_GAP } from "../web/plugins/chords/plugin.mjs";
+import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 
@@ -21,11 +21,14 @@ test("zoom keeps the time under the pointer and stays inside the song", () => {
   assert.deepEqual(panBy({ start: 10, end: 20 }, { start: 5, end: 60 }, -30), { start: 5, end: 15 });  // and at a trim
 });
 
-test("zoom turns a page when the playhead leaves the view", () => {
+test("zoom follows the playhead from the right edge on, 10 % from the left, and stops at the song's ends", () => {
   const bounds = { start: 0, end: 100 };
-  assert.equal(followPlayhead({ start: 10, end: 20 }, bounds, 15), null);
-  assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 20.5), { start: 20.5, end: 30.5 });
-  assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 95), { start: 90, end: 100 });
+  assert.equal(followPlayhead({ start: 10, end: 20 }, bounds, 15, false), null);  // free inside the view
+  assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 20, false), { start: 19, end: 29 });  // the right edge
+  assert.deepEqual(followPlayhead({ start: 19, end: 29 }, bounds, 22, true), { start: 21, end: 31 });  // then with it
+  assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 50, false), { start: 49, end: 59 });  // left the view
+  assert.deepEqual(followPlayhead({ start: 89, end: 99 }, bounds, 95, true), { start: 90, end: 100 });  // the end
+  assert.deepEqual(followPlayhead({ start: 0, end: 10 }, bounds, 0.5, true), { start: 0, end: 10 });  // the start
 });
 
 test("the grid shows the pale beats only when there is room for them", () => {
@@ -54,20 +57,23 @@ test("EQ bands: graph scales, flatness, saved bands checked", () => {
   close(gainOfY(yOfGain(6.5)), 6.5);
   assert.equal(gainOfY(-1), 18);
   assert.ok(flat(defaultBands()));
-  const bands = readBands([{ frequency: 50, gain: 30, q: 0 }, {}, { frequency: "x" }, { gain: -3 }]);
-  assert.deepEqual(bands.map((band) => band.type), ["lowshelf", "peaking", "peaking", "highshelf"]);
-  assert.deepEqual([bands[0].frequency, bands[0].gain, bands[0].q], [50, 18, 0.2]);
-  assert.equal(bands[2].frequency, 2500);
+  assert.deepEqual(defaultBands().map((band) => band.frequency), [50, 200, 800, 2600, 8000]);
+  const bands = readBands([{ frequency: 60, gain: 30, q: 0 }, {}, { frequency: "x" }, {}, { gain: -3 }]);
+  assert.deepEqual(bands.map((band) => band.type), ["lowshelf", "peaking", "peaking", "peaking", "highshelf"]);
+  assert.deepEqual([bands[0].frequency, bands[0].gain, bands[0].q], [60, 18, 0.2]);
+  assert.equal(bands[2].frequency, 800);
+  assert.deepEqual(readBands([{}, {}, {}, { gain: 3 }]), defaultBands());  // four bands (before five): the default
   assert.ok(!flat(bands));
   assert.deepEqual(readBands("nonsense"), defaultBands());
 });
 
-test("chords: edits by start time, names that fit", () => {
+test("chords: edits by start time, a name hidden only when the next chord's line would cover it", () => {
   const found = [{ start: 0, end: 2, chord: "C" }, { start: 2, end: 2.2, chord: "G" }, { start: 2.2, end: 4, chord: "Am" }];
   assert.deepEqual(applyEdits(found, { "2.000": "", "2.200": "A7" }).map((c) => c.chord), ["C", "A7"]);
-  const wide = visibleLabels(found, { start: 0, end: 4 }, 400);  // 100 px per second
-  assert.deepEqual(wide.map((c) => c.chord), ["C", "G"]);  // Am is 20 px after G
-  const zoomed = visibleLabels(found, { start: 1.9, end: 2.5 }, 600);
+  const wide = visibleLabels(found, { start: 0, end: 4 }, 400, () => 30);  // 100 px per second, names 30 px wide
+  assert.deepEqual(wide.map((c) => c.chord), ["C", "G"]);  // Am starts 20 px after G: on G's name
+  assert.deepEqual(visibleLabels(found, { start: 0, end: 4 }, 400, () => 15).map((c) => c.chord), ["C", "G", "Am"]);
+  const zoomed = visibleLabels(found, { start: 1.9, end: 2.5 }, 600, () => 30);
   assert.deepEqual(zoomed.map((c) => c.chord), ["C", "G", "Am"]);
-  assert.ok(zoomed[2].x * 600 - zoomed[1].x * 600 >= LABEL_GAP);
+  assert.ok(zoomed[2].x * 600 >= zoomed[1].x * 600 + 30 + LABEL_SPACE);
 });

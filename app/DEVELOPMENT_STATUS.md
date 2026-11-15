@@ -373,7 +373,15 @@ Plan: `~/.claude/plans/version-22.md` (plan item 46). Made while the user was aw
 - **Chords:** `audio_stems/chords.py` (chroma on the beats or half seconds, 24 triads + no chord, Viterbi with a change penalty; numpy only, ~0.7 s for 4 minutes), run by the analysis process as kind `chords` on the stems without vocals and drums; `GET|POST /api/v1/projects/{id}/chords`.
 - **Plugins:** zoom, beat-grid, trim, eq, chords (pure parts exported and tested in `tests/test_plugins.mjs`).
 - **Checks:** `tests/test_plugins.py` (store, install/off/error/remove, data limits and cascade, CSP, detailed peaks, chords on a synthetic progression and through the queue), `tests/test_plugins_browser.py` (store, all five plugins on a project, a broken plugin, removal), node 42 passed; the real app on a temporary data folder with every plugin, both themes, desktop and phone (`scratchpad/shots22`): no console errors; the phone's stem rows lost their icon to the EQ button and the store's buttons were misaligned, both fixed.
-- **Not done:** plugin texts are not translated yet (the AI quota); a real song's chords were not checked by ear (the screenshot song is synthetic).
+- **After the user's first look (2026-11-15):**
+  - the beat grid in the accent (bar starts 70 %, other beats 35 %); the grid's lines as tall as the playhead (from the first waveform's top to the last one's bottom);
+  - zoom follows the playhead smoothly from the right edge on, 10 % of the view left of it, still at the song's ends; plugins' `onTime` gets the drawn (smooth) position;
+  - chords in a row of their own over the stems (`ctx.addLane`), a name hidden only when the next chord's line falls on it (`LABEL_SPACE`, tuned on a trial page);
+  - EQ: five bands (50, 200, 800, 2600, 8000 Hz), an on/off switch in the heading (saved), dB on the scale, the values over the point while it changes;
+  - trim icons drawn for it (a track, the cut, scissors on the side cut off, that part hatched); the plugins' buttons in a row under the footer (`addFooter`);
+  - the project title only as wide as its name: a click beside it no longer starts renaming;
+  - Russian plugin texts translated by hand (the service's admin API is behind Cloudflare Access); the other languages wait for the AI quota.
+- **Not done:** plugin texts in the other languages (the AI quota); a real song's chords were not checked by ear (the screenshot song is synthetic); following was measured only on a 10-second song.
 
 ## Version 21 — English app and instant translations
 

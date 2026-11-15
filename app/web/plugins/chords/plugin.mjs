@@ -1,8 +1,9 @@
 // Chords: "Find chords" runs a background analysis of the stems without vocals and drums (the app's service; it
-// takes seconds); the chord names then show over the waveforms where each chord starts. A click on a name edits it
+// takes seconds); the chord names then show in a row over the stems where each chord starts (they come from all
+// the stems but vocals and drums, so they belong to none of them). A click on a name edits it
 // like the project title: Enter keeps it, Esc cancels, an empty name removes the chord. Edits are kept per project.
 
-export const LABEL_GAP = 34;  // pixels between two names shown; closer ones wait for a zoom
+export const LABEL_SPACE = 0;  // pixels a chord's line keeps from the name before it; closer names wait for a zoom
 
 const key = (start) => start.toFixed(3);
 
@@ -13,8 +14,9 @@ export function applyEdits(chords, edits = {}) {
     .filter((chord) => chord.chord);
 }
 
-// The chords whose name fits: in the view, at least LABEL_GAP pixels after the last one shown.
-export function visibleLabels(chords, view, width) {
+// The chords whose name fits: in the view, starting no sooner than LABEL_SPACE after the end of the last name shown
+// (widthOf: a name's width in pixels).
+export function visibleLabels(chords, view, width, widthOf) {
   const span = view.end - view.start;
   if (!(span > 0) || !(width > 0)) return [];
   const shown = [];
@@ -22,9 +24,9 @@ export function visibleLabels(chords, view, width) {
   for (const chord of chords) {
     if (chord.end <= view.start || chord.start >= view.end) continue;
     const x = Math.max(0, (chord.start - view.start) / span);
-    if (x * width - last < LABEL_GAP) continue;
+    if (x * width < last + LABEL_SPACE) continue;
     shown.push({ ...chord, x });
-    last = x * width;
+    last = x * width + widthOf(chord.chord);
   }
   return shown;
 }
@@ -33,8 +35,18 @@ const ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentC
 
 export function project(ctx) {
   ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/chords/plugin.css" }));
-  const layer = ctx.add(ctx.overlay, document.createElement("div"));
+  const layer = ctx.addLane(document.createElement("div"));
   layer.className = "chord-layer";
+  layer.hidden = true;  // no row until chords are found
+  const widths = new Map();  // a name's width on screen, measured once
+  const widthOf = (name) => {
+    if (!widths.has(name)) {
+      const probe = layer.appendChild(Object.assign(document.createElement("span"), { className: "chord-label", textContent: name }));
+      widths.set(name, probe.offsetWidth);
+      probe.remove();
+    }
+    return widths.get(name);
+  };
   const button = ctx.addFooter(document.createElement("button"));
   button.type = "button";
   button.className = "footer-toggle chords-toggle";
@@ -55,7 +67,7 @@ export function project(ctx) {
     if (!ctx.current || editing) return;
     layer.hidden = !found || !shown;
     if (layer.hidden) return;
-    layer.replaceChildren(...visibleLabels(applyEdits(found, edits), ctx.view, layer.clientWidth).map((chord) => {
+    layer.replaceChildren(...visibleLabels(applyEdits(found, edits), ctx.view, layer.clientWidth, widthOf).map((chord) => {
       const item = document.createElement("span");
       item.className = "chord-label";
       item.dataset.start = key(chord.start);
@@ -67,8 +79,7 @@ export function project(ctx) {
   };
   const save = () => ctx.saveData({ edits });
 
-  // A click on a name edits it in place; the click does not seek.
-  ctx.on(layer, "pointerdown", (event) => { if (event.target.closest(".chord-label")) event.stopPropagation(); });
+  // A click on a name edits it in place.
   ctx.on(layer, "click", (event) => {
     const item = event.target.closest(".chord-label");
     if (!item || editing) return;

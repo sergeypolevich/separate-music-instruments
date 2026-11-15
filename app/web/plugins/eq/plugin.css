@@ -4,10 +4,21 @@
 .eq-dialog::backdrop { background: var(--overlay); }
 .eq-card { display: grid; gap: 12px; padding: 18px; }
 .eq-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.eq-heading h2 { margin: 0; font: 650 17px Manrope, sans-serif; }
+.eq-heading h2 { margin: 0 auto 0 0; font: 650 17px Manrope, sans-serif; }
+/* The heading's on/off switch: before and after while listening. */
+.eq-switch { display: inline-flex; align-items: center; gap: 8px; color: var(--text-soft); font-size: 13px; cursor: pointer; }
+.eq-switch input { appearance: none; position: relative; width: 34px; height: 20px; margin: 0; border-radius: 10px; background: var(--line-strong); cursor: pointer; transition: background .15s; }
+.eq-switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: var(--panel); transition: transform .15s; }
+.eq-switch input:checked { background: var(--accent); }
+.eq-switch input:checked::after { transform: translateX(14px); }
+.eq-switch input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.eq-plot { position: relative; }
+.eq-tip { position: absolute; transform: translate(-50%, calc(-100% - 12px)); padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--panel); color: var(--text);
+  font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; pointer-events: none; }
+.eq-tip[data-below="true"] { transform: translate(-50%, 12px); }
+.eq-tip[hidden] { display: none; }
 .eq-graph { display: block; width: 100%; height: 260px; border-radius: 8px; background: var(--waveform-bg); cursor: pointer; touch-action: none; }
-.eq-footer { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-.eq-readout { color: var(--text-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+.eq-footer { display: flex; align-items: center; justify-content: flex-end; gap: 12px; }
 @media (max-width: 600px) {
   /* Three buttons and the stem's letter fit the phone's narrow column: the stem's icon gives way, the letter stays. */
   .mixer-heading:has(.eq-toggle) .mixer-name .icon { display: none; }

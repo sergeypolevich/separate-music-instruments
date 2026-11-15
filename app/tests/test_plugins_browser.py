@@ -146,6 +146,14 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             # Beat grid: strong lines on the bar starts, pale ones between (the wide view has room for every beat).
             page.wait_for_function("document.querySelectorAll('.beat-line').length === 10")
             assert page.locator(".beat-line.strong").count() == 3
+            # The playhead is as tall as the grid's lines; the title is only as wide as the name (a click beside it
+            # does not rename); the plugins' buttons are a row of their own under the footer.
+            line, head = page.locator(".beat-line").first.bounding_box(), page.locator(".playhead").bounding_box()
+            assert abs(line["y"] - head["y"]) < 1 and abs(line["height"] - head["height"]) < 1
+            title, clock = page.locator("#detail-title").bounding_box(), page.locator("#detail-time").bounding_box()
+            assert title["x"] + title["width"] < clock["x"] - 100
+            assert page.locator('.plugin-footer [data-action="trim-start"]').count() == 1
+            assert page.evaluate("document.querySelector('.plugin-footer').getBoundingClientRect().top >= document.querySelector('.project-footer').getBoundingClientRect().bottom")
             # Wheel zoom: the waveforms show less, the page does not scroll, detailed peaks are asked for.
             svg = page.locator(".waveform-preview").first
             box = page.locator(".playhead-layer").bounding_box()
@@ -174,24 +182,37 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             canvas = page.locator(".eq-graph")
             canvas.wait_for()
             area = canvas.bounding_box()
-            x = area["x"] + area["width"] * (__import__("math").log(400 / 20) / __import__("math").log(1000))
+            x = area["x"] + area["width"] * (__import__("math").log(800 / 20) / __import__("math").log(1000))
             y = area["y"] + area["height"] / 2
             page.mouse.move(x, y)
             page.mouse.down()
             page.mouse.move(x, y - area["height"] / 4, steps=4)
+            tip = page.locator(".eq-tip")
+            assert tip.is_visible() and "800 Hz" in tip.text_content() and "dB" in tip.text_content()  # over the point
+            assert tip.bounding_box()["y"] + tip.bounding_box()["height"] < y - area["height"] / 4
             page.mouse.up()
-            assert "dB" in page.locator(".eq-readout").text_content()
+            assert tip.is_hidden()
+            # The switch turns the stem's EQ off (heard without it, the button dark) and on again.
+            switch = page.locator(".eq-switch input")
+            switch.click()
+            assert page.locator('.mixer-row[data-stem="bass"] [data-control="eq"]').get_attribute("aria-pressed") == "false"
+            page.wait_for_timeout(600)
+            assert state["data"]["eq"]["off"] == ["bass"]
+            switch.click()
             page.keyboard.press("Escape")
             assert page.locator('.mixer-row[data-stem="bass"] [data-control="eq"]').get_attribute("aria-pressed") == "true"
             page.wait_for_function("document.querySelector('.eq-dialog') && !document.querySelector('.eq-dialog').open")
             page.wait_for_timeout(600)  # the save waits 400 ms after the last change
             saved = state["data"]["eq"]["stems"]["bass"]
-            assert saved[1]["gain"] > 5 and list(state["data"]["eq"]["stems"]) == ["bass"]
+            assert saved[2]["gain"] > 5 and list(state["data"]["eq"]["stems"]) == ["bass"] and state["data"]["eq"]["off"] == []
 
             # Chords: found in the background, shown over the waveforms, corrected by hand.
             page.locator('[data-action="chords"]').click()
             page.wait_for_function("document.querySelectorAll('.chord-label').length === 2")
             assert page.locator(".chord-label").all_text_contents() == ["C", "Am"]
+            # In a row of their own over the stems, over the waveforms' column.
+            lane, waves = page.locator(".chord-layer").bounding_box(), page.locator(".playhead-layer").bounding_box()
+            assert lane["y"] + lane["height"] <= waves["y"] and abs(lane["x"] - waves["x"]) < 1 and abs(lane["width"] - waves["width"]) < 1
             page.locator(".chord-label").nth(1).click()
             page.keyboard.press("ControlOrMeta+A")
             page.keyboard.type("Dm")

@@ -177,9 +177,10 @@ button { cursor: pointer; }
 .project-detail > .detail-controls { grid-column: 1; grid-row: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; min-width: 0; }
 /* Over the waveform column: ▶ ▶4 ⏮, the title, the timer at the right edge; a title with no room goes under the buttons. */
 .project-detail > .detail-titlebar { grid-column: 2; grid-row: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
-.detail-time { flex: none; color: var(--text); font: 300 15px/1.2 Manrope, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.detail-time { flex: none; margin-left: auto; color: var(--text); font: 300 15px/1.2 Manrope, sans-serif; white-space: nowrap; font-variant-numeric: tabular-nums; }
 h1, h2, h3, p { margin-top: 0; }
-#detail-title { flex: 1 1 140px; min-width: 0; max-height: 2.4em; margin: 0; overflow: hidden; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
+/* As wide as the name: a click beside it does not start renaming. */
+#detail-title { flex: 0 1 auto; min-width: 2ch; max-height: 2.4em; margin: 0; overflow: hidden; overflow-wrap: anywhere; font: 650 clamp(18px, 2.5vw, 24px)/1.2 Manrope, sans-serif; letter-spacing: -.55px; }
 /* Cut after two lines: the first line stays whole, the second fades out toward its end. */
 #detail-title { cursor: text; }
 /* Being renamed: the whole name, no fade and no ring; the caret shows it is edited. */
@@ -428,7 +429,6 @@ button[aria-busy="true"] { cursor: progress; }
   .footer-upgrade { margin-inline: 0; }  /* wrapped under the metronome: left, like the other footer rows */
   /* No title: the tab above names the project, and the header keeps one line (buttons, timer). */
   #detail-title { display: none; }
-  .detail-time { margin-left: auto; }
   .project-detail > .detail-controls { align-self: start; height: 46px; }
   .search-overlay { padding: 14px 10px; }
   .search-dialog { min-height: calc(100dvh - 28px); padding: 20px 16px; border-radius: 13px; }
@@ -466,3 +466,8 @@ button[aria-busy="true"] { cursor: progress; }
 .store-actions .primary-button { min-height: 34px; }
 .store-actions .danger-quiet { margin-top: 0; }
 .plugin-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.plugin-lanes { display: grid; grid-template-columns: subgrid; }
+.plugin-lanes > * { grid-column: 2; }
+.plugin-lanes:not(:has(> :not([hidden]))) { display: none; }  /* no gap for an empty row */
+.plugin-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.plugin-footer:not(:has(> :not([hidden]))) { display: none; }

@@ -1199,8 +1199,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       const safe = Math.max(0, Math.floor(seconds || 0));
       return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
     };
-    const updateTime = (seconds, playing = false, rate = 1) => {
+    const updateTime = (seconds, playing = false, rate = 1, notify = false) => {
       const shown = playheadClock.position(seconds, performance.now(), playing, rate);
+      // The plugins get the drawn (smooth) position, so a view that follows the playhead moves smoothly too.
+      if (notify) timeListeners.forEach((listener) => listener(shown, playing));
       const { start, end } = visible();
       const ratio = end > start ? (shown - start) / (end - start) : 0;
       playhead.style.visibility = ratio < 0 || ratio > 1 ? "hidden" : "";  // zoomed in elsewhere
@@ -1272,8 +1274,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const transport = new SynchronizedTransport(tracks, {
       onTimeUpdate: (seconds) => {
         if (range && keepInRange(seconds)) return;
-        timeListeners.forEach((listener) => listener(seconds, transport.playing));
-        updateTime(seconds, transport.playing, transport.rate);
+        updateTime(seconds, transport.playing, transport.rate, true);
         showTempo(seconds);
         if (metronomeOn && transport.playing) metronome.update(seconds);
         else metronome.reset();
@@ -1531,6 +1532,10 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // Footer under the tracks: the metronome and its volume.
     const footer = document.createElement("div");
     footer.className = "project-footer";
+    const pluginFooter = document.createElement("div");
+    pluginFooter.className = "plugin-footer";  // the plugins' buttons: a row of their own under the footer
+    const lanes = document.createElement("div");
+    lanes.className = "plugin-lanes";  // the plugins' rows over the stems (the chords), in the waveform column
     const metronomeButton = document.createElement("button");
     metronomeButton.type = "button";
     metronomeButton.className = "footer-toggle metronome-toggle";
@@ -1867,7 +1872,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     playheadLayer.style.gridRow = `1 / span ${stems.length}`;
     mixerRows.append(playheadLayer);
     if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
-    else playbackPanel.replaceChildren(error, mixerRows, footer, ...tracks);
+    else playbackPanel.replaceChildren(error, lanes, mixerRows, footer, pluginFooter, ...tracks);
     if (decodedNote.textContent) mixerRows.after(decodedNote);
     playbackPanel.hidden = false;
     selectStem(0);
@@ -1909,7 +1914,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     tracks.forEach((audio) => audio.load());
     if (!original) {
       startPlugins({
-        projectId, footer, overlay: pluginLayer, timeline: playheadLayer, waves: mixerRows, stemControls, audioContext, setEffect, viewListeners, timeListeners,
+        projectId, footer: pluginFooter, lanes, overlay: pluginLayer, timeline: playheadLayer, waves: mixerRows, stemControls, audioContext, setEffect, viewListeners, timeListeners,
         stems: stems.map((asset) => ({ name: asset.stem_name, label: stemLabels[asset.stem_name] || asset.stem_name })),
         duration: () => duration,
         position: () => transport.currentTime,
@@ -2560,6 +2565,7 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     addFooter: (element) => ctx.add(host.footer, element),
+    addLane: (element) => ctx.add(host.lanes, element),  // a row over the stems, as wide as the waveforms
     addStemControl: (index, element) => {
       host.stemControls[index].prepend(element);
       undo.push(() => element.remove());

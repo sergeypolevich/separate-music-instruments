@@ -1583,7 +1583,7 @@
     {
      "id": "e1",
      "widget": "Description",
-     "text": "Finds the song's chords in the background and shows their names over the waveforms. A click on a name corrects it.",
+     "text": "Finds the song's chords in the background and shows their names in a row over the tracks. A click on a name corrects it.",
      "index": 1
     },
     {
@@ -1624,7 +1624,7 @@
     {
      "id": "e1",
      "widget": "Description",
-     "text": "A parametric equalizer for every stem: drag the four bands on the curve, set a bell's width with the wheel. It changes only what you hear, never the files.",
+     "text": "A parametric equalizer for every stem: drag the five bands on the curve, set a bell's width with the wheel, switch it off to hear the difference. It changes only what you hear, never the files.",
      "index": 1
     },
     {
@@ -1684,8 +1684,26 @@
     {
      "id": "e11",
      "widget": "Text",
-     "text": "Equalizer · {stem}",
+     "text": "On",
      "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Text",
+     "text": "Off",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Text",
+     "text": "Equalizer on",
+     "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Text",
+     "text": "Equalizer · {stem}",
+     "index": 14
     }
    ]
   },
