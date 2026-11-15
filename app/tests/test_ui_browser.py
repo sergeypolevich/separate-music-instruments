@@ -1269,7 +1269,10 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
                 # Esc gives the old name back; an empty name shows the source's title again.
                 assert title.evaluate("t => getComputedStyle(t).cursor") == "text"
                 paused = page.evaluate("document.querySelector('#playback-panel audio').paused")
-                title.click()
+                # At the name's right end: the title is only as wide as the name, and End does not move the caret
+                # in WebKit on a Mac.
+                box = title.bounding_box()
+                title.click(position={"x": box["width"] - 2, "y": box["height"] / 2})
                 assert page.evaluate("document.activeElement.id") == "detail-title"
                 page.keyboard.press("End")
                 page.keyboard.type(" in D")  # a space and a letter that are hotkeys elsewhere

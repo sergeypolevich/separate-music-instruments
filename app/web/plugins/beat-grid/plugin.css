@@ -3,5 +3,5 @@
 /* The whole song's lines, as wide as the zoom makes the song, moved under the view. */
 .beat-track { position: absolute; top: 0; bottom: 0; left: 0; will-change: transform; }
 /* The accent at 70 % for the bar starts, the other beats half as strong. */
-.beat-line { position: absolute; top: 0; bottom: 0; width: 1px; background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.beat-line { position: absolute; top: 0; bottom: 0; width: var(--line, 1px); background: color-mix(in srgb, var(--accent) 35%, transparent); }
 .beat-line.strong { background: color-mix(in srgb, var(--accent) 70%, transparent); }

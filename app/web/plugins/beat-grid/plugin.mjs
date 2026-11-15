@@ -27,27 +27,35 @@ export function project(ctx) {
   layer.className = "beat-grid";
   ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/beat-grid/plugin.css" }));
   // The lines are drawn once per zoom over the whole song and only moved as the view moves (it follows the playhead).
+  // Each is one screen pixel wide on whole screen pixels, like the playhead: a 1px line at a fractional position was
+  // drawn one or two pixels wide by turns and flickered as it moved.
   const track = layer.appendChild(document.createElement("div"));
   track.className = "beat-track";
   let found = null;
-  let drawn = "";  // the zoom and width the lines are drawn for
+  let drawn = "";  // the zoom, width and screen density the lines are drawn for
+  let origin = 0;  // the layer's left edge on the page
   const draw = () => {
     if (!found || !ctx.current) return;
     const view = ctx.view, whole = ctx.duration, width = layer.clientWidth;
     const span = view.end - view.start;
     if (!(whole > 0 && span > 0)) return;
-    const zoom = `${span.toFixed(6)} ${width}`;
+    const scale = window.devicePixelRatio || 1;
+    const full = (width * whole) / span;  // the whole song's width at this zoom
+    const zoom = `${span.toFixed(6)} ${width} ${scale}`;
     if (zoom !== drawn) {
       drawn = zoom;
-      track.style.width = `${(whole / span) * 100}%`;
-      track.replaceChildren(...gridLines(found.beats || [], found.downbeats || [], { start: 0, end: whole }, (width * whole) / span).map(({ x, strong }) => {
+      origin = layer.getBoundingClientRect().left + window.scrollX;
+      track.style.width = `${full}px`;
+      track.style.setProperty("--line", `${1 / scale}px`);
+      track.replaceChildren(...gridLines(found.beats || [], found.downbeats || [], { start: 0, end: whole }, full).map(({ x, strong }) => {
         const line = document.createElement("span");
         line.className = strong ? "beat-line strong" : "beat-line";
-        line.style.left = `${(x * 100).toFixed(4)}%`;
+        line.style.left = `${Math.round(x * full * scale) / scale}px`;
         return line;
       }));
     }
-    track.style.transform = `translateX(${(-view.start / whole) * 100}%)`;
+    const shift = Math.round((origin - (view.start / whole) * full) * scale) / scale - origin;
+    track.style.transform = `translateX(${shift}px)`;
   };
   ctx.onView(draw);
   const resize = new ResizeObserver(() => draw());
