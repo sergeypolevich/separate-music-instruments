@@ -8,7 +8,7 @@ import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { match, onsets, summary } from "../web/plugins/practice/score.mjs";
-import { addToRuns, takeNotes } from "../web/plugins/practice/plugin.mjs";
+import { addToRuns, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -179,4 +179,15 @@ test("practice score: a take recorded in pieces is scored only where it was reco
   assert.deepEqual(covered, [10.3, 10.8, 11.3, 11.8]);  // 12.5 and 31 were not recorded; 30.05 is at a run's edge
   assert.equal(played.length, 4);
   match(covered, played).forEach((offset) => assert.ok(Math.abs(offset) < 0.006));
+});
+
+test("practice takes: a run is stored as 16-bit mono WAV and read back", () => {
+  const run = { from: 1, to: 1.5, chunks: [Float32Array.from([0, 0.5]), Float32Array.from([-0.5, 1, -1.2])] };
+  const samples = samplesOf(run);
+  assert.deepEqual([...samples].map((v) => +v.toFixed(2)), [0, 0.5, -0.5, 1, -1.2]);
+  const bytes = wavBytes(samples, 44100);
+  assert.equal(bytes.byteLength, 44 + 10);
+  assert.equal(new TextDecoder().decode(new Uint8Array(bytes, 0, 4)), "RIFF");
+  assert.equal(new DataView(bytes).getUint32(24, true), 44100);
+  assert.deepEqual([...wavSamples(bytes)].map((v) => +v.toFixed(3)), [0, 0.5, -0.5, 1, -1]);  // clipped at full scale
 });

@@ -217,6 +217,7 @@ def create_app(
         # Leftovers of a failed separation, unless another job of the same song is using them now.
         if deletion.title and deletion.source_id and not repository.source_is_busy(deletion.source_id):
             storage.remove_temporary_directory(deletion.title, deletion.source_id)
+        storage.delete_plugin_files(project_id=deletion.project_id)
         repository.complete_project_deletion(deletion.project_id, deletion.owner_id)
 
     def spawn_analysis_runner() -> None:
@@ -438,6 +439,7 @@ def create_app(
     def remove_plugin(plugin_id: str) -> Response:
         plugin_manifest(plugin_id)
         repository.remove_plugin(plugin_id)
+        storage.delete_plugin_files(plugin_id=plugin_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.put("/api/v1/plugins/{plugin_id}/settings")
@@ -476,6 +478,57 @@ def create_app(
         if len(json.dumps(body.data)) > _PLUGIN_DATA_BYTES:
             raise HTTPException(status_code=413, detail={"code": "too_large", "message": "The plugin data is too large"})
         repository.set_plugin_data(plugin_id, project_id, body.data)
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    # A plugin's files for a project (version 24): up to its manifest's storage_mb in all, kept with the project.
+    def plugin_storage(plugin_id: str, project_id: UUID) -> int:
+        installed_plugin(plugin_id, project_id)
+        limit = int(plugin_manifest(plugin_id).get("storage_mb", 0)) * 2**20
+        if not limit:
+            raise HTTPException(status_code=409, detail={"code": "no_storage", "message": "The plugin keeps no files"})
+        return limit
+
+    def plugin_file_path(plugin_id: str, project_id: UUID, name: str) -> Path:
+        try:
+            return storage.plugin_file(plugin_id, project_id, name)
+        except AdapterError as exc:
+            raise HTTPException(status_code=400, detail={"code": "invalid_name", "message": "Invalid file name"}) from exc
+
+    @app.get("/api/v1/projects/{project_id}/plugins/{plugin_id}/files")
+    def list_plugin_files(project_id: UUID, plugin_id: str) -> dict[str, object]:
+        limit = plugin_storage(plugin_id, project_id)
+        files = storage.plugin_files(plugin_id, project_id)
+        return {"files": [{"name": name, "bytes": size} for name, size in files.items()], "limit_bytes": limit}
+
+    @app.put("/api/v1/projects/{project_id}/plugins/{plugin_id}/files/{name}", status_code=status.HTTP_204_NO_CONTENT)
+    async def save_plugin_file(project_id: UUID, plugin_id: str, name: str, request: Request) -> Response:
+        limit = plugin_storage(plugin_id, project_id)
+        plugin_file_path(plugin_id, project_id, name)
+        others = sum(size for other, size in storage.plugin_files(plugin_id, project_id).items() if other != name)
+        too_large = HTTPException(status_code=413, detail={"code": "too_large", "message": "The plugin's files would take more than its space"})
+        if others + int(request.headers.get("content-length") or 0) > limit:
+            raise too_large
+        data = bytearray()
+        async for chunk in request.stream():
+            data += chunk
+            if others + len(data) > limit:
+                raise too_large
+        await run_in_threadpool(storage.save_plugin_file, plugin_id, project_id, name, bytes(data))
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.get("/api/v1/projects/{project_id}/plugins/{plugin_id}/files/{name}")
+    def get_plugin_file(project_id: UUID, plugin_id: str, name: str) -> FileResponse:
+        plugin_storage(plugin_id, project_id)
+        path = plugin_file_path(plugin_id, project_id, name)
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "File not found"})
+        return FileResponse(path, media_type=mimetypes.guess_type(name)[0] or "application/octet-stream")
+
+    @app.delete("/api/v1/projects/{project_id}/plugins/{plugin_id}/files/{name}", status_code=status.HTTP_204_NO_CONTENT)
+    def delete_plugin_file(project_id: UUID, plugin_id: str, name: str) -> Response:
+        plugin_storage(plugin_id, project_id)
+        plugin_file_path(plugin_id, project_id, name)
+        storage.delete_plugin_file(plugin_id, project_id, name)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     def upgrade_state(project, job) -> dict[str, object]:

@@ -2639,6 +2639,19 @@ function pluginContext(id, permissions, host) {
     loadData: async () => (await requestJson(data)).data,
     saveData: (value) => requestJson(data, { method: "PUT", body: JSON.stringify({ data: value }) }),
   };
+  if ((pluginList.find((item) => item.id === id) || {}).storage_mb) {  // its own files for this project (version 24)
+    const file = (name) => `${data}/files/${encodeURIComponent(name)}`;
+    ctx.files = {
+      list: () => requestJson(`${data}/files`),  // {files: [{name, bytes}], limit_bytes}
+      load: async (name) => {
+        const response = await fetch(file(name));
+        if (!response.ok) throw new Error(t("The request failed"));
+        return response.arrayBuffer();
+      },
+      save: (name, body) => requestJson(file(name), { method: "PUT", body, headers: { "Content-Type": "application/octet-stream" } }),
+      remove: (name) => requestJson(file(name), { method: "DELETE" }),
+    };
+  }
   if (permissions.includes("playback")) {
     Object.assign(ctx, {
       range: () => host.range(),

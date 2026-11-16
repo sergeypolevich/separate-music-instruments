@@ -43,6 +43,8 @@ _MIN_FREE_BYTES = 64 * 2**20  # a write that fails with less than this left is t
 # Files a user may open as a new project: whatever the bundled ffmpeg decodes and validate_audio_file recognizes.
 UPLOAD_FORMATS = ("mp3", "wav", "flac", "m4a", "mp4", "aac", "ogg", "opus", "webm", "aiff", "aif", "wma")
 _UPLOAD_TOKEN = re.compile(r"^[0-9a-f]{16}\.[a-z0-9]{1,10}$")
+_PLUGIN_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
+_PLUGIN_FILE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,79}\.[a-z0-9]{1,10}$")  # a plugin's own names: take-3.wav
 
 
 def _file_peak(path: Path) -> float:
@@ -81,6 +83,8 @@ class LocalMediaStorage:
         if not self.stems_root.is_relative_to(self.root):
             raise ValueError("The stems directory must be inside the storage root")
         self._index_path = self.root / ".audio-stems" / "audio_stems.models.json"
+        # Files a plugin keeps for a project (version 24, the practice plugin's takes): Plugins/<plugin>/<project>/.
+        self.plugins_root = self.root / "Plugins"
 
     def _read_index(self) -> dict[str, str]:
         if not self._index_path.exists():
@@ -469,8 +473,55 @@ class LocalMediaStorage:
                 if not path.is_symlink() and path.is_file():
                     yield path
 
+    def plugin_folder(self, plugin_id: str, project_id: UUID | str) -> Path:
+        if not _PLUGIN_ID.match(plugin_id):
+            raise AdapterError("Invalid plugin id", FailureCategory.INVALID_INPUT)
+        return self.plugins_root / plugin_id / str(UUID(str(project_id)))
+
+    def plugin_file(self, plugin_id: str, project_id: UUID | str, name: str) -> Path:
+        """A plugin's file by its own name: lowercase letters, digits, - and _, one extension; no folders."""
+        if not _PLUGIN_FILE.match(name):
+            raise AdapterError("Invalid plugin file name", FailureCategory.INVALID_INPUT)
+        return self.plugin_folder(plugin_id, project_id) / name
+
+    def plugin_files(self, plugin_id: str, project_id: UUID | str) -> dict[str, int]:
+        """name → bytes of the plugin's files for the project."""
+        folder = self.plugin_folder(plugin_id, project_id)
+        if not folder.is_dir():
+            return {}
+        return {path.name: path.stat().st_size for path in sorted(folder.iterdir()) if path.is_file() and not path.is_symlink()}
+
+    def save_plugin_file(self, plugin_id: str, project_id: UUID | str, name: str, data: bytes) -> None:
+        target = self.plugin_file(plugin_id, project_id, name)
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            temporary = target.with_name(f".{target.name}.part")
+            temporary.write_bytes(data)
+            temporary.replace(target)
+        except OSError as exc:
+            if is_disk_full(exc):
+                raise disk_full_error() from exc
+            raise AdapterError("Plugin file could not be saved", FailureCategory.TRANSIENT) from exc
+
+    def delete_plugin_file(self, plugin_id: str, project_id: UUID | str, name: str) -> None:
+        try:
+            self.plugin_file(plugin_id, project_id, name).unlink(missing_ok=True)
+        except OSError as exc:
+            raise AdapterError("Plugin file could not be deleted", FailureCategory.TRANSIENT) from exc
+
+    def delete_plugin_files(self, *, plugin_id: str | None = None, project_id: UUID | str | None = None) -> None:
+        """Every file of a removed plugin, or every plugin's files of a deleted project."""
+        if plugin_id is not None:
+            folders = [self.plugins_root / plugin_id] if _PLUGIN_ID.match(plugin_id) else []
+        else:
+            folders = [folder / str(UUID(str(project_id))) for folder in self.plugins_root.glob("*") if folder.is_dir()]
+        for folder in folders:
+            if folder.is_dir() and not folder.is_symlink():
+                shutil.rmtree(folder)
+
     def disk_report(self, keys_in_use: set[str]) -> dict[str, int]:
-        """Bytes used by projects, by files no project uses, and by temporary separation output."""
+        """Bytes used by projects (with their plugins' files), by files no project uses, and by temporary
+        separation output."""
         protected = {self._index_path, self._index_path.with_suffix(".tmp")}
         report = {"projects_bytes": 0, "unused_bytes": 0, "temp_bytes": 0}
         for path in self._files():
@@ -479,7 +530,7 @@ class LocalMediaStorage:
                 report["temp_bytes"] += size
             elif path in protected:
                 continue
-            elif path.relative_to(self.root).as_posix() in keys_in_use:
+            elif path.is_relative_to(self.plugins_root) or path.relative_to(self.root).as_posix() in keys_in_use:
                 report["projects_bytes"] += size
             else:
                 report["unused_bytes"] += size
@@ -491,7 +542,8 @@ class LocalMediaStorage:
         protected = {self._index_path, self._index_path.with_suffix(".tmp")}
         freed = 0
         for path in list(self._files()):
-            if path in protected or (
+            # shortcut: plugin files are never "unused" here, they go with their project or plugin (delete_plugin_files).
+            if path in protected or path.is_relative_to(self.plugins_root) or (
                 not path.is_relative_to(self.temp_root) and path.relative_to(self.root).as_posix() in keys_in_use
             ):
                 continue

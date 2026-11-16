@@ -20,6 +20,7 @@ def test_the_store_lists_the_plugins_with_valid_manifests():
     assert found["eq"]["permissions"] == ["sound"] and found["trim"]["permissions"] == ["playback"]
     assert found["tuner"]["permissions"] == ["tone"] and found["practice"]["permissions"] == ["input", "analysis"]
     assert found["zoom"]["permissions"] == []
+    assert found["practice"]["storage_mb"] == 100 and "storage_mb" not in found["eq"]
 
 
 def _app(tmp_path):
@@ -36,10 +37,10 @@ def _app(tmp_path):
     queued = []
     app = create_app(repository=repository, settings=settings, storage=storage, start_analysis=lambda: queued.append(1))
 
-    def call(method, path, body=None):
+    def call(method, path, body=None, content=None):
         async def go():
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://testserver") as client:
-                return await client.request(method, path, json=body)
+                return await client.request(method, path, json=body, content=content)
         return asyncio.run(go())
 
     return call, repository, storage, queued, settings
@@ -175,3 +176,45 @@ def test_plugin_texts_are_in_the_translation_catalog():
     blocks = {block["block"]: [element["text"] for element in block["elements"]] for block in catalog["blocks"]}
     assert blocks["plugin: eq"][:2] == [plugins.catalog(WEB)["eq"]["name"], plugins.catalog(WEB)["eq"]["description"]]
     assert "Find chords" in blocks["plugin: chords"] and "Trim the start" in blocks["plugin: trim"]
+
+
+def test_a_plugin_keeps_files_per_project_within_its_space(tmp_path, monkeypatch):
+    """Version 24: the practice plugin's takes. Up to the manifest's storage_mb in all; own file names only; kept
+    away from the storage cleanup; deleted with the project and with the plugin."""
+    catalog = plugins.catalog
+    monkeypatch.setattr(plugins, "catalog", lambda web: {key: ({**value, "storage_mb": 1} if key == "practice" else value)
+                                                          for key, value in catalog(web).items()})
+    call, repository, storage, _queued, _settings = _app(tmp_path)
+    project_id = add_song(repository, storage)
+    files = f"/api/v1/projects/{project_id}/plugins/practice/files"
+    assert call("GET", files).status_code == 409  # not installed
+    call("PUT", "/api/v1/plugins/practice", {"enabled": True})
+    call("PUT", "/api/v1/plugins/eq", {"enabled": True})
+    assert call("GET", files).json() == {"files": [], "limit_bytes": 2**20}
+    assert call("GET", f"/api/v1/projects/{project_id}/plugins/eq/files").status_code == 409  # eq keeps no files
+
+    assert call("PUT", f"{files}/take-1.wav", content=b"RIFF" + b"\0" * 600_000).status_code == 204
+    assert call("GET", f"{files}/take-1.wav").content[:4] == b"RIFF"
+    assert call("PUT", f"{files}/take-2.wav", content=b"\0" * 500_000).status_code == 413  # 1 MB in all
+    assert call("PUT", f"{files}/take-1.wav", content=b"\0" * 900_000).status_code == 204  # replacing counts once
+    for bad in ("..%2Fx.wav", "Take.wav", "take", ".hidden.wav", "a%5Cb.wav"):
+        assert call("PUT", f"{files}/{bad}", content=b"x").status_code in (400, 404, 405), bad  # never written
+    assert call("GET", f"{files}/take-9.wav").status_code == 404
+    assert call("GET", files).json()["files"] == [{"name": "take-1.wav", "bytes": 900_000}]
+    path = storage.plugin_file("practice", project_id, "take-1.wav")
+    assert path == storage.root / "Plugins" / "practice" / str(project_id) / "take-1.wav"
+
+    # The cleanup of unused files leaves them, and the disk report counts them with the projects.
+    assert storage.disk_report(repository.storage_keys_in_use())["unused_bytes"] == 0
+    storage.clean_unused(repository.storage_keys_in_use())
+    assert path.is_file()
+
+    assert call("DELETE", f"{files}/take-1.wav").status_code == 204 and not path.exists()
+    call("PUT", f"{files}/take-1.wav", content=b"x")
+    other = add_song(repository, storage, with_source=False)
+    call("PUT", f"/api/v1/projects/{other}/plugins/practice/files/take-1.wav", content=b"y")
+    assert call("DELETE", f"/api/v1/projects/{project_id}").status_code == 204  # the project's files go with it
+    assert not storage.plugin_folder("practice", project_id).exists()
+    assert storage.plugin_files("practice", other) == {"take-1.wav": 1}
+    assert call("DELETE", "/api/v1/plugins/practice").status_code == 204  # and all of them with the plugin
+    assert not (storage.root / "Plugins" / "practice").exists()

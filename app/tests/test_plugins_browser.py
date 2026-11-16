@@ -41,7 +41,18 @@ def _serve(web, state, wav=None):
         def do_GET(self):
             path, _, query = self.path.partition("?")
             state["requests"].append(self.path)
-            if path == "/api/v1/plugins":
+            files = state.setdefault("files", {})
+            if "/files" in path and path.startswith("/api/v1/projects/p1/plugins/"):
+                name = path.split("/files")[1].strip("/")
+                if not name:
+                    self._json({"files": [{"name": key, "bytes": len(value)} for key, value in files.items()], "limit_bytes": 100 * 2**20})
+                    return
+                body = files.get(name)
+                self.send_response(200 if body is not None else 404)
+                self.send_header("Content-Length", str(len(body or b"")))
+                self.end_headers()
+                self.wfile.write(body or b"")
+            elif path == "/api/v1/plugins":
                 self._json([self._plugin(plugin_id) for plugin_id in catalog])
             elif path == "/api/v1/projects":
                 self._json([{"project_id": "p1", "input_type": "search_query", "input_value": "Song", "source_id": "s",
@@ -71,6 +82,11 @@ def _serve(web, state, wav=None):
                 super().do_GET()
 
         def do_PUT(self):
+            if "/files/" in self.path:
+                state.setdefault("files", {})[self.path.rsplit("/", 1)[1]] = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                self.send_response(204)
+                self.end_headers()
+                return
             body = self._body()
             state["requests"].append(f"PUT {self.path}")
             if self.path.startswith("/api/v1/projects/p1/plugins/"):
@@ -103,6 +119,11 @@ def _serve(web, state, wav=None):
 
         def do_DELETE(self):
             state["requests"].append(f"DELETE {self.path}")
+            if "/files/" in self.path:
+                state.setdefault("files", {}).pop(self.path.rsplit("/", 1)[1], None)
+                self.send_response(204)
+                self.end_headers()
+                return
             state["installed"].pop(self.path.rsplit("/", 1)[1], None)
             self.send_response(204)
             self.end_headers()
@@ -460,7 +481,7 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
             page.locator(".project-tab").first.click()
             page.locator(".practice-lane").wait_for()
             latency = page.locator('[data-action="practice-latency"]')
-            assert latency.text_content() == "Measure latency"
+            assert latency.get_attribute("aria-label") == "Measure latency" and latency.text_content() == ""  # an icon
             latency.click()
             dialog = page.locator(".practice-dialog")
             assert dialog.is_visible() and dialog.locator("h2").text_content() == "Latency"
@@ -478,7 +499,7 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
             assert "saved for this input and output" in dialog.locator(".practice-detail").text_content()
             dialog.locator('[data-action="close"]').click()
             assert page.locator(".practice-dialog").count() == 0
-            assert latency.text_content().startswith("Latency ") and latency.text_content().endswith(" ms")
+            assert latency.get_attribute("aria-label").startswith("Latency ") and latency.text_content().endswith(" ms")
             assert errors == []
             browser.close()
     finally:
@@ -550,6 +571,27 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             assert kept["stem"] == "bass" and kept["notes"] == int(count) and kept["tolerance"] == 15
             score.locator('[data-action="close"]').click()
             assert page.locator(".practice-score").count() == 0
+            # The take is kept as WAV files and comes back with the project: drawn again, and it can be played along.
+            for _ in range(50):
+                if state["data"]["practice"].get("takes"):
+                    break
+                page.wait_for_timeout(100)
+            (take,) = state["data"]["practice"]["takes"]
+            assert take["stem"] == "bass" and [run["file"] for run in take["runs"]] == sorted(state["files"])
+            assert all(state["files"][run["file"]][:4] == b"RIFF" for run in take["runs"])
+            page.reload(wait_until="load")
+            page.locator(".project-tab").first.click()
+            listen = page.locator('[data-action="practice-listen"]')
+            page.wait_for_function("!document.querySelector('[data-action=\"practice-listen\"]').disabled")
+            page.evaluate("activeTransport.seek(1)")
+            page.wait_for_function(YOU_BARS + " > 50")
+            listen.click()
+            assert listen.get_attribute("aria-pressed") == "true"
+            page.wait_for_function("activeTransport.stretching")  # on the song's clock to follow it
+            page.evaluate("document.activeElement.blur()")
+            page.keyboard.press("Space")
+            page.wait_for_function("activeTransport.currentTime > 2")
+            page.keyboard.press("Space")
             assert errors == []
             browser.close()
     finally:

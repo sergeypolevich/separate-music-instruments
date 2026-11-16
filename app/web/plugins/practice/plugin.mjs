@@ -43,16 +43,40 @@ export function addToRuns(runs, from, to, samples) {
   } else runs.push({ from, to, chunks: [samples] });
 }
 
+// A run's samples in one array (a loaded take has them already).
+export function samplesOf(run) {
+  if (run.samples) return run.samples;
+  const samples = new Float32Array(run.chunks.reduce((sum, chunk) => sum + chunk.length, 0));
+  let at = 0;
+  for (const chunk of run.chunks) { samples.set(chunk, at); at += chunk.length; }
+  return samples;
+}
+
+// A take's run as a 16-bit mono WAV file, and back.
+export function wavBytes(samples, rate) {
+  const bytes = new ArrayBuffer(44 + samples.length * 2), view = new DataView(bytes);
+  const text = (at, value) => [...value].forEach((char, i) => view.setUint8(at + i, char.charCodeAt(0)));
+  text(0, "RIFF"); view.setUint32(4, 36 + samples.length * 2, true); text(8, "WAVE");
+  text(12, "fmt "); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  text(36, "data"); view.setUint32(40, samples.length * 2, true);
+  samples.forEach((value, i) => view.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, value)) * 32767), true));
+  return bytes;
+}
+
+export function wavSamples(bytes) {
+  const view = new DataView(bytes), count = Math.floor((bytes.byteLength - 44) / 2), samples = new Float32Array(count);
+  for (let i = 0; i < count; i++) samples[i] = view.getInt16(44 + i * 2, true) / 32767;
+  return samples;
+}
+
 // The note starts of the take (song seconds) and the original's notes inside what was recorded (0.1 s in from the
 // edges, where a note may be cut).
 export function takeNotes(runs, reference) {
   const played = [], covered = [];
   for (const run of runs) {
-    const length = run.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const samples = new Float32Array(length);
-    let at = 0;
-    for (const chunk of run.chunks) { samples.set(chunk, at); at += chunk.length; }
-    played.push(...onsets(samples, length / (run.to - run.from)).map((time) => run.from + time));
+    const samples = samplesOf(run);
+    played.push(...onsets(samples, samples.length / (run.to - run.from)).map((time) => run.from + time));
     covered.push(...reference.filter((time) => time >= run.from + 0.1 && time <= run.to - 0.1));
   }
   return { played: played.sort((a, b) => a - b), covered };
@@ -66,6 +90,11 @@ import { openTuner } from "./tuner.mjs";
 import { match, onsets, showScore } from "./score.mjs";
 
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
+const ICONS = {
+  record: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>',
+  listen: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>',
+  latency: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></svg>',
+};
 const captureModules = new WeakMap();  // AudioContext → the worklet module, added once
 
 function stylesheet(parent, add) {
@@ -97,8 +126,18 @@ export async function project(ctx) {
   record.className = "practice-record";
   record.dataset.action = "practice-record";
   record.setAttribute("aria-pressed", "false");
-  record.textContent = ctx.t("Record");
+  record.innerHTML = ICONS.record;  // icons, the names for screen readers and in the tooltip
   record.title = ctx.t("Record your input while the song plays");
+  record.setAttribute("aria-label", ctx.t("Record"));
+  const listen = bar.appendChild(document.createElement("button"));
+  listen.type = "button";
+  listen.className = "practice-record practice-listen";
+  listen.dataset.action = "practice-listen";
+  listen.setAttribute("aria-pressed", "false");
+  listen.innerHTML = ICONS.listen;
+  listen.title = ctx.t("Play your last take along with the song");
+  listen.setAttribute("aria-label", ctx.t("Play your last take"));
+  listen.disabled = true;
   const measure = bar.appendChild(document.createElement("button"));
   measure.type = "button";
   measure.className = "practice-record practice-latency";
@@ -125,6 +164,12 @@ export async function project(ctx) {
   let runs = [];  // the take being recorded: [{from, to, chunks}]
   let reference = null;  // the chosen stem's note starts (a promise), found once
   const scores = Array.isArray(data.scores) ? data.scores : [];
+  const takes = Array.isArray(data.takes) ? data.takes : [];  // saved: [{stem, at, runs: [{file, from, to}]}]
+  let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
+  let shownRuns = null;  // the runs whose peaks the lane shows
+  let player = null;  // the last take playing along: {at, song, speed, sources}
+  const output = ctx.audioContext.createGain();
+  output.connect(ctx.audioContext.destination);
 
   const buttons = ctx.stems.map((item, index) => {
     const button = document.createElement("button");
@@ -150,6 +195,9 @@ export async function project(ctx) {
     stem = index;
     reference = null;
     runs = [];
+    lastRuns = [];
+    stopPlayer();
+    listen.disabled = true;
     buttons.forEach((button, at) => button.setAttribute("aria-pressed", String(at === index)));
     lane.hidden = index < 0;
     levels = null;
@@ -169,6 +217,21 @@ export async function project(ctx) {
     name.className = "practice-name practice-original";
     name.style.top = "42px";
     name.textContent = ctx.stems[index].label;
+    loadLastTake(index);
+  }
+
+  async function loadLastTake(index) {
+    const last = takes.filter((item) => item.stem === ctx.stems[index].name).at(-1);
+    if (!last || !ctx.files) return;
+    try {
+      const loaded = [];
+      for (const run of last.runs) loaded.push({ from: run.from, to: run.to, samples: wavSamples(await ctx.files.load(run.file)) });
+      if (!ctx.current || stem !== index || lastRuns.length) return;  // another stem, or a newer take recorded meanwhile
+      lastRuns = loaded;
+      listen.disabled = false;
+    } catch (_error) {
+      // a file removed by hand: nothing to show or hear
+    }
   }
 
   // The song seconds a peak covers; the length is known only once the stems' metadata has loaded.
@@ -254,7 +317,12 @@ export async function project(ctx) {
   async function finishTake() {
     const recorded = runs, chosen = stem, tolerance = settings.tolerance / 1000;
     runs = [];
-    if (!recorded.length || !reference || chosen < 0) return;
+    if (!recorded.length || chosen < 0) return;
+    lastRuns = recorded.map((run) => ({ from: run.from, to: run.to, samples: samplesOf(run) }));
+    shownRuns = lastRuns;
+    listen.disabled = false;
+    saveTake(lastRuns, ctx.stems[chosen].name);
+    if (!reference) return;
     let notes;
     try {
       notes = takeNotes(recorded, await reference);
@@ -273,6 +341,68 @@ export async function project(ctx) {
   }
   let wasPlaying = false;
 
+  // The take's runs as WAV files; older takes go when the plugin's space (100 MB a project) would overflow.
+  async function saveTake(saved, stemName) {
+    if (!ctx.files) return;
+    const stamp = Date.now();
+    const files = saved.map((run, k) => ({ name: `take-${stamp}-${k}.wav`, bytes: wavBytes(run.samples, Math.round(ctx.audioContext.sampleRate)) }));
+    const size = files.reduce((sum, file) => sum + file.bytes.byteLength, 0);
+    try {
+      const { files: stored, limit_bytes: limit } = await ctx.files.list();
+      if (size > limit) throw new Error("too large");
+      let used = stored.reduce((sum, file) => sum + file.bytes, 0);
+      const sizes = Object.fromEntries(stored.map((file) => [file.name, file.bytes]));
+      while (takes.length && used + size > limit) {
+        for (const run of takes.shift().runs) {
+          used -= sizes[run.file] || 0;
+          await ctx.files.remove(run.file);
+        }
+      }
+      for (const file of files) await ctx.files.save(file.name, file.bytes);
+      takes.push({ stem: stemName, at: new Date(stamp).toISOString(), runs: saved.map((run, k) => ({ file: files[k].name, from: run.from, to: run.to })) });
+      data.takes = takes;
+      await ctx.saveData(data);
+    } catch (_error) {
+      if (ctx.current) status.textContent = ctx.t("The take could not be saved");
+    }
+  }
+
+  // The last take along with the song, on the song's clock (the exact engine): started again after a seek, a
+  // loop's jump back or a speed change. shortcut: another speed changes the take's pitch too; fine for listening.
+  function stopPlayer() {
+    if (player) player.sources.forEach((source) => { try { source.stop(); } catch (_error) { /* not started */ } });
+    player = null;
+  }
+  function follow() {
+    if (listen.getAttribute("aria-pressed") !== "true" || !ctx.playing || !lastRuns.length) return stopPlayer();
+    const audio = ctx.audioContext, now = audio.currentTime + 0.06;
+    const song = ctx.songTimeAt(now), later = ctx.songTimeAt(now + 0.1);
+    if (song === null || later === null || later <= song) return stopPlayer();
+    const speed = Math.round(((later - song) / 0.1) * 100) / 100;
+    if (player && Math.abs(player.song + (now - player.at) * player.speed - song) < 0.02 && player.speed === speed) return undefined;
+    stopPlayer();
+    player = { at: now, song, speed, sources: [] };
+    for (const run of lastRuns) {
+      if (run.to <= song) continue;
+      if (!run.buffer) {  // its rate is the run's samples per song second, so buffer time is song time
+        run.buffer = audio.createBuffer(1, run.samples.length, Math.round(run.samples.length / (run.to - run.from)));
+        run.buffer.copyToChannel(run.samples, 0);
+      }
+      const source = audio.createBufferSource();
+      source.buffer = run.buffer;
+      source.playbackRate.value = speed;
+      source.connect(output);
+      source.start(now + Math.max(0, run.from - song) / speed, Math.max(0, song - run.from));
+      player.sources.push(source);
+    }
+    return undefined;
+  }
+  ctx.on(listen, "click", async () => {
+    const on = listen.getAttribute("aria-pressed") !== "true";
+    listen.setAttribute("aria-pressed", String(on));
+    if (on) await ctx.precise();
+  });
+
   function showStatus() {
     if (!capture) return;
     status.textContent = settings.latency[capture.key] === undefined ? ctx.t("Latency not measured") : "";
@@ -281,10 +411,12 @@ export async function project(ctx) {
   // The latency of the input and output in use (known after the first recording or measurement).
   function showLatency() {
     const value = measuredKey && settings.latency[measuredKey];
-    measure.textContent = value
-      ? ctx.t("Latency {latency}", { latency: `${ctx.formatDecimal(Math.round(value * 10000) / 10)} ms` })
-      : ctx.t("Measure latency");
+    measure.innerHTML = ICONS.latency;
+    if (value) measure.append(`${ctx.formatDecimal(Math.round(value * 10000) / 10)} ms`);
     measure.title = ctx.t("Measure the delay of your input and output");
+    measure.setAttribute("aria-label", value
+      ? ctx.t("Latency {latency}", { latency: `${ctx.formatDecimal(Math.round(value * 10000) / 10)} ms` })
+      : ctx.t("Measure latency"));
   }
   showLatency();
   outputGroup().then((output) => {  // the key before any recording: the chosen input and the system's output now
@@ -319,8 +451,16 @@ export async function project(ctx) {
     frame = requestAnimationFrame(draw);
     if (wasPlaying && !ctx.playing) finishTake();  // a pause ends the take
     wasPlaying = ctx.playing;
+    follow();
     const bucket = bucketSize();
     if (lane.hidden || !bucket) return;
+    if (lastRuns.length && shownRuns !== lastRuns) {  // a take loaded from disk: its peaks, once the length is known
+      shownRuns = lastRuns;
+      for (const run of lastRuns) {
+        addPeaks(take, bucket, run.from, run.to, run.samples);
+        for (const value of run.samples) if (Math.abs(value) > takeMax) takeMax = Math.abs(value);
+      }
+    }
     const dpr = window.devicePixelRatio || 1;
     const width = Math.round(canvas.clientWidth * dpr), height = Math.round(canvas.clientHeight * dpr);
     if (!width || !height) return;
@@ -359,6 +499,8 @@ export async function project(ctx) {
   return () => {
     cancelAnimationFrame(frame);
     stopRecording();
+    stopPlayer();
+    output.disconnect();
   };
 }
 

@@ -25,6 +25,8 @@ def catalog(web: Path) -> dict[str, dict[str, object]]:
         assert _ID.match(plugin_id) and manifest.get("id") == plugin_id, f"plugin folder {plugin_id}"
         assert all(isinstance(manifest.get(field), str) and manifest[field] for field in _FIELDS), plugin_id
         assert set(manifest.get("permissions", [])) <= PERMISSIONS, plugin_id
+        # Files it may keep per project (version 24): the practice plugin's takes. Megabytes, none by default.
+        assert isinstance(manifest.get("storage_mb", 0), int) and 0 <= manifest.get("storage_mb", 0) <= 1000, plugin_id
         assert (manifest_path.parent / "plugin.mjs").is_file() and (manifest_path.parent / "image.svg").is_file(), plugin_id
         found[plugin_id] = {**manifest, "permissions": manifest.get("permissions", [])}
     return dict(sorted(found.items(), key=lambda item: item[1].get("order", 99)))

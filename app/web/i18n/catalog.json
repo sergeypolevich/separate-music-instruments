@@ -1464,6 +1464,17 @@
    ]
   },
   {
+   "block": "pluginContext",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "The request failed",
+     "index": 0
+    }
+   ]
+  },
+  {
    "block": "analyzeProject",
    "elements": [
     {
@@ -1749,308 +1760,326 @@
     {
      "id": "e2",
      "widget": "Text",
-     "text": "Record",
+     "text": "Record your input while the song plays",
      "index": 2
     },
     {
      "id": "e3",
      "widget": "Text",
-     "text": "Record your input while the song plays",
+     "text": "Record",
      "index": 3
     },
     {
      "id": "e4",
      "widget": "Text",
-     "text": "You",
+     "text": "Play your last take along with the song",
      "index": 4
     },
     {
      "id": "e5",
      "widget": "Text",
-     "text": "Practice with {stem}",
+     "text": "Play your last take",
      "index": 5
     },
     {
      "id": "e6",
      "widget": "Text",
-     "text": "Preparing…",
+     "text": "You",
      "index": 6
     },
     {
      "id": "e7",
      "widget": "Text",
-     "text": "The browser did not allow the audio input",
+     "text": "Practice with {stem}",
      "index": 7
     },
     {
      "id": "e8",
      "widget": "Text",
-     "text": "The audio input did not start: {error}",
+     "text": "Preparing…",
      "index": 8
     },
     {
      "id": "e9",
      "widget": "Text",
-     "text": "Latency not measured",
+     "text": "The browser did not allow the audio input",
      "index": 9
     },
     {
      "id": "e10",
      "widget": "Text",
-     "text": "Latency {latency}",
+     "text": "The audio input did not start: {error}",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "Text",
-     "text": "Measure latency",
+     "text": "The take could not be saved",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Text",
-     "text": "Measure the delay of your input and output",
+     "text": "Latency not measured",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Text",
-     "text": "Audio input",
+     "text": "Measure the delay of your input and output",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Text",
-     "text": "Default input",
+     "text": "Latency {latency}",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Text",
-     "text": "Input {number}",
+     "text": "Measure latency",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Text",
-     "text": "On time within",
+     "text": "Audio input",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Text",
-     "text": "Take score",
+     "text": "Default input",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Text",
-     "text": "Close",
+     "text": "Input {number}",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Text",
-     "text": "On time",
+     "text": "On time within",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Text",
-     "text": "{hit} of {count} · {percent} %",
+     "text": "Take score",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Text",
-     "text": "Early",
+     "text": "Close",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Text",
-     "text": "Late",
+     "text": "On time",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Text",
-     "text": "Missed",
+     "text": "{hit} of {count} · {percent} %",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Text",
-     "text": "Average",
+     "text": "Early",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Text",
-     "text": "Spread",
+     "text": "Late",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Text",
-     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
+     "text": "Missed",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Text",
-     "text": "How far the notes were from the original, in milliseconds",
+     "text": "Average",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Text",
-     "text": "Every note of the take, from its start to its end",
+     "text": "Spread",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Text",
-     "text": "Earlier takes: {list}",
+     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Text",
-     "text": "Latency",
+     "text": "How far the notes were from the original, in milliseconds",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Text",
-     "text": "Last click, close up",
+     "text": "Every note of the take, from its start to its end",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Text",
-     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
+     "text": "Earlier takes: {list}",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Text",
-     "text": "Measured before for this input and output",
+     "text": "Latency",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Text",
-     "text": "Not measured yet",
+     "text": "Last click, close up",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Text",
-     "text": "Start",
+     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
      "index": 35
     },
     {
      "id": "e36",
      "widget": "Text",
-     "text": "Start again",
+     "text": "Measured before for this input and output",
      "index": 36
     },
     {
      "id": "e37",
      "widget": "Text",
-     "text": "Stable",
+     "text": "Not measured yet",
      "index": 37
     },
     {
      "id": "e38",
      "widget": "Text",
-     "text": "{count} clicks · spread {spread} · saved for this input and output",
+     "text": "Start",
      "index": 38
     },
     {
      "id": "e39",
      "widget": "Text",
-     "text": "No click heard",
+     "text": "Start again",
      "index": 39
     },
     {
      "id": "e40",
      "widget": "Text",
-     "text": "Not stable",
+     "text": "Stable",
      "index": 40
     },
     {
      "id": "e41",
      "widget": "Text",
-     "text": "Hold the earcup closer to the pickup or turn the volume up.",
+     "text": "{count} clicks · spread {spread} · saved for this input and output",
      "index": 41
     },
     {
      "id": "e42",
      "widget": "Text",
-     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
+     "text": "No click heard",
      "index": 42
     },
     {
      "id": "e43",
      "widget": "Text",
-     "text": "Click 1",
+     "text": "Not stable",
      "index": 43
     },
     {
      "id": "e44",
      "widget": "Text",
-     "text": "Click {count} · spread {spread}",
+     "text": "Hold the earcup closer to the pickup or turn the volume up.",
      "index": 44
     },
     {
      "id": "e45",
      "widget": "Text",
-     "text": "Stopped",
+     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
      "index": 45
     },
     {
      "id": "e46",
      "widget": "Text",
-     "text": "Not saved",
+     "text": "Click 1",
      "index": 46
     },
     {
      "id": "e47",
      "widget": "Text",
-     "text": "Waiting for the first click",
+     "text": "Click {count} · spread {spread}",
      "index": 47
     },
     {
      "id": "e48",
      "widget": "Text",
-     "text": "Stop",
+     "text": "Stopped",
      "index": 48
     },
     {
      "id": "e49",
      "widget": "Text",
-     "text": "Played",
+     "text": "Not saved",
      "index": 49
     },
     {
      "id": "e50",
      "widget": "Text",
-     "text": "Recorded, moved back {latency}",
+     "text": "Waiting for the first click",
      "index": 50
     },
     {
      "id": "e51",
      "widget": "Text",
-     "text": "Recorded · off by {latency}",
+     "text": "Stop",
      "index": 51
     },
     {
      "id": "e52",
      "widget": "Text",
-     "text": "Recorded",
+     "text": "Played",
      "index": 52
+    },
+    {
+     "id": "e53",
+     "widget": "Text",
+     "text": "Recorded, moved back {latency}",
+     "index": 53
+    },
+    {
+     "id": "e54",
+     "widget": "Text",
+     "text": "Recorded · off by {latency}",
+     "index": 54
+    },
+    {
+     "id": "e55",
+     "widget": "Text",
+     "text": "Recorded",
+     "index": 55
     }
    ]
   },
@@ -2260,128 +2289,152 @@
     {
      "id": "e8",
      "widget": "Message",
-     "text": "The project is already separated with the best model",
+     "text": "The plugin keeps no files",
      "index": 8
     },
     {
      "id": "e9",
      "widget": "Message",
-     "text": "Improving needs the source audio of a finished project",
+     "text": "Invalid file name",
      "index": 9
     },
     {
      "id": "e10",
      "widget": "Message",
-     "text": "No quality improvement is running",
+     "text": "The plugin's files would take more than its space",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "Message",
-     "text": "Confirm the cleanup first",
+     "text": "File not found",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Message",
-     "text": "Wait until the separation ends, then clean up",
+     "text": "The project is already separated with the best model",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Message",
-     "text": "Confirm the update before continuing",
+     "text": "Improving needs the source audio of a finished project",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Message",
-     "text": "The update could not be installed",
+     "text": "No quality improvement is running",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Message",
-     "text": "Batch exceeds the configured item limit",
+     "text": "Confirm the cleanup first",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Message",
-     "text": "File name is required",
+     "text": "Wait until the separation ends, then clean up",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Message",
-     "text": "The file is larger than {limit} MB",
+     "text": "Confirm the update before continuing",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Message",
-     "text": "This does not look like an audio file that can be separated",
+     "text": "The update could not be installed",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Message",
-     "text": "Upload could not be saved",
+     "text": "Batch exceeds the configured item limit",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Message",
-     "text": "Batch not found",
+     "text": "File name is required",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Message",
-     "text": "The project list has changed",
+     "text": "The file is larger than {limit} MB",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Message",
-     "text": "This project cannot be deleted while its batch is active",
+     "text": "This does not look like an audio file that can be separated",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Message",
-     "text": "Project files could not all be removed; retry delete to continue cleanup",
+     "text": "Upload could not be saved",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Message",
-     "text": "Job not found",
+     "text": "Batch not found",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Message",
-     "text": "The job has already finished",
+     "text": "The project list has changed",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Message",
-     "text": "Asset not found",
+     "text": "This project cannot be deleted while its batch is active",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Message",
-     "text": "Waveform data is available for WAV and FLAC assets",
+     "text": "Project files could not all be removed; retry delete to continue cleanup",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Message",
-     "text": "Asset file is not available",
+     "text": "Job not found",
      "index": 28
+    },
+    {
+     "id": "e29",
+     "widget": "Message",
+     "text": "The job has already finished",
+     "index": 29
+    },
+    {
+     "id": "e30",
+     "widget": "Message",
+     "text": "Asset not found",
+     "index": 30
+    },
+    {
+     "id": "e31",
+     "widget": "Message",
+     "text": "Waveform data is available for WAV and FLAC assets",
+     "index": 31
+    },
+    {
+     "id": "e32",
+     "widget": "Message",
+     "text": "Asset file is not available",
+     "index": 32
     }
    ]
   },
@@ -2849,14 +2902,38 @@
     {
      "id": "e24",
      "widget": "Message",
-     "text": "Storage key points to a directory",
+     "text": "Invalid plugin id",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Message",
-     "text": "Media asset could not be deleted",
+     "text": "Invalid plugin file name",
      "index": 25
+    },
+    {
+     "id": "e26",
+     "widget": "Message",
+     "text": "Plugin file could not be saved",
+     "index": 26
+    },
+    {
+     "id": "e27",
+     "widget": "Message",
+     "text": "Plugin file could not be deleted",
+     "index": 27
+    },
+    {
+     "id": "e28",
+     "widget": "Message",
+     "text": "Storage key points to a directory",
+     "index": 28
+    },
+    {
+     "id": "e29",
+     "widget": "Message",
+     "text": "Media asset could not be deleted",
+     "index": 29
     }
    ]
   },
