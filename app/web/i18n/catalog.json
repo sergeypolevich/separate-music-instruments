@@ -1791,32 +1791,50 @@
     {
      "id": "e9",
      "widget": "Text",
-     "text": "Latency not measured: Settings → Plugins → Practice",
+     "text": "Latency not measured",
      "index": 9
     },
     {
      "id": "e10",
      "widget": "Text",
-     "text": "Audio input",
+     "text": "Latency {latency}",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "Text",
-     "text": "Default input",
+     "text": "Measure latency",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Text",
-     "text": "Input {number}",
+     "text": "Measure the delay of your input and output",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Text",
-     "text": "On time within",
+     "text": "Audio input",
      "index": 13
+    },
+    {
+     "id": "e14",
+     "widget": "Text",
+     "text": "Default input",
+     "index": 14
+    },
+    {
+     "id": "e15",
+     "widget": "Text",
+     "text": "Input {number}",
+     "index": 15
+    },
+    {
+     "id": "e16",
+     "widget": "Text",
+     "text": "On time within",
+     "index": 16
     }
    ]
   },

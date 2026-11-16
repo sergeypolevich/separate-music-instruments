@@ -403,3 +403,73 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             browser.close()
     finally:
         server.shutdown()
+
+
+# Everything sent to the speakers comes back as the "input" 37.4 ms later: the tuner's clicks reach it as from a pickup.
+LOOPBACK = """
+(() => {
+  const connect = AudioNode.prototype.connect;
+  AudioNode.prototype.connect = function (target, ...rest) {
+    const result = connect.call(this, target, ...rest);
+    const loop = window.__loop;
+    if (loop && target === this.context.destination && this.context === loop.context) connect.call(this, loop.delay);
+    return result;
+  };
+  navigator.mediaDevices.getUserMedia = async () => {
+    const context = activeAudioContext;
+    const delay = context.createDelay(1);
+    delay.delayTime.value = 0.0374;
+    const stream = context.createMediaStreamDestination();
+    connect.call(delay, stream);
+    window.__loop = { context, delay };
+    return stream.stream;
+  };
+})();
+"""
+
+
+@pytest.mark.browser
+def test_practice_latency_tuner_measures_a_loopback(tmp_path):
+    """Version 24: the tuner's clicks, looped back 37.4 ms late, are found one by one until 5 agree; the result is
+    stored for the input and output and shown on the lane's button."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    state = {"installed": {"practice": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
+             "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state)
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--autoplay-policy=no-user-gesture-required",))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            page.add_init_script(LOOPBACK)
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(base, wait_until="load")
+            page.locator(".project-tab").first.click()
+            page.locator(".practice-lane").wait_for()
+            latency = page.locator('[data-action="practice-latency"]')
+            assert latency.text_content() == "Measure latency"
+            latency.click()
+            dialog = page.locator(".practice-dialog")
+            assert dialog.is_visible() and dialog.locator("h2").text_content() == "Latency"
+            dialog.locator('[data-action="measure"]').click()
+            page.wait_for_function("document.querySelector('.practice-pill') && !document.querySelector('.practice-pill').hidden", timeout=30000)
+            assert dialog.locator(".practice-pill").text_content() == "Stable", dialog.locator(".practice-detail").text_content()
+            assert dialog.locator('.practice-dots span[data-found="true"]').count() >= 6
+            for _ in range(50):
+                saved = state["installed"]["practice"].get("settings", {}).get("latency", {})
+                if saved:
+                    break
+                page.wait_for_timeout(100)
+            (key, seconds), = saved.items()
+            assert key.startswith("default>") and 0.0374 <= seconds < 0.08  # the loop's delay plus the stream's own
+            assert "saved for this input and output" in dialog.locator(".practice-detail").text_content()
+            dialog.locator('[data-action="close"]').click()
+            assert page.locator(".practice-dialog").count() == 0
+            assert latency.text_content().startswith("Latency ") and latency.text_content().endswith(" ms")
+            assert errors == []
+            browser.close()
+    finally:
+        server.shutdown()

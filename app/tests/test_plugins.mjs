@@ -6,6 +6,7 @@ import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/z
 import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
+import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -116,4 +117,25 @@ test("practice: settings fall back to the default input and a ±15 ms tolerance;
   assert.equal(practiceChoice({ tolerance: 90 }).tolerance, 40);
   assert.equal(latencyKey("", ""), "default>default");
   assert.equal(latencyKey("usb-1", "g7"), "usb-1>g7");
+});
+
+test("practice tuner: a click is found where it rises out of the noise, nothing in noise alone", () => {
+  const samples = new Float32Array(1000).map((_, i) => (i % 2 ? 0.002 : -0.002));  // hum before and after
+  for (let i = 437; i < 480; i++) samples[i] = 0.4 * Math.exp(-(i - 437) / 10) * (i % 2 ? 1 : -1);
+  assert.equal(findClick(samples, 100), 437);
+  assert.equal(findClick(new Float32Array(1000).fill(0.003), 100), -1);
+  const loudNoise = new Float32Array(1000).map((_, i) => (i < 100 ? 0.2 : 0.25));  // nothing stands out
+  assert.equal(findClick(loudNoise, 100), -1);
+});
+
+test("practice tuner: the estimate is the median; it stops when 5 agree within 0.8 ms, or on silence, or after 16", () => {
+  assert.deepEqual(settle([], 1), { estimate: null, spread: null, stable: false, done: false, silent: false });
+  assert.equal(settle([], 3).silent, true);
+  const near = [0.0371, 0.0375, 0.0373, 0.0374, 0.0372, 0.0376];
+  const state = settle(near, 6);
+  assert.ok(state.stable && state.done);
+  assert.equal(+state.estimate.toFixed(5), 0.03735);
+  assert.ok(!settle(near.slice(0, 5), 5).done);  // at least 6 clicks
+  assert.ok(!settle([0.03, 0.04, 0.035, 0.032, 0.038, 0.036], 6).done);  // wireless: they disagree
+  assert.ok(settle([0.03, 0.04], 16).done);
 });

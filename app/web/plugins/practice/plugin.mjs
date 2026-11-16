@@ -38,6 +38,8 @@ export function latencyKey(input, output) {
   return `${input || "default"}>${output || "default"}`;
 }
 
+import { openTuner } from "./tuner.mjs";
+
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 const captureModules = new WeakMap();  // AudioContext → the worklet module, added once
 
@@ -72,6 +74,10 @@ export async function project(ctx) {
   record.setAttribute("aria-pressed", "false");
   record.textContent = ctx.t("Record");
   record.title = ctx.t("Record your input while the song plays");
+  const measure = bar.appendChild(document.createElement("button"));
+  measure.type = "button";
+  measure.className = "practice-record practice-latency";
+  measure.dataset.action = "practice-latency";
   const status = bar.appendChild(document.createElement("span"));
   status.className = "practice-status";
   status.setAttribute("aria-live", "polite");
@@ -81,13 +87,16 @@ export async function project(ctx) {
   youName.textContent = ctx.t("You");
 
   let settings = choice(ctx.settings);
-  ctx.onSettings((values) => { settings = choice(values); });
+  ctx.onSettings((values) => {
+    settings = choice(values);
+    if (measure.isConnected) showLatency();
+  });
   const data = (await ctx.loadData()) || {};
   if (!ctx.current) return undefined;
   let stem = ctx.stems.findIndex((item) => item.name === data.stem);
   let levels = null, levelMax = 1, take = null, takeMax = 0.05, beats = [], downbeats = [];
-  let capture = null;  // {stream, source, node, sink, key}
-  let output = "";
+  let capture = null;  // the recording's input: {key, close()}
+  let measuredKey = null;  // the input and output of the last recording or measurement
 
   const buttons = ctx.stems.map((item, index) => {
     const button = document.createElement("button");
@@ -147,31 +156,49 @@ export async function project(ctx) {
     for (const value of block.samples) if (Math.abs(value) > takeMax) takeMax = Math.abs(value);
   }
 
+  // The audio input in blocks of {frame, samples} (capture.js) on the AudioContext the song plays on, without the
+  // browser's echo cancellation, noise suppression and gain control (they delay and change the sound).
+  async function openInput(onBlock) {
+    const audio = ctx.audioContext;
+    if (!captureModules.has(audio)) captureModules.set(audio, audio.audioWorklet.addModule("plugins/practice/capture.js"));
+    await captureModules.get(audio);
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      deviceId: settings.input ? { exact: settings.input } : undefined,
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1,
+    } });
+    const output = await outputGroup();
+    const source = audio.createMediaStreamSource(stream);
+    const node = new AudioWorkletNode(audio, "practice-capture");
+    const sink = audio.createGain();  // silent: Chrome runs a worklet only while it leads to the output
+    sink.gain.value = 0;
+    source.connect(node).connect(sink).connect(audio.destination);
+    node.port.onmessage = onBlock;
+    const key = latencyKey(settings.input, output);
+    measuredKey = key;
+    showLatency();
+    return {
+      key,
+      close() {
+        node.port.onmessage = null;
+        source.disconnect();
+        node.disconnect();
+        sink.disconnect();
+        stream.getTracks().forEach((track) => track.stop());
+      },
+    };
+  }
+
   async function startRecording() {
     record.setAttribute("aria-pressed", "true");
     status.textContent = ctx.t("Preparing…");
     try {
       if (!(await ctx.precise()) || !ctx.current) return;
-      const audio = ctx.audioContext;
-      if (!captureModules.has(audio)) captureModules.set(audio, audio.audioWorklet.addModule("plugins/practice/capture.js"));
-      await captureModules.get(audio);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-        deviceId: settings.input ? { exact: settings.input } : undefined,
-        echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1,
-      } });
+      const opened = await openInput(onBlock);
       if (!ctx.current || record.getAttribute("aria-pressed") !== "true") {
-        stream.getTracks().forEach((track) => track.stop());
+        opened.close();
         return;
       }
-      output = await outputGroup();
-      const source = audio.createMediaStreamSource(stream);
-      const node = new AudioWorkletNode(audio, "practice-capture");
-      const sink = audio.createGain();  // silent: Chrome runs a worklet only while it leads to the output
-      sink.gain.value = 0;
-      source.connect(node).connect(sink).connect(audio.destination);
-      node.port.onmessage = onBlock;
-      const input = stream.getAudioTracks()[0].getSettings().deviceId || settings.input;
-      capture = { stream, source, node, sink, key: latencyKey(input, output) };
+      capture = opened;
       showStatus();
     } catch (error) {
       record.setAttribute("aria-pressed", "false");
@@ -183,23 +210,41 @@ export async function project(ctx) {
 
   function stopRecording() {
     record.setAttribute("aria-pressed", "false");
-    if (capture) {
-      capture.node.port.onmessage = null;
-      capture.source.disconnect();
-      capture.node.disconnect();
-      capture.sink.disconnect();
-      capture.stream.getTracks().forEach((track) => track.stop());
-      capture = null;
-    }
+    if (capture) capture.close();
+    capture = null;
     status.textContent = "";
   }
 
   function showStatus() {
     if (!capture) return;
-    status.textContent = settings.latency[capture.key] === undefined
-      ? ctx.t("Latency not measured: Settings → Plugins → Practice")
-      : "";
+    status.textContent = settings.latency[capture.key] === undefined ? ctx.t("Latency not measured") : "";
   }
+
+  // The latency of the input and output in use (known after the first recording or measurement).
+  function showLatency() {
+    const value = measuredKey && settings.latency[measuredKey];
+    measure.textContent = value
+      ? ctx.t("Latency {latency}", { latency: `${ctx.formatDecimal(Math.round(value * 10000) / 10)} ms` })
+      : ctx.t("Measure latency");
+    measure.title = ctx.t("Measure the delay of your input and output");
+  }
+  showLatency();
+  outputGroup().then((output) => {  // the key before any recording: the chosen input and the system's output now
+    if (measuredKey === null && ctx.current) measuredKey = latencyKey(settings.input, output);
+    showLatency();
+  });
+  ctx.on(measure, "click", () => {
+    stopRecording();
+    openTuner(ctx, {
+      openInput,
+      known: measuredKey ? settings.latency[measuredKey] : null,
+      save: (key, seconds) => {
+        settings.latency = { ...settings.latency, [key]: Math.round(seconds * 100000) / 100000 };
+        ctx.saveSettings({ ...settings });
+        showLatency();
+      },
+    });
+  });
 
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 
