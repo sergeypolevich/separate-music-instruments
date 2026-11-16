@@ -625,16 +625,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert abs((mute_box["x"] + mute_box["width"]) - (fader_box["x"] + fader_box["width"])) <= 1
             assert mute_box["height"] == 22
             assert page.locator(".mixer-row .mixer-name").first.evaluate("el => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight]") == ["15px", "400"]
-            # Every stem name starts with its own icon; a narrow screen shows the icon and the first letter only.
+            # Every stem name starts with its own icon; a narrow screen shows only the icon (the name is still read).
             names = page.evaluate("""() => [...document.querySelectorAll('.mixer-row .mixer-name')].map(n => [n.textContent,
                 n.querySelector('svg')?.innerHTML, getComputedStyle(n.querySelector('.mixer-label'), '::after').content])""")
             assert [n[0] for n in names] == ["Vocal", "Drums", "Bass", "Guitar", "Piano", "Other"]
             assert len({n[1] for n in names}) == 6 and all(n[1] for n in names)
             if viewport[0] < 600:
-                assert [n[2] for n in names] == ['"V"', '"D"', '"B"', '"G"', '"P"', '"O"']
                 assert page.locator(".mixer-left").first.bounding_box()["width"] <= 0.3 * viewport[0]
-                label_box = page.locator(".mixer-row .mixer-label").first.bounding_box()
-                assert label_box["width"] < 15  # one letter
+                assert page.locator(".mixer-row .mixer-label").first.bounding_box()["width"] <= 1  # no letter
+                icon_box = page.locator(".mixer-row .mixer-name svg").first.bounding_box()
+                assert icon_box["width"] == 22 and icon_box["height"] == 22
             else:
                 assert names[0][2] == "none"
             # No bottom gap under the workspace, and the page gradient never repeats as a band.

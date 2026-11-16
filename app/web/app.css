@@ -416,9 +416,12 @@ button[aria-busy="true"] { cursor: progress; }
   .tabs-popover { top: 47px; right: 9px; }
   .project-workspace { padding: 4px 0 0; }
   .project-detail { --columns: minmax(92px, 26%) minmax(0, 1fr); --column-gap: 7px; padding: 6px 9px 52px; }
-  /* Icon + first letter (the stem's hotkey): the controls column can be narrower. */
+  /* Only the stem's icon (version 23; the name stays for screen readers), a larger one; the first letter (the
+     stem's hotkey) only where a stem has no icon. The controls column can be narrower. */
   .mixer-label { font-size: 0; }
   .mixer-label::after { font-size: 15px; content: attr(data-short); }
+  .mixer-name:has(.icon) .mixer-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .mixer-row .mixer-name .icon { width: 22px; height: 22px; }
   .mixer-name { gap: 4px; }
   .mixer-switches { gap: 6px; }
   .mixer-row { min-height: 57px; }
