@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/zoom/plugin.mjs";
-import { gridLines, WEAK_GAP } from "../web/plugins/beat-grid/plugin.mjs";
+import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
@@ -37,8 +37,16 @@ test("the grid shows the pale beats only when there is room for them", () => {
   const wide = gridLines(beats, downbeats, { start: 0, end: 20 }, 2000);  // 50 px per beat
   assert.equal(wide.length, 41);
   assert.equal(wide.filter((line) => line.strong).length, 11);
-  const narrow = gridLines(beats, downbeats, { start: 0, end: 20 }, 20 * 2 * (WEAK_GAP - 1));
+  const narrow = gridLines(beats, downbeats, { start: 0, end: 20 }, 20 * 2 * (GAP - 1));
   assert.ok(narrow.every((line) => line.strong) && narrow.length === 11);
+  // Zoomed out, bar starts thin out like the beats: every 2nd bar, then every 4th, then none.
+  const bars = (beatPixels) => gridLines(beats, downbeats, { start: 0, end: 20 }, 40 * beatPixels).map((line) => line.x * 20);
+  assert.deepEqual(bars(GAP / 4 + 0.5), beats.filter((_v, i) => i % 4 === 0));
+  assert.deepEqual(bars(GAP / 8 + 0.1), beats.filter((_v, i) => i % 8 === 0));
+  assert.deepEqual(bars(GAP / 16 + 0.1), beats.filter((_v, i) => i % 16 === 0));
+  assert.deepEqual(bars(GAP / 16 - 0.1), []);
+  // The same bars stay in a later view (counted from the song's first bar).
+  assert.deepEqual(gridLines(beats, downbeats, { start: 3, end: 20 }, 17 * 2 * (GAP / 8 + 0.1)).map((line) => line.x * 17 + 3), [4, 8, 12, 16, 20]);
   const zoomed = gridLines(beats, [], { start: 5, end: 7 }, 500);  // no bar starts: every fourth beat
   assert.deepEqual(zoomed.map((line) => [line.x, line.strong]), [[0, false], [0.25, false], [0.5, true], [0.75, false], [1, false]]);
 });

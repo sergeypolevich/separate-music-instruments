@@ -229,6 +229,10 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.keyboard.type("Dm")
             page.keyboard.press("Enter")
             page.wait_for_function("document.querySelectorAll('.chord-label')[1].textContent === 'Dm'")
+            for _ in range(40):  # the save is a request of its own, after the name changes
+                if "chords" in state["data"]:
+                    break
+                page.wait_for_timeout(50)
             assert state["data"]["chords"] == {"edits": {"2.000": "Dm"}}
             # Zoomed in to 1-4 s the names move with the waveforms; C, already playing, keeps its name at the left edge.
             page.mouse.move(waves["x"] + waves["width"] / 2, waves["y"] + 20)
