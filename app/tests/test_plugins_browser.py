@@ -498,7 +498,7 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
             assert key.startswith("default>") and 0.0374 <= seconds < 0.08  # the loop's delay plus the stream's own
             assert "saved for this input and output" in dialog.locator(".practice-detail").text_content()
             dialog.locator('[data-action="close"]').click()
-            assert page.locator(".practice-dialog").count() == 0
+            page.locator(".practice-dialog").wait_for(state="detached")  # the close event comes a task later
             assert latency.get_attribute("aria-label").startswith("Latency ") and latency.text_content().endswith(" ms")
             assert errors == []
             browser.close()
@@ -570,7 +570,7 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             (kept,) = state["data"]["practice"]["scores"]
             assert kept["stem"] == "bass" and kept["notes"] == int(count) and kept["tolerance"] == 15
             score.locator('[data-action="close"]').click()
-            assert page.locator(".practice-score").count() == 0
+            page.locator(".practice-score").wait_for(state="detached")
             # The take is kept as WAV files and comes back with the project: drawn again, and it can be played along.
             for _ in range(50):
                 if state["data"]["practice"].get("takes"):
