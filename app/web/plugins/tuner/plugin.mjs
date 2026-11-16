@@ -39,7 +39,9 @@ export function project(ctx) {
   button.className = "footer-toggle tuner-toggle";
   button.dataset.action = "tuner";
   button.setAttribute("aria-expanded", "false");
-  button.innerHTML = `${ICON}<span>${ctx.t("Tuner")}</span>`;
+  button.innerHTML = ICON;  // a tuning fork, no text (version 23)
+  button.title = ctx.t("Tuner");
+  button.setAttribute("aria-label", ctx.t("Tuner"));
   const panel = holder.appendChild(document.createElement("div"));
   panel.className = "tuner-panel";
   panel.hidden = true;

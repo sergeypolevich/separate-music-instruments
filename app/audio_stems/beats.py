@@ -70,7 +70,7 @@ def _sections(chain: np.ndarray, min_len: int = 32, penalty: float = 16.0, merge
               step: int = 4) -> list[tuple[int, int]]:
     """Runs of one tempo, [(first, end)] beat indices: the local tempo (16-beat windows) deviates little from each
     run's median, every run costs `penalty`, runs are at least `min_len` beats (eight bars) and neighbours closer
-    than `merge` are joined, so a song gets one tempo unless it really changes (Лесник: 160 after the intro 172)."""
+    than `merge` are joined, so a song gets one tempo unless it really changes (a rock song: 160 for the intro, then 172)."""
     n = len(chain)
     win = 8
     local = 60 * 2 * win / (chain[np.minimum(n - 1, np.arange(n) + win)] - chain[np.maximum(0, np.arange(n) - win)])
@@ -100,7 +100,7 @@ def _grid(act: np.ndarray, first: float, last: float, bpm: float, fit: float = 0
     """The fixed grid from `first` to `last` that sits on the most beat activation (tempo within 1.5 % of `bpm`,
     any phase), a whole BPM when that is as good; None when its beats average less than `fit`: the band plays
     freely there and the beats follow it. Fitting the activation, not the chain, keeps a drum machine on one line
-    where beat_this has two (СМРТ: 40-100 ms apart, the chain jumped between them)."""
+    where beat_this has two (a punk song: 40-100 ms apart, the chain jumped between them)."""
     def best_phase(tempo, step):
         period = 60 / tempo
         k = np.arange(int((last - first + 0.2) / period) + 1)

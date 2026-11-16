@@ -33,18 +33,26 @@ export function settings(panel, api) {
   const value = look(api.values);
   const size = document.createElement("label");
   size.className = "plugin-setting";
-  const sizeName = document.createElement("span");
-  sizeName.textContent = api.t("Text size");
+  const sizeName = document.createElement("span");  // a small and a big A instead of a word (version 23)
+  sizeName.className = "setting-glyph";
+  sizeName.setAttribute("aria-hidden", "true");
+  sizeName.innerHTML = '<span class="glyph-small">A</span><span class="glyph-big">A</span>';
   const sizeValue = document.createElement("output");
   const slider = Object.assign(document.createElement("input"), { type: "range", min: SIZE.min, max: SIZE.max, step: 0.1, value: value.size });
   slider.dataset.setting = "size";
+  slider.setAttribute("aria-label", api.t("Text size"));
+  size.title = api.t("Text size");
   size.append(sizeName, sizeValue, slider);
   const bold = document.createElement("label");
   bold.className = "plugin-switch";
-  const boldName = document.createElement("span");
-  boldName.textContent = api.t("Bold");
+  const boldName = document.createElement("span");  // a plain and a bold B instead of a word
+  boldName.className = "setting-glyph";
+  boldName.setAttribute("aria-hidden", "true");
+  boldName.innerHTML = '<span>B</span><b>B</b>';
   const boldInput = Object.assign(document.createElement("input"), { type: "checkbox", checked: value.bold });
   boldInput.dataset.setting = "bold";
+  boldInput.setAttribute("aria-label", api.t("Bold"));
+  bold.title = api.t("Bold");
   bold.append(boldName, boldInput);
   const sample = document.createElement("div");
   sample.className = "chord-sample";

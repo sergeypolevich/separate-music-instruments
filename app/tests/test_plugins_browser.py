@@ -262,6 +262,9 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             chords_settings = page.locator('.installed-plugin[data-plugin="chords"] .plugin-settings')
             slider = chords_settings.locator('[data-setting="size"]')
             assert (slider.get_attribute("min"), slider.get_attribute("max")) == ("5.5", "33")
+            # Glyphs instead of words (small and big A, plain and bold B); the names stay for screen readers.
+            assert chords_settings.locator(".setting-glyph").all_text_contents() == ["AA", "BB"]
+            assert (slider.get_attribute("aria-label"), chords_settings.locator('[data-setting="bold"]').get_attribute("aria-label")) == ("Text size", "Bold")
             slider.evaluate("(el) => { el.value = '22'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             chords_settings.locator('[data-setting="bold"]').click()
             assert page.evaluate(font) == ["22px 650", "22px 650"]
@@ -283,7 +286,9 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
 
             # Tuner: a circle per string; a click plays its tone until a click elsewhere, Esc or Space (which then
             # does not start the song); the tuning and the volume are kept.
-            page.locator('[data-action="tuner"]').click()
+            tuner = page.locator('[data-action="tuner"]')
+            assert tuner.inner_text().strip() == "" and tuner.get_attribute("aria-label") == "Tuner"  # a tuning fork only
+            tuner.click()
             notes = page.locator(".tuner-note")
             assert [note.get_attribute("data-note") for note in notes.all()] == ["E2", "A2", "D3", "G3", "B3", "E4"]
             pressed = "[...document.querySelectorAll('.tuner-note')].filter((el) => el.getAttribute('aria-pressed') === 'true').map((el) => el.dataset.note)"

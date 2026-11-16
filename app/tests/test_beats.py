@@ -30,7 +30,7 @@ def test_a_steady_song_with_a_second_line_and_double_peaks_gets_one_exact_grid()
 
 
 def test_a_drum_machine_whose_peaks_jump_between_two_lines_stays_on_one_grid():
-    # СМРТ: beat_this's peaks move 40-100 ms off the beat and back every few bars; the tempo is 150 throughout.
+    # A punk song: beat_this's peaks move 40-100 ms off the beat and back every few bars; the tempo is 150 throughout.
     truth = 0.2 + 0.4 * np.arange(300)
     seen = np.array([b + (0.06 if (i // 24) % 3 == 1 else 0.0) for i, b in enumerate(truth)])
     found, tempo, mode = beats.track(logits(seen, truth[-1] + 1, [0.6 if (i // 24) % 3 == 1 else 0.95 for i in range(300)]), seen)
@@ -39,7 +39,7 @@ def test_a_drum_machine_whose_peaks_jump_between_two_lines_stays_on_one_grid():
 
 
 def test_a_tempo_change_after_the_intro_is_one_step():
-    # Лесник: 160 BPM for the intro, then 172 to the end.
+    # A rock song: 160 BPM for the intro, then 172 to the end.
     intro = 0.3 + (60 / 160) * np.arange(48)
     truth = np.concatenate([intro, intro[-1] + (60 / 172) * np.arange(1, 240)])
     found, tempo, mode = beats.track(logits(truth, truth[-1] + 1), truth)
@@ -49,7 +49,7 @@ def test_a_tempo_change_after_the_intro_is_one_step():
 
 
 def test_a_band_that_drifts_a_little_shows_one_tempo_and_is_followed():
-    # Борзов: a drummer between 125 and 129 BPM; the beats follow him, the tempo shown does not move.
+    # A live band: a drummer between 125 and 129 BPM; the beats follow him, the tempo shown does not move.
     period = 60 / (127 + 2 * np.sin(np.arange(400) / 40))
     truth = 0.5 + np.concatenate([[0], np.cumsum(period[:-1])])
     found, tempo, mode = beats.track(logits(truth, truth[-1] + 1), truth)
