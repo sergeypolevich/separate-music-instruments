@@ -7,6 +7,7 @@ import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
+import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
 
 const close = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, `${a} != ${b}`);
 
@@ -84,4 +85,17 @@ test("chords: edits by start time, a name hidden only when the next chord's line
   const zoomed = visibleLabels(found, { start: 1.9, end: 2.5 }, 600, () => 30);
   assert.deepEqual(zoomed.map((c) => c.chord), ["C", "G", "Am"]);
   assert.ok(zoomed[2].x * 600 >= zoomed[1].x * 600 + 30 + LABEL_SPACE);
+});
+
+test("tuner: equal temperament from A4 = 440 Hz, the six tunings, a stored choice checked", () => {
+  close(frequency("A4"), 440);
+  assert.ok(Math.abs(frequency("E2") - 82.407) < 0.001 && Math.abs(frequency("B0") - 30.868) < 0.001);
+  assert.ok(Math.abs(frequency("E4") - 329.628) < 0.001 && Math.abs(frequency("D1") - 36.708) < 0.001);
+  assert.deepEqual(Object.fromEntries(TUNINGS.map((tuning) => [tuning.id, tuning.notes.join(" ")])), {
+    guitar: "E2 A2 D3 G3 B3 E4", "guitar-drop-d": "D2 A2 D3 G3 B3 E4", "guitar-7": "B1 E2 A2 D3 G3 B3 E4",
+    bass: "E1 A1 D2 G2", "bass-drop-d": "D1 A1 D2 G2", "bass-5": "B0 E1 A1 D2 G2",
+  });
+  assert.deepEqual(choice({}), { tuning: TUNINGS[0], volume: 0.5 });
+  assert.deepEqual(choice({ tuning: "bass-5", volume: 7 }), { tuning: TUNINGS[5], volume: 1 });
+  assert.equal(choice({ tuning: "lute", volume: "x" }).tuning.id, "guitar");
 });

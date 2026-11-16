@@ -133,13 +133,13 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(base, wait_until="load")
             page.locator('a[data-screen="settings"]').click()
-            assert page.locator("#plugins-summary").text_content() == "0 of 6 installed"
+            assert page.locator("#plugins-summary").text_content() == "0 of 7 installed"
             page.locator("#open-store").click()
             cards = page.locator(".store-card")
-            assert cards.count() == 6
+            assert cards.count() == 7
             assert cards.first.locator("h2").text_content() == "Wheel zoom"
             assert page.locator('.store-card[data-plugin="eq"] .store-permissions').text_content() == "Changes the sound while playing"
-            for plugin_id in ("zoom", "beat-grid", "trim", "eq", "chords"):
+            for plugin_id in ("zoom", "beat-grid", "trim", "eq", "chords", "tuner"):
                 page.locator(f'.store-card[data-plugin="{plugin_id}"] [data-action="install"]').click()
                 page.locator(f'.store-card[data-plugin="{plugin_id}"] [data-action="disable"]').wait_for()
             page.keyboard.press("Escape")  # the store closes first, then Settings
@@ -258,7 +258,7 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert page.evaluate(font) == ["13.2px 400", "13.2px 400"]  # 20 % over version 22's 11 px, not bold
             page.locator('a[data-screen="settings"]').click()
             assert page.locator("#plugins-summary").is_hidden()
-            assert page.locator(".installed-plugin > .plugin-switch span").all_text_contents() == ["Wheel zoom", "Beat grid", "Trim", "Equalizer", "Chords"]
+            assert page.locator(".installed-plugin > .plugin-switch span").all_text_contents() == ["Wheel zoom", "Beat grid", "Trim", "Equalizer", "Chords", "Tuner"]
             chords_settings = page.locator('.installed-plugin[data-plugin="chords"] .plugin-settings')
             slider = chords_settings.locator('[data-setting="size"]')
             assert (slider.get_attribute("min"), slider.get_attribute("max")) == ("5.5", "33")
@@ -280,6 +280,35 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.locator('.installed-plugin[data-plugin="trim"] > .plugin-switch input').click()
             page.locator('[data-action="trim-start"]').wait_for(state="attached")
             page.keyboard.press("Escape")
+
+            # Tuner: a circle per string; a click plays its tone until a click elsewhere, Esc or Space (which then
+            # does not start the song); the tuning and the volume are kept.
+            page.locator('[data-action="tuner"]').click()
+            notes = page.locator(".tuner-note")
+            assert [note.get_attribute("data-note") for note in notes.all()] == ["E2", "A2", "D3", "G3", "B3", "E4"]
+            pressed = "[...document.querySelectorAll('.tuner-note')].filter((el) => el.getAttribute('aria-pressed') === 'true').map((el) => el.dataset.note)"
+            notes.nth(0).click()
+            assert page.evaluate(pressed) == ["E2"]
+            notes.nth(1).click()
+            assert page.evaluate(pressed) == ["A2"]  # one tone at a time
+            page.mouse.click(5, 450)  # outside the circles
+            assert page.evaluate(pressed) == []
+            notes.nth(2).click()
+            page.keyboard.press("Space")
+            assert page.evaluate(pressed) == [] and page.evaluate("activeTransport.playing") is False
+            notes.nth(3).click()
+            page.keyboard.press("Escape")
+            assert page.evaluate(pressed) == [] and page.locator(".tuner-panel").is_visible()
+            page.locator(".tuner-tuning").select_option("bass-5")
+            assert [note.get_attribute("data-note") for note in notes.all()] == ["B0", "E1", "A1", "D2", "G2"]
+            page.locator(".tuner-volume input").evaluate("(el) => { el.value = '0.8'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            for _ in range(40):
+                if state["installed"]["tuner"].get("settings", {}).get("volume") == 0.8:
+                    break
+                page.wait_for_timeout(50)
+            assert state["installed"]["tuner"]["settings"] == {"tuning": "bass-5", "volume": 0.8}
+            page.keyboard.press("Escape")  # no tone: closes the panel
+            assert page.locator(".tuner-panel").is_hidden()
 
             # A broken plugin is turned off at once, its error under ⚠ and on its card; the others keep working.
             page.locator('a[data-screen="settings"]').click()

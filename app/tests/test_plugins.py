@@ -14,10 +14,11 @@ from tests.test_analysis import add_song
 WEB = i18n.WEB
 
 
-def test_the_store_lists_the_five_plugins_with_valid_manifests():
+def test_the_store_lists_the_six_plugins_with_valid_manifests():
     found = plugins.catalog(WEB)
-    assert list(found) == ["zoom", "beat-grid", "trim", "eq", "chords"]
+    assert list(found) == ["zoom", "beat-grid", "trim", "eq", "chords", "tuner"]
     assert found["eq"]["permissions"] == ["sound"] and found["trim"]["permissions"] == ["playback"]
+    assert found["tuner"]["permissions"] == ["tone"]
     assert found["zoom"]["permissions"] == []
 
 
@@ -47,7 +48,7 @@ def _app(tmp_path):
 def test_install_turn_off_on_report_an_error_and_remove(tmp_path):
     call, repository, storage, _queued, _settings = _app(tmp_path)
     listed = call("GET", "/api/v1/plugins").json()
-    assert [item["id"] for item in listed] == ["zoom", "beat-grid", "trim", "eq", "chords"]
+    assert [item["id"] for item in listed] == ["zoom", "beat-grid", "trim", "eq", "chords", "tuner"]
     assert not any(item["installed"] for item in listed)
 
     assert call("PUT", "/api/v1/plugins/trim", {"enabled": True}).json()["enabled"] is True

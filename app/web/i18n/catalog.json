@@ -1431,6 +1431,12 @@
      "widget": "Text",
      "text": "Runs an analysis on this computer",
      "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Plays its own sound",
+     "index": 3
     }
    ]
   },
@@ -1780,6 +1786,71 @@
      "widget": "Text",
      "text": "Bring back the trimmed start and end",
      "index": 7
+    }
+   ]
+  },
+  {
+   "block": "plugin: tuner",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Tuner",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Tune your guitar or bass by ear: a click on a string's note plays a steady tone of it until you click elsewhere or press Esc or Space. Standard, drop D, 7-string guitar and 5-string bass.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Tuning",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Guitar: standard",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Guitar: drop D",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Guitar: 7-string",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Bass: standard",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Bass: drop D",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "Bass: 5-string",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Tuner volume",
+     "index": 9
     }
    ]
   },

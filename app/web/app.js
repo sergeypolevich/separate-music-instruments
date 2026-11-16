@@ -2479,6 +2479,7 @@ const PERMISSION_LABELS = {
   sound: N_("Changes the sound while playing"),
   playback: N_("Changes what is played"),
   analysis: N_("Runs an analysis on this computer"),
+  tone: N_("Plays its own sound"),
 };
 const storeOverlay = document.querySelector("#store-overlay");
 const storeList = document.querySelector("#store-list");
@@ -2588,6 +2589,10 @@ function pluginContext(id, permissions, host) {
     detailedWaveforms: () => host.detailedWaveforms(),
     get settings() { return (pluginList.find((item) => item.id === id) || {}).settings || {}; },
     onSettings: (callback) => listen(listenersOf(id), callback),
+    saveSettings: (values) => {  // a setting changed in the project itself (the tuner's volume)
+      const plugin = pluginList.find((item) => item.id === id);
+      if (plugin) changePluginSettings(plugin, { ...values });
+    },
     loadData: async () => (await requestJson(data)).data,
     saveData: (value) => requestJson(data, { method: "PUT", body: JSON.stringify({ data: value }) }),
   };
@@ -2610,6 +2615,7 @@ function pluginContext(id, permissions, host) {
       },
     });
   }
+  if (permissions.includes("tone")) ctx.audioContext = host.audioContext;  // its own sound, straight to the speakers
   if (permissions.includes("analysis")) {
     Object.assign(ctx, {
       beats: () => host.beats(),

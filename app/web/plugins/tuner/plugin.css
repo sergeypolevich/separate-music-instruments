@@ -1,0 +1,15 @@
+/* The tuner: a panel over its footer button, a circle per string. */
+.tuner { position: relative; }
+.footer-toggle.tuner-toggle { min-width: 0; }
+.tuner-panel { position: absolute; bottom: calc(100% + 8px); left: 0; z-index: 5; display: grid; gap: 12px; width: max-content; max-width: calc(100vw - 32px);
+  padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 12px 32px rgb(0 0 0 / .35); }
+.tuner-tuning { justify-self: start; min-height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--tab-bg); color: var(--text); font: inherit; font-size: 13px; }
+.tuner-notes { display: flex; flex-wrap: wrap; gap: 8px; }
+.tuner-note { width: 46px; height: 46px; border: 1px solid var(--line); border-radius: 50%; background: var(--tab-bg); color: var(--text); font-size: 16px; font-weight: 500; }
+.tuner-note sub { font-size: 10px; color: var(--muted); }
+.tuner-note:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+.tuner-note[aria-pressed="true"] { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent); }
+.tuner-note[aria-pressed="true"] sub { color: inherit; }
+.tuner-volume { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.tuner-volume .icon { width: 17px; height: 17px; flex: none; }
+.tuner-volume input { flex: 1; min-width: 120px; accent-color: var(--accent); }

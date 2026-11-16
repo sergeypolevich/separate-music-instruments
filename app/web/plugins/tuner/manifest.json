@@ -1,0 +1,9 @@
+{
+  "id": "tuner",
+  "order": 6,
+  "name": "Tuner",
+  "description": "Tune your guitar or bass by ear: a click on a string's note plays a steady tone of it until you click elsewhere or press Esc or Space. Standard, drop D, 7-string guitar and 5-string bass.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["tone"]
+}

@@ -37,6 +37,7 @@ The store card lists them, and `ctx` has the matching functions only when the ma
 | `sound` | Changes the sound while playing | `ctx.audioContext`, `ctx.setEffect(index, chain)` |
 | `playback` | Changes what is played | `ctx.range()`, `ctx.setRange(range)`, `ctx.dropLoop()` |
 | `analysis` | Runs an analysis on this computer | `ctx.beats()`, `ctx.analyze(kind, onProgress)`, `ctx.analysisState(kind)` |
+| `tone` | Plays its own sound | `ctx.audioContext`, to make a sound of its own (the tuner's tone) and play it straight to the speakers, not into the stems' mix |
 
 No plugin code runs on the computer itself. Heavy work is a service of the app that a plugin asks for. Today that
 means the beats and chord detection. A new kind of analysis is added to the app (`audio_stems/analysis.py` and its
@@ -80,7 +81,7 @@ should be caught by the plugin and shown on its own button.
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |
 | `loadData()`, `saveData(object)` | The plugin's own data for this project (JSON, at most 64 KB); removing the plugin deletes it |
-| `settings`, `onSettings(callback(settings))` | The plugin's settings, the same in every project (version 23), and a call after each change made in Settings |
+| `settings`, `onSettings(callback(settings))`, `saveSettings(object)` | The plugin's settings, the same in every project (version 23); a call after each change made in Settings; storing a change made in the project (the tuner's volume) |
 | `current` | `false` once the project has closed (check it after an `await`) |
 | `t(text, values)`, `tn(count, one, other, values)`, `formatDecimal(x)` | Translation, as in `app.js` |
 
