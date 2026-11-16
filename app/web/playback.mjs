@@ -98,6 +98,9 @@ export class SynchronizedTransport {
     // Speeds other than 100 % play the same stems through Signalsmith Stretch (see StretchEngine).
     this.rate = 1;
     this.stretch = null;
+    // Practice (version 24): the decoded stems as they are at 100 % (BufferEngine). Signalsmith smears note starts
+    // by 10-20 ms even at 100 %, too much to score timing against.
+    this.exact = null;
     // The stretch engine at 100 % too, once attached: Safari on iPhone resumes streamed stems one after another.
     this.alwaysStretch = false;
     // {start, end} in song time while a loop plays: always through the decoded engine (gapless, sample-locked).
@@ -122,8 +125,13 @@ export class SynchronizedTransport {
     return Math.max(0, this.mediaDuration - this.startOffset);
   }
 
+  // The decoded engine that plays now: the exact one at 100 % when there is one, else the stretch engine.
+  get engine() {
+    return this.exact !== null && this.rate === 1 ? this.exact : this.stretch;
+  }
+
   get stretching() {
-    return this.stretch !== null && (this.rate !== 1 || this.alwaysStretch || this.loop !== null);
+    return this.engine !== null && (this.rate !== 1 || this.alwaysStretch || this.loop !== null);
   }
 
   inLoop(position) {
@@ -137,7 +145,9 @@ export class SynchronizedTransport {
     const wasPlaying = this.playing;
     if (wasPlaying) this.pause();
     this.loop = loop;
-    if (this.stretch) this.stretch.loop = loop && { start: loop.start + this.startOffset, end: loop.end + this.startOffset };
+    for (const engine of [this.stretch, this.exact]) {
+      if (engine) engine.loop = loop && { start: loop.start + this.startOffset, end: loop.end + this.startOffset };
+    }
     this.seek(loop && !this.inLoop(position) ? loop.start : position);
     this.onLoopChange(loop);
     if (wasPlaying) await this.play();
@@ -146,7 +156,7 @@ export class SynchronizedTransport {
   // The position heard: the median of the stems that are actually playing, so one stem still loading (whose time
   // stands still) neither freezes the shown time nor pulls the others back; the first stem when none plays.
   get mediaTime() {
-    if (this.stretching) return this.stretch.position;
+    if (this.stretching) return this.engine.position;
     if (!this.playing && this.pausedAt !== null) return this.pausedAt;
     const live = this.tracks.filter((track) => !track.paused && !track.seeking && track.readyState >= HAVE_FUTURE_DATA)
       .map((track) => track.currentTime).sort((a, b) => a - b);
@@ -174,7 +184,7 @@ export class SynchronizedTransport {
     // The stems keep the position in both engines, so a speed change never jumps.
     this.pausedAt = position + this.startOffset;
     this.tracks.forEach((track) => { track.currentTime = this.pausedAt; });
-    if (this.stretching) this.stretch.seek(position + this.startOffset);
+    if (this.stretching) this.engine.seek(position + this.startOffset);
     this.onTimeUpdate(position);
     return position;
   }
@@ -188,6 +198,17 @@ export class SynchronizedTransport {
     if (wasPlaying) this.pause();
     this.rate = rate;
     if (this.stretch) this.stretch.rate = rate;
+    this.seek(position);
+    if (wasPlaying) await this.play();
+  }
+
+  // Sets or drops the exact engine; playing goes on through the change.
+  async setExact(engine) {
+    const position = this.currentTime;
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+    this.exact = engine;
+    if (engine) engine.loop = this.loop && { start: this.loop.start + this.startOffset, end: this.loop.end + this.startOffset };
     this.seek(position);
     if (wasPlaying) await this.play();
   }
@@ -206,8 +227,8 @@ export class SynchronizedTransport {
   // The song second heard at an AudioContext time: only the decoded engine runs on that clock, so null while the
   // stems stream or nothing plays, and for a time before the last seek or start.
   songTimeAt(contextTime) {
-    if (!this.playing || !this.stretching || contextTime < this.stretch.segment.output) return null;  // before the last seek
-    return this.stretch.positionAt(contextTime) - this.startOffset;
+    if (!this.playing || !this.stretching || contextTime < this.engine.segment.output) return null;  // before the last seek
+    return this.engine.positionAt(contextTime) - this.startOffset;
   }
 
   async play() {
@@ -218,7 +239,7 @@ export class SynchronizedTransport {
     if (this.stretching) {
       await this.beforePlay();
       if (!this.playing) return;
-      this.stretch.play(this.pausedAt ?? this.tracks[0].currentTime);
+      this.engine.play(this.pausedAt ?? this.tracks[0].currentTime);
       this.scheduleFrame();
       return;
     }
@@ -257,7 +278,7 @@ export class SynchronizedTransport {
     this.tracks.forEach((track) => track.pause());
     this.pausedAt = heard;
     if (this.stretching) {
-      this.pausedAt = this.stretch.pause();
+      this.pausedAt = this.engine.pause();
       this.tracks.forEach((track) => { track.currentTime = this.pausedAt; });
     }
   }

@@ -7,6 +7,8 @@ import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
+import { match, onsets, summary } from "../web/plugins/practice/score.mjs";
+import { addToRuns, takeNotes } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -138,4 +140,43 @@ test("practice tuner: the estimate is the median; it stops when 5 agree within 0
   assert.ok(!settle(near.slice(0, 5), 5).done);  // at least 6 clicks
   assert.ok(!settle([0.03, 0.04, 0.035, 0.032, 0.038, 0.036], 6).done);  // wireless: they disagree
   assert.ok(settle([0.03, 0.04], 16).done);
+});
+
+// Plucked notes (110 Hz, decaying) at the given seconds, over a little noise.
+function plucks(times, rate = 8000, seconds = 3) {
+  const samples = new Float32Array(rate * seconds).map((_, i) => ((i * 7919) % 13 - 6) / 6000);
+  for (const at of times) {
+    for (let i = Math.round(at * rate), n = 0; i < samples.length && n < rate * 0.4; i++, n++) {
+      samples[i] += 0.5 * Math.exp(-n / (rate * 0.1)) * Math.sin((2 * Math.PI * 110 * n) / rate);
+    }
+  }
+  return samples;
+}
+
+test("practice score: note starts are found within a few ms, also a repeated note while the last one rings", () => {
+  const times = [0.2, 0.5, 0.62, 1.0, 1.5, 2.25];
+  const found = onsets(plucks(times), 8000);
+  assert.equal(found.length, times.length);
+  found.forEach((time, i) => assert.ok(Math.abs(time - times[i]) < 0.006, `${time} vs ${times[i]}`));
+  assert.deepEqual(onsets(new Float32Array(8000), 8000), []);  // silence
+});
+
+test("practice score: each original note takes the nearest played note within 80 ms; counts by the tolerance", () => {
+  const offsets = match([1, 2, 3, 4, 5], [0.99, 2.03, 2.05, 3.5, 5.0, 5.06]);
+  assert.deepEqual(offsets.map((v) => (v === null ? null : Math.round(v * 1000))), [-10, 30, null, null, 0]);
+  const result = summary(offsets, 0.015);
+  assert.deepEqual({ ...result, mean: Math.round(result.mean * 1000) }, { notes: 5, onTime: 2, early: 0, late: 1, missed: 2, mean: 7, spread: result.spread });
+  assert.equal(Math.round(match([1], [1.07, 0.95])[0] * 1000), -50);  // the closer of two
+});
+
+test("practice score: a take recorded in pieces is scored only where it was recorded", () => {
+  const rate = 8000, samples = plucks([0.3, 0.8, 1.3, 1.8], rate, 2);
+  const runs = [];
+  for (let i = 0; i < samples.length; i += 1000) addToRuns(runs, 10 + i / rate, 10 + (i + 1000) / rate, samples.subarray(i, i + 1000));
+  addToRuns(runs, 30, 30.125, new Float32Array(1000));  // after a seek: a run of its own
+  assert.equal(runs.length, 2);
+  const { played, covered } = takeNotes(runs, [10.3, 10.8, 11.3, 11.8, 12.5, 30.05, 31]);
+  assert.deepEqual(covered, [10.3, 10.8, 11.3, 11.8]);  // 12.5 and 31 were not recorded; 30.05 is at a run's edge
+  assert.equal(played.length, 4);
+  match(covered, played).forEach((offset) => assert.ok(Math.abs(offset) < 0.006));
 });

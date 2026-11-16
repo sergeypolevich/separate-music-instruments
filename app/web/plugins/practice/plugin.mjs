@@ -34,11 +34,36 @@ export function addPeaks(peaks, bucket, from, to, samples) {
 }
 
 // The input and output a latency belongs to: another interface or headphones need their own measurement.
+// Runs of input in song time: a block that follows the last one goes on its run, else (a seek) starts a new one.
+export function addToRuns(runs, from, to, samples) {
+  const last = runs[runs.length - 1];
+  if (last && Math.abs(from - last.to) < 0.005) {
+    last.chunks.push(samples);
+    last.to = to;
+  } else runs.push({ from, to, chunks: [samples] });
+}
+
+// The note starts of the take (song seconds) and the original's notes inside what was recorded (0.1 s in from the
+// edges, where a note may be cut).
+export function takeNotes(runs, reference) {
+  const played = [], covered = [];
+  for (const run of runs) {
+    const length = run.chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+    const samples = new Float32Array(length);
+    let at = 0;
+    for (const chunk of run.chunks) { samples.set(chunk, at); at += chunk.length; }
+    played.push(...onsets(samples, length / (run.to - run.from)).map((time) => run.from + time));
+    covered.push(...reference.filter((time) => time >= run.from + 0.1 && time <= run.to - 0.1));
+  }
+  return { played: played.sort((a, b) => a - b), covered };
+}
+
 export function latencyKey(input, output) {
   return `${input || "default"}>${output || "default"}`;
 }
 
 import { openTuner } from "./tuner.mjs";
+import { match, onsets, showScore } from "./score.mjs";
 
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 const captureModules = new WeakMap();  // AudioContext → the worklet module, added once
@@ -97,6 +122,9 @@ export async function project(ctx) {
   let levels = null, levelMax = 1, take = null, takeMax = 0.05, beats = [], downbeats = [];
   let capture = null;  // the recording's input: {key, close()}
   let measuredKey = null;  // the input and output of the last recording or measurement
+  let runs = [];  // the take being recorded: [{from, to, chunks}]
+  let reference = null;  // the chosen stem's note starts (a promise), found once
+  const scores = Array.isArray(data.scores) ? data.scores : [];
 
   const buttons = ctx.stems.map((item, index) => {
     const button = document.createElement("button");
@@ -120,6 +148,8 @@ export async function project(ctx) {
 
   async function choose(index) {
     stem = index;
+    reference = null;
+    runs = [];
     buttons.forEach((button, at) => button.setAttribute("aria-pressed", String(at === index)));
     lane.hidden = index < 0;
     levels = null;
@@ -153,6 +183,7 @@ export async function project(ctx) {
     const to = ctx.songTimeAt((block.frame + block.samples.length) / rate - lag);
     if (from === null || to === null || !(to > from) || to - from > 1) return;  // paused, a seek or the loop's jump back
     addPeaks(take, bucket, from, to, block.samples);
+    addToRuns(runs, from, to, block.samples);
     for (const value of block.samples) if (Math.abs(value) > takeMax) takeMax = Math.abs(value);
   }
 
@@ -193,6 +224,9 @@ export async function project(ctx) {
     status.textContent = ctx.t("Preparing…");
     try {
       if (!(await ctx.precise()) || !ctx.current) return;
+      const index = stem;
+      reference = reference || ctx.stemAudio(index).then(({ samples, sampleRate }) => onsets(samples, sampleRate));
+      reference.catch(() => { if (stem === index) reference = null; });
       const opened = await openInput(onBlock);
       if (!ctx.current || record.getAttribute("aria-pressed") !== "true") {
         opened.close();
@@ -213,7 +247,31 @@ export async function project(ctx) {
     if (capture) capture.close();
     capture = null;
     status.textContent = "";
+    finishTake();
   }
+
+  // A take ends when the song stops or recording is turned off: its score, kept with the last 20.
+  async function finishTake() {
+    const recorded = runs, chosen = stem, tolerance = settings.tolerance / 1000;
+    runs = [];
+    if (!recorded.length || !reference || chosen < 0) return;
+    let notes;
+    try {
+      notes = takeNotes(recorded, await reference);
+    } catch (_error) {
+      return;  // the stem could not be decoded: no score, the recording still showed
+    }
+    if (!ctx.current || notes.covered.length < 4) return;  // too short to say anything
+    const offsets = match(notes.covered, notes.played);
+    const history = scores.slice(-5);
+    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history,
+      from: recorded[0].from, to: recorded[recorded.length - 1].to });
+    scores.push({ at: new Date().toISOString(), stem: ctx.stems[chosen].name, tolerance: settings.tolerance,
+      ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Math.round(value * 10000) / 10000])) });
+    data.scores = scores.slice(-20);
+    ctx.saveData(data);
+  }
+  let wasPlaying = false;
 
   function showStatus() {
     if (!capture) return;
@@ -259,6 +317,8 @@ export async function project(ctx) {
   const color = (name) => getComputedStyle(lane).getPropertyValue(name).trim();
   function draw() {
     frame = requestAnimationFrame(draw);
+    if (wasPlaying && !ctx.playing) finishTake();  // a pause ends the take
+    wasPlaying = ctx.playing;
     const bucket = bucketSize();
     if (lane.hidden || !bucket) return;
     const dpr = window.devicePixelRatio || 1;

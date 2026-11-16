@@ -1,7 +1,10 @@
 """The plugins in a real browser (version 22): the store, the five plugins on a project, a broken plugin, removal."""
+import io
 import json
+import math
 import shutil
 import threading
+import wave
 
 import pytest
 
@@ -14,8 +17,8 @@ BEATS = {"status": "done", "progress": 1, "error": None, "result": {
 BROKEN = "export function project(ctx) { ctx.addFooter(document.createElement('span')); throw new Error('Broken on purpose'); }\n"
 
 
-def _serve(web, state):
-    wav = _silent_wav()
+def _serve(web, state, wav=None):
+    wav = wav or _silent_wav()
     catalog = plugins.catalog(web)
 
     class Handler(_QuietHandler):
@@ -409,19 +412,26 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
 LOOPBACK = """
 (() => {
   const connect = AudioNode.prototype.connect;
+  const toSpeakers = [];  // everything connected to the output so far (the stems' master gain, from the start)
   AudioNode.prototype.connect = function (target, ...rest) {
     const result = connect.call(this, target, ...rest);
-    const loop = window.__loop;
-    if (loop && target === this.context.destination && this.context === loop.context) connect.call(this, loop.delay);
+    if (target === this.context.destination) {
+      toSpeakers.push(this);
+      const loop = window.__loop;
+      if (loop && this.context === loop.context) connect.call(this, loop.delay);
+    }
     return result;
   };
   navigator.mediaDevices.getUserMedia = async () => {
     const context = activeAudioContext;
-    const delay = context.createDelay(1);
-    delay.delayTime.value = 0.0374;
+    if (!window.__loop || window.__loop.context !== context) {  // one delay for every input opened
+      const delay = context.createDelay(1);
+      delay.delayTime.value = 0.0374;
+      toSpeakers.filter((node) => node.context === context).forEach((node) => connect.call(node, delay));
+      window.__loop = { context, delay };
+    }
     const stream = context.createMediaStreamDestination();
-    connect.call(delay, stream);
-    window.__loop = { context, delay };
+    connect.call(window.__loop.delay, stream);
     return stream.stream;
   };
 })();
@@ -469,6 +479,77 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
             dialog.locator('[data-action="close"]').click()
             assert page.locator(".practice-dialog").count() == 0
             assert latency.text_content().startswith("Latency ") and latency.text_content().endswith(" ms")
+            assert errors == []
+            browser.close()
+    finally:
+        server.shutdown()
+
+
+def _plucks_wav() -> bytes:
+    """5 s at 16 kHz: a plucked 110 Hz note every half second from 0.25 s, so the stem has notes to score against."""
+    rate, frames = 16_000, bytearray()
+    for i in range(rate * 5):
+        since = (i / rate - 0.25) % 0.5
+        value = 0.5 * math.exp(-since / 0.08) * math.sin(2 * math.pi * 110 * since) if i / rate >= 0.25 else 0.0
+        sample = int(value * 32767).to_bytes(2, "little", signed=True)
+        frames += sample + sample
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as output:
+        output.setnchannels(2)
+        output.setsampwidth(2)
+        output.setframerate(rate)
+        output.writeframes(bytes(frames))
+    return buffer.getvalue()
+
+
+@pytest.mark.browser
+def test_practice_scores_a_take_against_the_stem(tmp_path):
+    """Version 24: the song itself comes back through the loop as the "playing"; after the tuner has measured the
+    loop, a recorded take is on time, the score panel says so, and the score is kept for the project."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    state = {"installed": {"practice": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
+             "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state, _plucks_wav())
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--autoplay-policy=no-user-gesture-required",))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            page.add_init_script(LOOPBACK)
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(base, wait_until="load")
+            page.locator(".project-tab").first.click()
+            page.locator(".practice-lane").wait_for()
+            page.locator('[data-action="practice-latency"]').click()
+            page.locator('.practice-dialog [data-action="measure"]').click()
+            page.wait_for_function("!document.querySelector('.practice-pill').hidden", timeout=30000)
+            assert page.locator(".practice-pill").text_content() == "Stable"
+            page.locator('.practice-dialog [data-action="close"]').click()
+            page.locator('[data-action="practice-record"]').click()
+            page.wait_for_function("activeTransport.stretching")
+            page.evaluate("document.activeElement.blur()")
+            page.keyboard.press("Space")
+            page.wait_for_function("activeTransport.currentTime > 4.4", timeout=15000)
+            page.keyboard.press("Space")
+            score = page.locator(".practice-score")
+            score.wait_for(timeout=15000)
+            value = score.locator('[data-tile="on-time"] .practice-value').text_content()
+            hit, _, rest = value.partition(" of ")
+            count, percent = rest.split(" · ")
+            assert int(count) >= 6 and int(hit) >= int(count) - 1, value  # the song against itself: on time
+            assert score.locator('[data-tile="missed"] .practice-value').text_content() in ("0", "1")
+            assert score.locator(".practice-histogram rect").count() >= 2 and score.locator(".practice-strip rect").count() == int(count)
+            for _ in range(50):
+                if state["data"]["practice"].get("scores"):
+                    break
+                page.wait_for_timeout(100)
+            (kept,) = state["data"]["practice"]["scores"]
+            assert kept["stem"] == "bass" and kept["notes"] == int(count) and kept["tolerance"] == 15
+            score.locator('[data-action="close"]').click()
+            assert page.locator(".practice-score").count() == 0
             assert errors == []
             browser.close()
     finally:

@@ -368,6 +368,35 @@ test("the decoded engine at 100 % maps an AudioContext time to the song second h
   assert.equal(transport.songTimeAt(14), null);
 });
 
+test("with an exact engine, 100 % plays it and other speeds the stretch engine, at the same position", async () => {
+  const tracks = [new FakeAudio(30)];
+  const transport = new SynchronizedTransport(tracks, { requestFrame: () => 1, cancelFrame: () => {} });
+  const started = [];
+  const clock = {
+    currentTime: 0,
+    createBufferSource() {
+      const source = { connect() {}, disconnect() {}, start: (when, offset) => started.push([when, offset]), stop() {} };
+      return source;
+    },
+  };
+  transport.stretch = new StretchEngine(clock, [new FakeStretchNode()]);
+  transport.alwaysStretch = true;
+  transport.seek(2);
+  await transport.play();
+  await transport.setExact(new BufferEngine(clock, [{ duration: 30 }], ["out"]));
+  assert.equal(transport.engine, transport.exact);
+  assert.deepEqual(started, [[0, 2]]);
+  clock.currentTime = 1;
+  assert.equal(transport.songTimeAt(1), 3);
+  await transport.setPlaybackRate(0.5);  // slower: stretched, from where the exact engine was
+  assert.equal(transport.engine, transport.stretch);
+  assert.equal(transport.stretch.nodes[0].schedules.at(-1).input, 3);
+  await transport.setPlaybackRate(1);
+  await transport.setExact(null);
+  assert.equal(transport.engine, transport.stretch);
+  assert.ok(transport.stretching && transport.playing);
+});
+
 test("at half speed the metronome and the count-in stretch with the music", () => {
   const context = new FakeContext();
   const metronome = new Metronome(context, {}, { lookahead: 0.12 });

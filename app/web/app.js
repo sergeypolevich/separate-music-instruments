@@ -1610,6 +1610,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     speedFader.append(scale, speed, speedValue);
     speedWrap.append(slower, speedFader, faster);
     let stretchLoading = null;
+    let exactLoading = null;  // practice: the decoded stems for the exact engine
     // plain: without AudioWorklet (a page over http from another device) the decoded mode plays at 100 % only.
     const loadStretch = ({ plain = false } = {}) => {
       stretchLoading = stretchLoading || (async () => {
@@ -1941,22 +1942,38 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         detailedWaveforms: () => Promise.all(stems.map((asset, index) => drawWaveform(waveSvgs[index], asset.asset_id, 8192))),
         levels: async (index) => (await requestJson(`/api/v1/assets/${encodeURIComponent(stems[index].asset_id)}/waveform?points=8192`)).levels,
         // Practice (version 24): the stems through the decoded engine, whose time is on the AudioContext clock.
+        // At 100 % the decoded stems as they are (the stretch engine smears note starts); other speeds stretch.
         precise: async () => {
-          await loadStretch({ plain: true });
+          exactLoading = exactLoading || Promise.all(tracks.map(async (audio) => {
+            const response = await fetch(audio.currentSrc || audio.src);
+            return audioContext.decodeAudioData(await response.arrayBuffer());
+          })).catch((reason) => { exactLoading = null; throw reason; });
+          const decoded = await exactLoading;
           if (setupId !== playbackSetupId) return false;
+          if (!transport.exact) await transport.setExact(new BufferEngine(audioContext, decoded, gainNodes));
           await transport.setAlwaysStretch(true);
           speedWrap.dataset.engine = "stretch";
           return true;
         },
         imprecise: async () => {
-          if (decodedTrial || apple || setupId !== playbackSetupId) return;  // these play decoded anyway
-          await transport.setAlwaysStretch(false);
+          if (setupId !== playbackSetupId) return;
+          exactLoading = null;
+          await transport.setExact(null);  // frees the decoded copies
+          if (!decodedTrial && !apple) await transport.setAlwaysStretch(false);  // these play decoded anyway
           speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
         },
         songTimeAt: (time) => transport.songTimeAt(time),
-        stemAudio: async (index) => {  // decoded again on request: the engine's copies are not kept twice
+        // A stem as one channel from song time 0, decoded again on request: the engine's copies are not kept twice.
+        stemAudio: async (index) => {
           const response = await fetch(tracks[index].currentSrc || tracks[index].src);
-          return audioContext.decodeAudioData(await response.arrayBuffer());
+          const buffer = await audioContext.decodeAudioData(await response.arrayBuffer());
+          const first = Math.min(buffer.length, Math.round(transport.startOffset * buffer.sampleRate));
+          const samples = new Float32Array(buffer.length - first);
+          for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
+            const data = buffer.getChannelData(channel);
+            for (let i = 0; i < samples.length; i++) samples[i] += data[first + i] / buffer.numberOfChannels;
+          }
+          return { samples, sampleRate: buffer.sampleRate };
         },
         current: () => setupId === playbackSetupId,
       });
