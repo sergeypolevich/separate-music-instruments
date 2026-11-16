@@ -359,6 +359,7 @@ test("the decoded engine at 100 % maps an AudioContext time to the song second h
   clock.currentTime = 13;
   transport.seek(20);  // a seek starts a new schedule at the clock's now
   assert.equal(transport.songTimeAt(13.5), 20.5);
+  assert.equal(transport.songTimeAt(12.9), null);  // heard before the seek: not on this schedule
   transport.pause();
   assert.equal(transport.songTimeAt(14), null);
   await transport.play();

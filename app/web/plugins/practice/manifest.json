@@ -1,0 +1,9 @@
+{
+  "id": "practice",
+  "order": 7,
+  "name": "Practice",
+  "description": "Play your part along with the song: pick the stem you play, mute it and record yourself. Your waveform runs under the original's, and after a take you see how many notes were on time.",
+  "author": "Audio Stems",
+  "version": "1.0",
+  "permissions": ["input", "analysis"]
+}

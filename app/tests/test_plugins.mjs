@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/zoom/plugin.mjs";
 import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
+import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -98,4 +99,21 @@ test("tuner: equal temperament from A4 = 440 Hz, the six tunings, a stored choic
   assert.deepEqual(choice({}), { tuning: TUNINGS[0], volume: 0.5 });
   assert.deepEqual(choice({ tuning: "bass-5", volume: 7 }), { tuning: TUNINGS[5], volume: 1 });
   assert.equal(choice({ tuning: "lute", volume: "x" }).tuning.id, "guitar");
+});
+
+test("practice: an input block raises the peaks of the song buckets it was heard in", () => {
+  const peaks = new Float32Array(5).fill(-1);
+  addPeaks(peaks, 0.1, 0.12, 0.32, Float32Array.from([0.1, -0.4, 0.2, 0.3]));  // 0.05 s a sample: buckets 1, 1, 2, 2
+  assert.deepEqual([...peaks].map((v) => +v.toFixed(2)), [-1, 0.4, 0.3, -1, -1]);
+  addPeaks(peaks, 0.1, 0.45, 0.65, Float32Array.from([0.5, 0.5]));  // past the end: only bucket 4
+  assert.equal(+peaks[4].toFixed(2), 0.5);
+  addPeaks(peaks, 0.1, 0.32, 0.37, Float32Array.from([0]));  // silence is recorded as 0, not "nothing yet"
+  assert.equal(peaks[3], 0);
+});
+
+test("practice: settings fall back to the default input and a ±15 ms tolerance; a latency per input and output", () => {
+  assert.deepEqual(practiceChoice({}), { input: "", tolerance: 15, latency: {} });
+  assert.equal(practiceChoice({ tolerance: 90 }).tolerance, 40);
+  assert.equal(latencyKey("", ""), "default>default");
+  assert.equal(latencyKey("usb-1", "g7"), "usb-1>g7");
 });

@@ -133,10 +133,10 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.on("pageerror", lambda error: errors.append(str(error)))
             page.goto(base, wait_until="load")
             page.locator('a[data-screen="settings"]').click()
-            assert page.locator("#plugins-summary").text_content() == "0 of 7 installed"
+            assert page.locator("#plugins-summary").text_content() == "0 of 8 installed"
             page.locator("#open-store").click()
             cards = page.locator(".store-card")
-            assert cards.count() == 7
+            assert cards.count() == 8
             assert cards.first.locator("h2").text_content() == "Wheel zoom"
             assert page.locator('.store-card[data-plugin="eq"] .store-permissions').text_content() == "Changes the sound while playing"
             for plugin_id in ("zoom", "beat-grid", "trim", "eq", "chords", "tuner"):
@@ -332,6 +332,74 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert "DELETE /api/v1/plugins/eq" in state["requests"]
             assert page.locator(".chord-layer .chord-label").count() == 2 and page.locator(".beat-line").count() == 10
             assert not errors, errors
+            browser.close()
+    finally:
+        server.shutdown()
+
+
+WARN = (227, 189, 87)  # the dark theme's --warn: the practice lane's "You" bars
+YOU_BARS = """(() => { const c = document.querySelector('.practice-lane canvas'); const g = c.getContext('2d');
+  const d = g.getImageData(0, c.height / 2, c.width, c.height / 2).data; let n = 0;
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - %d) < 12 && Math.abs(d[i + 1] - %d) < 12 && Math.abs(d[i + 2] - %d) < 12) n++;
+  return n; })()""" % WARN
+
+
+@pytest.mark.browser
+def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
+    """Version 24: a stem row's target picks the stem, the lane shows it, Record captures the (fake) input while the
+    song plays through the decoded engine, and the choice and the settings are kept."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    state = {"installed": {"practice": {"enabled": True}}, "data": {}, "requests": [],
+             "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state)
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(base, wait_until="load")
+            page.locator(".project-tab").first.click()
+            page.wait_for_function("activeTransport && activeTransport.duration > 0")
+            targets = page.locator(".practice-target")
+            assert targets.count() == 4 and page.locator(".practice-lane").is_hidden()
+            assert targets.nth(2).get_attribute("aria-label") == "Practice with Bass"
+            targets.nth(2).click()
+            assert targets.nth(2).get_attribute("aria-pressed") == "true"
+            lane = page.locator(".practice-lane")
+            lane.wait_for()
+            wave = page.locator(".mixer-waveform").first.bounding_box()
+            box = lane.bounding_box()
+            assert abs(box["x"] - wave["x"]) < 1 and abs(box["width"] - wave["width"]) < 1  # as wide as the waveforms
+            assert state["data"]["practice"] == {"stem": "bass"}
+            assert page.evaluate(YOU_BARS) == 0
+            page.locator('[data-action="practice-record"]').click()
+            page.wait_for_function("activeTransport.stretching")  # the decoded engine: song time on the AudioContext clock
+            page.wait_for_function("document.querySelector('.practice-status').textContent.includes('Latency not measured')")
+            page.evaluate("document.activeElement.blur()")
+            page.keyboard.press("Space")
+            page.wait_for_function(YOU_BARS + " > 50", timeout=15000)  # the fake input's beeps, drawn under the stem
+            page.keyboard.press("Space")
+            page.locator('[data-action="practice-record"]').click()
+            assert page.locator('[data-action="practice-record"]').get_attribute("aria-pressed") == "false"
+
+            page.reload(wait_until="load")  # the stem stays chosen for this project
+            page.locator(".project-tab").first.click()
+            page.locator(".practice-lane").wait_for()
+            assert page.locator(".practice-target").nth(2).get_attribute("aria-pressed") == "true"
+            page.locator('a[data-screen="settings"]').click()
+            page.locator('[data-setting="tolerance"]').evaluate("(el) => { el.value = '20'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            page.wait_for_function("document.querySelector('[data-setting=\"tolerance\"]').closest('label').querySelector('output').textContent === '±20 ms'")
+            for _ in range(50):
+                if state["installed"]["practice"].get("settings", {}).get("tolerance") == 20:
+                    break
+                page.wait_for_timeout(100)
+            assert state["installed"]["practice"]["settings"] == {"input": "", "tolerance": 20, "latency": {}}
+            assert page.locator('[data-setting="input"] option').count() >= 1
+            assert errors == []
             browser.close()
     finally:
         server.shutdown()

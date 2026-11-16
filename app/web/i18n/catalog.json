@@ -1437,6 +1437,12 @@
      "widget": "Text",
      "text": "Plays its own sound",
      "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Records from your audio input",
+     "index": 4
     }
    ]
   },
@@ -1722,6 +1728,95 @@
      "widget": "Text",
      "text": "Equalizer · {stem}",
      "index": 14
+    }
+   ]
+  },
+  {
+   "block": "plugin: practice",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Title",
+     "text": "Practice",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Description",
+     "text": "Play your part along with the song: pick the stem you play, mute it and record yourself. Your waveform runs under the original's, and after a take you see how many notes were on time.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Record",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "Record your input while the song plays",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "You",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Practice with {stem}",
+     "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Preparing…",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "The browser did not allow the audio input",
+     "index": 7
+    },
+    {
+     "id": "e8",
+     "widget": "Text",
+     "text": "The audio input did not start: {error}",
+     "index": 8
+    },
+    {
+     "id": "e9",
+     "widget": "Text",
+     "text": "Latency not measured: Settings → Plugins → Practice",
+     "index": 9
+    },
+    {
+     "id": "e10",
+     "widget": "Text",
+     "text": "Audio input",
+     "index": 10
+    },
+    {
+     "id": "e11",
+     "widget": "Text",
+     "text": "Default input",
+     "index": 11
+    },
+    {
+     "id": "e12",
+     "widget": "Text",
+     "text": "Input {number}",
+     "index": 12
+    },
+    {
+     "id": "e13",
+     "widget": "Text",
+     "text": "On time within",
+     "index": 13
     }
    ]
   },

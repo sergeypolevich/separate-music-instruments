@@ -204,9 +204,9 @@ export class SynchronizedTransport {
   }
 
   // The song second heard at an AudioContext time: only the decoded engine runs on that clock, so null while the
-  // stems stream or nothing plays.
+  // stems stream or nothing plays, and for a time before the last seek or start.
   songTimeAt(contextTime) {
-    if (!this.playing || !this.stretching) return null;
+    if (!this.playing || !this.stretching || contextTime < this.stretch.segment.output) return null;  // before the last seek
     return this.stretch.positionAt(contextTime) - this.startOffset;
   }
 

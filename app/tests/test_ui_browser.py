@@ -92,16 +92,18 @@ def _project_detail(project_id: str, job_id: str, title: str, stems=STEMS, missi
     }
 
 
-def _launch_browser(playwright):
+def _launch_browser(playwright, args=()):
     """Installed Edge or Chrome by default; AUDIO_STEMS_TEST_BROWSER=webkit runs Safari's engine instead
-    (also on Windows), =chromium the bundled Chromium (CI without Chrome)."""
+    (also on Windows), =chromium the bundled Chromium (CI without Chrome). `args`: Chromium flags."""
     engine = os.environ.get("AUDIO_STEMS_TEST_BROWSER", "")
-    if engine in ("webkit", "chromium"):
-        return getattr(playwright, engine).launch(headless=True), None
+    if engine == "webkit":
+        return playwright.webkit.launch(headless=True), None
+    if engine == "chromium":
+        return playwright.chromium.launch(headless=True, args=list(args)), None
     launch_error = None
     for channel in ("msedge", "chrome"):
         try:
-            return playwright.chromium.launch(channel=channel, headless=True), None
+            return playwright.chromium.launch(channel=channel, headless=True, args=list(args)), None
         except Exception as error:
             launch_error = error
     return None, launch_error
