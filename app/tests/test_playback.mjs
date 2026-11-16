@@ -344,6 +344,29 @@ test("a speed change while playing hands the position to the stretch engine and 
 });
 
 
+test("the decoded engine at 100 % maps an AudioContext time to the song second heard then", async () => {
+  const tracks = [new FakeAudio(30), new FakeAudio(30)];
+  const transport = new SynchronizedTransport(tracks, { startOffset: 1, requestFrame: () => 1, cancelFrame: () => {} });
+  const clock = { currentTime: 10 };
+  transport.stretch = new StretchEngine(clock, [new FakeStretchNode(), new FakeStretchNode()]);
+  transport.seek(4);
+  await transport.play();
+  assert.equal(transport.songTimeAt(10.5), null);  // the stems stream: their time is not on the clock
+  await transport.setAlwaysStretch(true);
+  assert.ok(transport.stretching && tracks.every((audio) => audio.paused));
+  assert.equal(transport.songTimeAt(10), 4);
+  assert.equal(transport.songTimeAt(12.25), 6.25);  // song time, without the 1 s offset
+  clock.currentTime = 13;
+  transport.seek(20);  // a seek starts a new schedule at the clock's now
+  assert.equal(transport.songTimeAt(13.5), 20.5);
+  transport.pause();
+  assert.equal(transport.songTimeAt(14), null);
+  await transport.play();
+  await transport.setAlwaysStretch(false);
+  assert.ok(!transport.stretching && tracks.every((audio) => !audio.paused));
+  assert.equal(transport.songTimeAt(14), null);
+});
+
 test("at half speed the metronome and the count-in stretch with the music", () => {
   const context = new FakeContext();
   const metronome = new Metronome(context, {}, { lookahead: 0.12 });

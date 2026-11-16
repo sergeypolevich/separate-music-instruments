@@ -192,6 +192,24 @@ export class SynchronizedTransport {
     if (wasPlaying) await this.play();
   }
 
+  // The decoded engine at 100 % too (iPhone, practice); playing goes on through the change, like a speed change.
+  async setAlwaysStretch(on) {
+    if (on === this.alwaysStretch) return;
+    const position = this.currentTime;
+    const wasPlaying = this.playing;
+    if (wasPlaying) this.pause();
+    this.alwaysStretch = on;
+    this.seek(position);
+    if (wasPlaying) await this.play();
+  }
+
+  // The song second heard at an AudioContext time: only the decoded engine runs on that clock, so null while the
+  // stems stream or nothing plays.
+  songTimeAt(contextTime) {
+    if (!this.playing || !this.stretching) return null;
+    return this.stretch.positionAt(contextTime) - this.startOffset;
+  }
+
   async play() {
     if (this.playing) return;
     // Playing as soon as the start is requested, so a quick second toggle pauses instead of
@@ -347,8 +365,12 @@ export class StretchEngine {
   // uses). The nodes' reported inputTime runs ahead of what is heard by their latency (tenths of a
   // second at low speeds) and only updates every 20 ms, so it put the clicks early.
   get position() {
-    if (!this.playing) return this.paused;
-    return wrapLoop(this.segment.input + Math.max(0, this.context.currentTime - this.segment.output) * this.rate, this.loop);
+    return this.playing ? this.positionAt(this.context.currentTime) : this.paused;
+  }
+
+  // The file second heard at a clock time of the current schedule (the practice plugin maps its recording with it).
+  positionAt(time) {
+    return wrapLoop(this.segment.input + Math.max(0, time - this.segment.output) * this.rate, this.loop);
   }
 
   // The nodes jump back from loopEnd to loopStart themselves; loopEnd 0 is no loop.
@@ -425,8 +447,11 @@ export class BufferEngine {
   }
 
   get position() {
-    if (!this.playing) return this.paused;
-    return wrapLoop(this.segment.input + Math.max(0, this.context.currentTime - this.segment.output), this.loop);
+    return this.playing ? this.positionAt(this.context.currentTime) : this.paused;
+  }
+
+  positionAt(time) {
+    return wrapLoop(this.segment.input + Math.max(0, time - this.segment.output), this.loop);
   }
 
   play(input) {

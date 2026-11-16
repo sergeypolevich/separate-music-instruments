@@ -1939,6 +1939,25 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         dropLoop: () => activeControls?.dropLoop(),
         beats: async () => { await loadBeats(); return beatsResult; },
         detailedWaveforms: () => Promise.all(stems.map((asset, index) => drawWaveform(waveSvgs[index], asset.asset_id, 8192))),
+        levels: async (index) => (await requestJson(`/api/v1/assets/${encodeURIComponent(stems[index].asset_id)}/waveform?points=8192`)).levels,
+        // Practice (version 24): the stems through the decoded engine, whose time is on the AudioContext clock.
+        precise: async () => {
+          await loadStretch({ plain: true });
+          if (setupId !== playbackSetupId) return false;
+          await transport.setAlwaysStretch(true);
+          speedWrap.dataset.engine = "stretch";
+          return true;
+        },
+        imprecise: async () => {
+          if (decodedTrial || apple || setupId !== playbackSetupId) return;  // these play decoded anyway
+          await transport.setAlwaysStretch(false);
+          speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
+        },
+        songTimeAt: (time) => transport.songTimeAt(time),
+        stemAudio: async (index) => {  // decoded again on request: the engine's copies are not kept twice
+          const response = await fetch(tracks[index].currentSrc || tracks[index].src);
+          return audioContext.decodeAudioData(await response.arrayBuffer());
+        },
         current: () => setupId === playbackSetupId,
       });
     }
@@ -2480,6 +2499,7 @@ const PERMISSION_LABELS = {
   playback: N_("Changes what is played"),
   analysis: N_("Runs an analysis on this computer"),
   tone: N_("Plays its own sound"),
+  input: N_("Records from your audio input"),
 };
 const storeOverlay = document.querySelector("#store-overlay");
 const storeList = document.querySelector("#store-list");
@@ -2592,6 +2612,7 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     detailedWaveforms: () => host.detailedWaveforms(),
+    levels: (index) => host.levels(index),
     get settings() { return (pluginList.find((item) => item.id === id) || {}).settings || {}; },
     onSettings: (callback) => listen(listenersOf(id), callback),
     saveSettings: (values) => {  // a setting changed in the project itself (the tuner's volume)
@@ -2621,6 +2642,17 @@ function pluginContext(id, permissions, host) {
     });
   }
   if (permissions.includes("tone")) ctx.audioContext = host.audioContext;  // its own sound, straight to the speakers
+  if (permissions.includes("input")) {
+    Object.assign(ctx, {
+      audioContext: host.audioContext,
+      precise: () => {
+        restoreOnStop("precise", () => host.imprecise());
+        return host.precise();
+      },
+      songTimeAt: (time) => host.songTimeAt(time),
+      stemAudio: (index) => host.stemAudio(index),
+    });
+  }
   if (permissions.includes("analysis")) {
     Object.assign(ctx, {
       beats: () => host.beats(),

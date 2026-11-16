@@ -10,7 +10,7 @@ import json
 import re
 from pathlib import Path
 
-PERMISSIONS = {"sound", "playback", "analysis", "tone"}  # what a card lists; the page gives a plugin only these API parts
+PERMISSIONS = {"sound", "playback", "analysis", "tone", "input"}  # what a card lists; the page gives a plugin only these API parts
 _ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 _FIELDS = ("name", "description", "author", "version")
 
