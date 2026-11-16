@@ -80,6 +80,7 @@ should be caught by the plugin and shown on its own button.
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |
 | `loadData()`, `saveData(object)` | The plugin's own data for this project (JSON, at most 64 KB); removing the plugin deletes it |
+| `settings`, `onSettings(callback(settings))` | The plugin's settings, the same in every project (version 23), and a call after each change made in Settings |
 | `current` | `false` once the project has closed (check it after an `await`) |
 | `t(text, values)`, `tn(count, one, other, values)`, `formatDecimal(x)` | Translation, as in `app.js` |
 
@@ -92,6 +93,16 @@ the whole song back.
 With `analysis`: `beats()` gives `{beats, downbeats, bpm, tempo}` or `null`. It is the metronome's analysis, run
 once per song. `analyze("chords", onProgress)` starts the chord detection and resolves with
 `{chords: [{start, end, chord}]}`. `analysisState("chords")` returns the stored state without starting anything.
+
+## Settings
+
+A plugin with settings also exports `settings(panel, api)`. Settings → Plugins lists the installed plugins, each
+with its on/off switch, and calls it for a plugin that is on, with an empty `panel` to fill (the classes
+`plugin-setting` for a labelled slider and `plugin-switch` for a switch are styled by the app). `api.values` are
+the stored settings; `api.save(values)` stores them (at most 64 KB, for every project) and calls the open project's
+`ctx.onSettings` at once, so a slider shows its effect while it moves. `api.t`, `api.tn` and `api.formatDecimal`
+are as in `ctx`. Removing the plugin deletes its settings. The chords plugin is the example: a size slider, a bold
+switch and a sample row.
 
 ## Texts and languages
 

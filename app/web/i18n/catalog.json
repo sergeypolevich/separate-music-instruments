@@ -1486,6 +1486,17 @@
    ]
   },
   {
+   "block": "renderInstalledPlugins",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Turned off because of an error: {error}",
+     "index": 0
+    }
+   ]
+  },
+  {
    "block": "renderStore",
    "elements": [
     {
@@ -1589,26 +1600,38 @@
     {
      "id": "e2",
      "widget": "Text",
-     "text": "Chords hidden",
+     "text": "Text size",
      "index": 2
     },
     {
      "id": "e3",
      "widget": "Text",
-     "text": "Find chords",
+     "text": "Bold",
      "index": 3
     },
     {
      "id": "e4",
      "widget": "Text",
-     "text": "Click to correct the chord",
+     "text": "Chords hidden",
      "index": 4
     },
     {
      "id": "e5",
      "widget": "Text",
-     "text": "Finding chords · {percent}%",
+     "text": "Find chords",
      "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Click to correct the chord",
+     "index": 6
+    },
+    {
+     "id": "e7",
+     "widget": "Text",
+     "text": "Finding chords · {percent}%",
+     "index": 7
     }
    ]
   },
@@ -1836,13 +1859,13 @@
     {
      "id": "e6",
      "widget": "Message",
-     "text": "The plugin is not installed",
+     "text": "The plugin data is too large",
      "index": 6
     },
     {
      "id": "e7",
      "widget": "Message",
-     "text": "The plugin data is too large",
+     "text": "The plugin is not installed",
      "index": 7
     },
     {

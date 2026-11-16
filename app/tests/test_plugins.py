@@ -64,13 +64,22 @@ def test_install_turn_off_on_report_an_error_and_remove(tmp_path):
     assert call("PUT", "/api/v1/plugins/trim", {"enabled": True}).json()["error"] is None
     assert call("GET", data).json()["data"]["start"] == 10.5
 
-    # Removing it deletes its data in every project; another project's plugin is untouched.
+    # Settings are the plugin's, for every project: stored, listed, refused when too large or not installed.
+    assert call("GET", "/api/v1/plugins").json()[2]["settings"] == {}
+    assert call("PUT", "/api/v1/plugins/trim/settings", {"settings": {"size": 1.2}}).json()["settings"] == {"size": 1.2}
+    assert {item["id"]: item for item in call("GET", "/api/v1/plugins").json()}["trim"]["settings"] == {"size": 1.2}
+    assert call("PUT", "/api/v1/plugins/trim/settings", {"settings": {"x": "y" * 70_000}}).status_code == 413
+    assert call("PUT", "/api/v1/plugins/chords/settings", {"settings": {}}).status_code == 409
+    assert call("PUT", "/api/v1/plugins/evil/settings", {"settings": {}}).status_code == 404
+
+    # Removing it deletes its data in every project and its settings; another project's plugin is untouched.
     call("PUT", "/api/v1/plugins/eq", {"enabled": False})
     assert call("DELETE", "/api/v1/plugins/trim").status_code == 204
     assert call("GET", data).status_code == 409
     assert repository.get_plugin_data("trim", project_id) == {}
     states = {item["id"]: item for item in call("GET", "/api/v1/plugins").json()}
     assert not states["trim"]["installed"] and states["eq"]["installed"] and not states["eq"]["enabled"]
+    assert states["trim"]["settings"] == {} and call("PUT", "/api/v1/plugins/trim", {"enabled": True}).json()["settings"] == {}
 
     # Only the store's plugins: an unknown id, or a path in it, is refused.
     assert call("PUT", "/api/v1/plugins/evil", {"enabled": True}).status_code == 404

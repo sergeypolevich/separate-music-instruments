@@ -2488,6 +2488,9 @@ let pluginList = [];  // the store: every plugin with installed, enabled and err
 const loadedPlugins = new Map();  // id → its module, for the enabled ones
 let pluginHost = null;  // the open project's extension points
 const runningPlugins = new Map();  // id → undo everything it added to the open project
+const settingsListeners = new Map();  // id → the open project's callbacks for a change of the plugin's settings
+const settingsSaves = new Map();  // id → the timer of its next settings save
+const listenersOf = (id) => settingsListeners.get(id) || settingsListeners.set(id, new Set()).get(id);
 
 async function loadPlugins() {
   try {
@@ -2509,8 +2512,11 @@ async function loadPlugins() {
 function renderPluginViews() {
   renderStore();
   renderPluginAlert();
+  renderInstalledPlugins();
   const installed = pluginList.filter((plugin) => plugin.installed).length;
-  document.querySelector("#plugins-summary").textContent = pluginList.length
+  const summary = document.querySelector("#plugins-summary");
+  summary.hidden = installed > 0;  // the list of installed plugins says it then
+  summary.textContent = pluginList.length
     ? t("{installed} of {count} installed", { installed, count: pluginList.length })
     : t("No plugins are available.");
 }
@@ -2580,6 +2586,8 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     detailedWaveforms: () => host.detailedWaveforms(),
+    get settings() { return (pluginList.find((item) => item.id === id) || {}).settings || {}; },
+    onSettings: (callback) => listen(listenersOf(id), callback),
     loadData: async () => (await requestJson(data)).data,
     saveData: (value) => requestJson(data, { method: "PUT", body: JSON.stringify({ data: value }) }),
   };
@@ -2716,6 +2724,61 @@ async function removePlugin(plugin) {
   await requestJson(`/api/v1/plugins/${encodeURIComponent(plugin.id)}`, { method: "DELETE" });
   Object.assign(plugin, { installed: false, enabled: false, error: null });
   renderPluginViews();
+}
+
+// A plugin's settings changed in Settings → Plugins: the open project sees them at once, the server 400 ms later.
+function changePluginSettings(plugin, values) {
+  plugin.settings = values;
+  listenersOf(plugin.id).forEach((callback) => callback(values));
+  window.clearTimeout(settingsSaves.get(plugin.id));
+  settingsSaves.set(plugin.id, window.setTimeout(() => {
+    requestJson(`/api/v1/plugins/${encodeURIComponent(plugin.id)}/settings`, { method: "PUT", body: JSON.stringify({ settings: values }) })
+      .catch((error) => console.error(`Plugin ${plugin.id}: settings not saved`, error));
+  }, 400));
+}
+
+// Settings → Plugins (version 23): the installed plugins, each with its switch and its own settings, if it has any
+// (the module's settings(panel, api), drawn by the plugin; shown while it is on).
+function renderInstalledPlugins() {
+  document.querySelector("#installed-plugins").replaceChildren(...pluginList.filter((plugin) => plugin.installed).map((plugin) => {
+    const item = document.createElement("div");
+    item.className = "installed-plugin";
+    item.dataset.plugin = plugin.id;
+    const head = document.createElement("label");
+    head.className = "plugin-switch";
+    const name = document.createElement("span");
+    name.textContent = t(plugin.name);
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = plugin.enabled;
+    input.addEventListener("change", async () => {
+      input.disabled = true;
+      try {
+        await switchPlugin(plugin, input.checked);
+      } catch (error) {
+        input.checked = plugin.enabled;
+        input.disabled = false;
+        name.textContent = `${t(plugin.name)} · ${error.message}`;
+      }
+    });
+    head.append(name, input);
+    item.append(head);
+    if (plugin.error) {
+      const error = document.createElement("p");
+      error.className = "store-error";
+      error.textContent = t("Turned off because of an error: {error}", { error: plugin.error });
+      item.append(error);
+    }
+    const module = loadedPlugins.get(plugin.id);
+    if (plugin.enabled && module && typeof module.settings === "function") {
+      const panel = item.appendChild(document.createElement("div"));
+      panel.className = "plugin-settings";
+      guarded(plugin.id, module.settings)(panel, {
+        values: { ...(plugin.settings || {}) }, save: (values) => changePluginSettings(plugin, { ...values }), t, tn, formatDecimal,
+      });
+    }
+    return item;
+  }));
 }
 
 function renderStore() {

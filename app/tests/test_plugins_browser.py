@@ -33,7 +33,7 @@ def _serve(web, state):
         def _plugin(self, plugin_id):
             installed = state["installed"].get(plugin_id)
             return {**catalog[plugin_id], "installed": installed is not None, "enabled": bool(installed and installed["enabled"]),
-                    "error": installed and installed.get("error")}
+                    "error": installed and installed.get("error"), "settings": (installed or {}).get("settings", {})}
 
         def do_GET(self):
             path, _, query = self.path.partition("?")
@@ -75,8 +75,13 @@ def _serve(web, state):
                 self.send_response(204)
                 self.end_headers()
                 return
+            if self.path.endswith("/settings"):
+                plugin_id = self.path.split("/")[-2]
+                state["installed"][plugin_id]["settings"] = body["settings"]
+                self._json(self._plugin(plugin_id))
+                return
             plugin_id = self.path.rsplit("/", 1)[1]
-            state["installed"][plugin_id] = {"enabled": body["enabled"]}
+            state["installed"][plugin_id] = {**state["installed"].get(plugin_id, {}), "enabled": body["enabled"]}
             self._json(self._plugin(plugin_id))
 
         def do_POST(self):
@@ -219,16 +224,16 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
 
             # Chords: found in the background, shown over the waveforms, corrected by hand.
             page.locator('[data-action="chords"]').click()
-            page.wait_for_function("document.querySelectorAll('.chord-label').length === 2")
-            assert page.locator(".chord-label").all_text_contents() == ["C", "Am"]
+            page.wait_for_function("document.querySelectorAll('.chord-layer .chord-label').length === 2")
+            assert page.locator(".chord-layer .chord-label").all_text_contents() == ["C", "Am"]
             # In a row of their own over the stems, over the waveforms' column.
             lane, waves = page.locator(".chord-layer").bounding_box(), page.locator(".playhead-layer").bounding_box()
             assert lane["y"] + lane["height"] <= waves["y"] and abs(lane["x"] - waves["x"]) < 1 and abs(lane["width"] - waves["width"]) < 1
-            page.locator(".chord-label").nth(1).click()
+            page.locator(".chord-layer .chord-label").nth(1).click()
             page.keyboard.press("ControlOrMeta+A")
             page.keyboard.type("Dm")
             page.keyboard.press("Enter")
-            page.wait_for_function("document.querySelectorAll('.chord-label')[1].textContent === 'Dm'")
+            page.wait_for_function("document.querySelectorAll('.chord-layer .chord-label')[1].textContent === 'Dm'")
             for _ in range(40):  # the save is a request of its own, after the name changes
                 if "chords" in state["data"]:
                     break
@@ -245,7 +250,36 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert edge[0] == pytest.approx(0, abs=0.005) and edge[1] == pytest.approx(1 / 3, abs=0.01) and edge[2] == "hidden"
             page.mouse.wheel(0, 2000)
             page.wait_for_function("!document.querySelector('.chord-current')")
-            assert page.locator(".chord-label").all_text_contents() == ["C", "Dm"]
+            assert page.locator(".chord-layer .chord-label").all_text_contents() == ["C", "Dm"]
+
+            # Settings → Plugins lists the installed ones with a switch; the chords' size and weight change the open
+            # project at once and are saved for every project.
+            font = "[...document.querySelectorAll('.chord-track .chord-label')].map((el) => getComputedStyle(el).fontSize + ' ' + getComputedStyle(el).fontWeight)"
+            assert page.evaluate(font) == ["13.2px 400", "13.2px 400"]  # 20 % over version 22's 11 px, not bold
+            page.locator('a[data-screen="settings"]').click()
+            assert page.locator("#plugins-summary").is_hidden()
+            assert page.locator(".installed-plugin > .plugin-switch span").all_text_contents() == ["Wheel zoom", "Beat grid", "Trim", "Equalizer", "Chords"]
+            chords_settings = page.locator('.installed-plugin[data-plugin="chords"] .plugin-settings')
+            slider = chords_settings.locator('[data-setting="size"]')
+            assert (slider.get_attribute("min"), slider.get_attribute("max")) == ("5.5", "33")
+            slider.evaluate("(el) => { el.value = '22'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            chords_settings.locator('[data-setting="bold"]').click()
+            assert page.evaluate(font) == ["22px 650", "22px 650"]
+            assert chords_settings.locator("output").text_content() == "22.0 px"
+            assert page.evaluate("getComputedStyle(document.querySelector('.chord-sample .chord-label')).fontSize") == "22px"
+            page.wait_for_function("document.querySelector('.chord-layer').getBoundingClientRect().height > 30")  # the row grows
+            for _ in range(40):
+                if state["installed"]["chords"].get("settings"):
+                    break
+                page.wait_for_timeout(50)
+            assert state["installed"]["chords"]["settings"] == {"size": 22, "bold": True}
+            # The switch turns a plugin off and on from Settings.
+            page.locator('.installed-plugin[data-plugin="trim"] > .plugin-switch input').click()
+            page.wait_for_function("!document.querySelector('[data-action=\"trim-start\"]')")
+            assert state["installed"]["trim"]["enabled"] is False
+            page.locator('.installed-plugin[data-plugin="trim"] > .plugin-switch input').click()
+            page.locator('[data-action="trim-start"]').wait_for(state="attached")
+            page.keyboard.press("Escape")
 
             # A broken plugin is turned off at once, its error under ⚠ and on its card; the others keep working.
             page.locator('a[data-screen="settings"]').click()
@@ -266,7 +300,7 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.locator("#confirm-action").click()
             page.wait_for_function("!document.querySelector('[data-control=\"eq\"]')")
             assert "DELETE /api/v1/plugins/eq" in state["requests"]
-            assert page.locator(".chord-label").count() == 2 and page.locator(".beat-line").count() == 10
+            assert page.locator(".chord-layer .chord-label").count() == 2 and page.locator(".beat-line").count() == 10
             assert not errors, errors
             browser.close()
     finally:

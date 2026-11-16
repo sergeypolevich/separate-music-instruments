@@ -7,6 +7,67 @@ export const LABEL_SPACE = 0;  // pixels a chord's line keeps from the name befo
 
 const key = (start) => start.toFixed(3);
 
+// The names' size in pixels (Settings → Plugins, version 23): half to three times version 22's 11 px, 20 % over it
+// by default; not bold unless asked.
+export const SIZE = { min: 5.5, max: 33, normal: 13.2 };
+
+export function look(settings = {}) {
+  const size = Number(settings.size);
+  return { size: Number.isFinite(size) ? Math.min(SIZE.max, Math.max(SIZE.min, size)) : SIZE.normal, bold: settings.bold === true };
+}
+
+const dress = (element, { size, bold }) => {
+  element.style.setProperty("--chord-size", `${size}px`);
+  element.style.setProperty("--chord-weight", bold ? "650" : "400");
+};
+
+const stylesheet = () => {
+  if (!document.querySelector('link[href="plugins/chords/plugin.css"]')) {
+    document.head.append(Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/chords/plugin.css" }));
+  }
+};
+
+// The settings: a size slider and a bold switch over a sample row that shows them at once (so does an open project).
+export function settings(panel, api) {
+  stylesheet();
+  const value = look(api.values);
+  const size = document.createElement("label");
+  size.className = "plugin-setting";
+  const sizeName = document.createElement("span");
+  sizeName.textContent = api.t("Text size");
+  const sizeValue = document.createElement("output");
+  const slider = Object.assign(document.createElement("input"), { type: "range", min: SIZE.min, max: SIZE.max, step: 0.1, value: value.size });
+  slider.dataset.setting = "size";
+  size.append(sizeName, sizeValue, slider);
+  const bold = document.createElement("label");
+  bold.className = "plugin-switch";
+  const boldName = document.createElement("span");
+  boldName.textContent = api.t("Bold");
+  const boldInput = Object.assign(document.createElement("input"), { type: "checkbox", checked: value.bold });
+  boldInput.dataset.setting = "bold";
+  bold.append(boldName, boldInput);
+  const sample = document.createElement("div");
+  sample.className = "chord-sample";
+  sample.setAttribute("aria-hidden", "true");
+  sample.append(...["C", "Am", "F", "G7", "D/F#"].map((name) => Object.assign(document.createElement("span"), { className: "chord-label", textContent: name })));
+  const show = () => {
+    sizeValue.textContent = `${api.formatDecimal(Math.round(value.size * 10) / 10)} px`;
+    dress(sample, value);
+  };
+  slider.addEventListener("input", () => {
+    value.size = Number(slider.value);
+    show();
+    api.save(value);
+  });
+  boldInput.addEventListener("change", () => {
+    value.bold = boldInput.checked;
+    show();
+    api.save(value);
+  });
+  show();
+  panel.append(size, bold, sample);
+}
+
 // The found chords with the user's edits ({start: name}, "" removes one).
 export function applyEdits(chords, edits = {}) {
   return chords
@@ -34,11 +95,12 @@ export function visibleLabels(chords, view, width, widthOf) {
 const ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
 
 export function project(ctx) {
-  ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/chords/plugin.css" }));
+  stylesheet();
   const layer = ctx.addLane(document.createElement("div"));
   layer.className = "chord-layer";
   layer.hidden = true;  // no row until chords are found
-  const widths = new Map();  // a name's width on screen, measured once
+  dress(layer, look(ctx.settings));
+  const widths = new Map();  // a name's width on screen, measured once per size
   const widthOf = (name) => {
     if (!widths.has(name)) {
       const probe = layer.appendChild(Object.assign(document.createElement("span"), { className: "chord-label", textContent: name }));
@@ -180,6 +242,11 @@ export function project(ctx) {
     redraw();
   });
   ctx.onView(draw);
+  ctx.onSettings((values) => {
+    dress(layer, look(values));
+    widths.clear();
+    redraw();
+  });
   const resize = new ResizeObserver(() => draw());
   resize.observe(layer);
   name();

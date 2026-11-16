@@ -93,6 +93,11 @@ class PluginData(BaseModel):
     data: dict
 
 
+class PluginSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    settings: dict
+
+
 _PLUGIN_DATA_BYTES = 64 * 1024  # trim bounds, EQ bands, edited chords: a few kilobytes
 
 
@@ -416,7 +421,7 @@ def create_app(
     def plugin_state(plugin_id: str, manifest: dict[str, object]) -> dict[str, object]:
         installed = repository.list_plugins().get(plugin_id)
         return {**manifest, "installed": installed is not None, "enabled": bool(installed and installed["enabled"]),
-                "error": installed["error"] if installed else None}
+                "error": installed["error"] if installed else None, "settings": installed["settings"] if installed else {}}
 
     @app.get("/api/v1/plugins")
     def list_plugins() -> list[dict[str, object]]:
@@ -434,6 +439,16 @@ def create_app(
         plugin_manifest(plugin_id)
         repository.remove_plugin(plugin_id)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.put("/api/v1/plugins/{plugin_id}/settings")
+    def save_plugin_settings(plugin_id: str, body: PluginSettings) -> dict[str, object]:
+        """A plugin's settings for every project (version 23), set in Settings → Plugins."""
+        manifest = plugin_manifest(plugin_id)
+        if len(json.dumps(body.settings)) > _PLUGIN_DATA_BYTES:
+            raise HTTPException(status_code=413, detail={"code": "too_large", "message": "The plugin data is too large"})
+        if not repository.set_plugin_settings(plugin_id, body.settings):
+            raise HTTPException(status_code=409, detail={"code": "plugin_not_installed", "message": "The plugin is not installed"})
+        return plugin_state(plugin_id, manifest)
 
     @app.post("/api/v1/plugins/{plugin_id}/error")
     def plugin_failed(plugin_id: str, body: PluginError) -> dict[str, object]:

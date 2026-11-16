@@ -799,10 +799,17 @@ class SqliteMetadataStore:
 
     # --- plugins (version 22) --------------------------------------------------------------------
     def list_plugins(self) -> dict[str, dict[str, object]]:
-        """Installed plugins: id → {"enabled", "error"}."""
+        """Installed plugins: id → {"enabled", "error", "settings"}."""
         with self._connection() as connection:
-            rows = connection.execute("SELECT id, enabled, error FROM plugins").fetchall()
-        return {row["id"]: {"enabled": bool(row["enabled"]), "error": row["error"]} for row in rows}
+            rows = connection.execute("SELECT id, enabled, error, settings_json FROM plugins").fetchall()
+        return {row["id"]: {"enabled": bool(row["enabled"]), "error": row["error"], "settings": json.loads(row["settings_json"])}
+                for row in rows}
+
+    def set_plugin_settings(self, plugin_id: str, settings: dict[str, object]) -> bool:
+        """Store an installed plugin's settings; False when it is not installed."""
+        with self._connection() as connection:
+            return connection.execute("UPDATE plugins SET settings_json = ? WHERE id = ?",
+                                      (json.dumps(settings), plugin_id)).rowcount == 1
 
     def set_plugin(self, plugin_id: str, enabled: bool, error: str | None = None) -> None:
         """Install a plugin or switch an installed one on or off (an error is kept only while it is off)."""
