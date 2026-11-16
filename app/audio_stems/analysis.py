@@ -50,30 +50,30 @@ def beat_checkpoint(download: Callable[[str, str], None] | None = None) -> Path:
 
 def detect_beats(audio_path: Path, start_seconds: float) -> dict[str, object]:
     """Metronome beats in song time (0 = where the music starts): beat_this's frame activations, then the chain
-    and steady-grid logic of `beats.track`. Also the tempo every four beats (one value for a steady song)."""
+    and tempo runs of `beats.track`, the bar starts of `beats.bars`, and the tempo of each run."""
     from beat_this.inference import Audio2Frames, Postprocessor  # heavy (torch); imported only in this process
 
     beat_logits, downbeat_logits = Audio2Frames(checkpoint_path=str(beat_checkpoint()), device="cpu")(
         decode_mono(audio_path), 44100)
-    peaks, downbeats = Postprocessor(type="minimal")(beat_logits, downbeat_logits)
-    found, mode = beats.track(beat_logits.cpu().numpy(), peaks)
-    return song_result(found, downbeats, mode, start_seconds)
+    peaks, _ = Postprocessor(type="minimal")(beat_logits, downbeat_logits)
+    found, tempo, mode = beats.track(beat_logits.cpu().numpy(), peaks)
+    return song_result(found, beats.bars(found, downbeat_logits.cpu().numpy()), mode, start_seconds, tempo)
 
 
-def song_result(found, downbeats, mode: str, start_seconds: float) -> dict[str, object]:
+def song_result(found, downbeats, mode: str, start_seconds: float, runs=()) -> dict[str, object]:
+    """Song time (0 = where the music starts). `runs`: [[file time, bpm]] of each tempo run; `bpm` is the
+    longest run's."""
     found = np.asarray(found, float) - start_seconds
     found = found[found >= -0.05]
-    # A bar starts on the found beat nearest to each of beat_this's downbeats (the UI does not use them yet).
-    downbeats = sorted({float(found[np.argmin(np.abs(found - (d - start_seconds)))]) for d in downbeats} if len(found) else set())
+    downbeats = sorted(d - start_seconds for d in downbeats if d - start_seconds >= -0.05)
     if len(found) < 2:
-        return {"beats": found.round(4).tolist(), "downbeats": downbeats, "bpm": None, "tempo": [], "mode": mode,
-                "algorithm": beats.ALGORITHM}
-    if mode == "steady":
-        bpm = round(60 / float(np.median(np.diff(found))), 1)
-        tempo = [[round(float(found[0]), 3), bpm]]
-    else:
-        tempo = beats.tempo_every_four(found)
-        bpm = round(float(np.median([value for _, value in tempo])), 1) if tempo else None
+        return {"beats": found.round(4).tolist(), "downbeats": [round(d, 4) for d in downbeats], "bpm": None,
+                "tempo": [], "mode": mode, "algorithm": beats.ALGORITHM}
+    runs = list(runs) or [[float(found[0]) + start_seconds, round(60 / float(np.median(np.diff(found))), 1)]]
+    tempo = [[round(max(float(found[0]), start - start_seconds), 3), bpm] for start, bpm in runs
+             if start - start_seconds < float(found[-1])]
+    ends = [start for start, _ in tempo[1:]] + [float(found[-1])]
+    bpm = max(zip(tempo, ends), key=lambda run: run[1] - run[0][0])[0][1]
     return {"beats": found.round(4).tolist(), "downbeats": [round(d, 4) for d in downbeats], "bpm": bpm,
             "tempo": tempo, "mode": mode, "algorithm": beats.ALGORITHM}
 

@@ -9,6 +9,7 @@ import pytest
 import soundfile
 
 from audio_stems import analysis
+from audio_stems.beats import ALGORITHM
 from audio_stems.api import create_app
 from audio_stems.config import Settings
 from audio_stems.db import SqliteMetadataStore
@@ -58,7 +59,7 @@ def test_beats_are_detected_once_on_request_and_stored(tmp_path):
 
     def fake_detect(path, start):
         calls.append((path.name, start))
-        return {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": 2}
+        return {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": ALGORITHM}
 
     request, repository, storage, runs = make_client(tmp_path, fake_detect)
     project_id = add_song(repository, storage)
@@ -69,7 +70,7 @@ def test_beats_are_detected_once_on_request_and_stored(tmp_path):
 
     assert first.status_code == 202 and again.status_code == 200
     assert again.json() == {"status": "done", "progress": 1.0, "error": None,
-                            "result": {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": 2}}
+                            "result": {"beats": [0.0, 0.5, 1.0], "downbeats": [0.0], "bpm": 120.0, "algorithm": ALGORITHM}}
     assert calls == [("Song.webm", 1.25)]  # the source audio, measured from the music start, once
     assert runs == [1]
 
@@ -161,7 +162,8 @@ def test_detected_beats_are_shifted_to_song_time(monkeypatch, tmp_path):
     monkeypatch.setattr(beat_this.inference, "Audio2Frames", FakeFrames)
     monkeypatch.setattr(beat_this.inference, "Postprocessor", FakePeaks)
     monkeypatch.setattr(analysis.beats, "track", lambda logits, peaks: seen.setdefault("peaks", list(peaks)) and
-                        (np.array([1.4, 1.5, 2.0, 2.5, 3.0]), "steady"))
+                        (np.array([1.4, 1.5, 2.0, 2.5, 3.0]), [[1.4, 120.0]], "steady"))
+    monkeypatch.setattr(analysis.beats, "bars", lambda found, logits: [1.5, 3.0])
     monkeypatch.setattr(analysis, "decode_mono", lambda path: np.zeros(10, np.float32))
     monkeypatch.setattr(analysis, "beat_checkpoint", lambda: tmp_path / "final0.ckpt")
 

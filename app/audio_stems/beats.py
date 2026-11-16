@@ -3,15 +3,19 @@
 beat_this picks each peak of its beat activation on its own, which gave double clicks (two lines of peaks a
 little apart), phase jumps to the other line and 20 ms steps. Here one chain of beats runs through the whole
 song instead: a beat scores the activation under it, and changing the interval from one beat to the next costs
-ALPHA * log(ratio)^2, so gradual tempo changes are cheap and jumps or extra beats are not worth it. A song that
-one grid holds is played on that exact grid (the tempo rounded to an integer when within 0.05 BPM); otherwise
-the chain is smoothed. Reference: the SadSvit listening study, research repository, studies 08 and 09.
+ALPHA * log(ratio)^2, so gradual tempo changes are cheap and jumps or extra beats are not worth it.
+
+Version 23: the chain is cut into a few long runs of one tempo (a new run only where the tempo changes by 4 % or
+more for eight bars). A run that a fixed grid holds is played on that exact grid (a whole BPM when as good);
+otherwise the smoothed chain follows the band, and the run still shows one tempo. Bar starts take one meter for
+the song. Reference: the SadSvit listening study, research repository, studies 08 and 09; version 23 notes in
+DEVELOPMENT_STATUS.md.
 """
 from __future__ import annotations
 
 import numpy as np
 
-ALGORITHM = 2  # stored with the result; projects analysed before are analysed again on the next request
+ALGORITHM = 3  # stored with the result; projects analysed before are analysed again on the next request
 FPS = 200  # beat_this's 50 fps activation, upsampled
 ALPHA = 400.0
 
@@ -62,27 +66,56 @@ def _trim(frames: np.ndarray, act: np.ndarray, floor: float = 0.3) -> np.ndarray
     return frames[clear[0]:clear[-1] + 1] if len(clear) else frames
 
 
-def _steady_grid(beats: np.ndarray, tight: float = 0.025, core: float = 0.6, loose: float = 0.2,
-                 share: float = 0.9) -> np.ndarray | None:
-    """A grid fitted on the beats within `tight` seconds of it (the main line, at least `core` of them) that keeps
-    `share` of all beats within `loose` of a beat's length (the chain may follow beat_this's second line, 72 ms
-    away at 150 BPM in SadSvit, for a while); None otherwise."""
-    k = np.arange(len(beats))
-    period, offset = np.polyfit(k, beats, 1)
-    for tolerance in (0.1, 0.05, tight, tight):
-        on = np.abs(beats - (offset + k * period)) < tolerance
-        if on.sum() < 2:
-            return None
-        period, offset = np.polyfit(k[on], beats[on], 1)
-    residual = np.abs(beats - (offset + k * period))
-    if np.mean(residual < tight) < core or np.mean(residual < loose * period) < share:
-        return None
-    on = residual < tight
-    bpm = 60 / period
-    if abs(bpm - round(bpm)) < 0.05:
-        period = 60 / round(bpm)
-        offset = float(np.median(beats[on] - k[on] * period))
-    return offset + k * period
+def _sections(chain: np.ndarray, min_len: int = 32, penalty: float = 16.0, merge: float = 0.04,
+              step: int = 4) -> list[tuple[int, int]]:
+    """Runs of one tempo, [(first, end)] beat indices: the local tempo (16-beat windows) deviates little from each
+    run's median, every run costs `penalty`, runs are at least `min_len` beats (eight bars) and neighbours closer
+    than `merge` are joined, so a song gets one tempo unless it really changes (Лесник: 160 after the intro 172)."""
+    n = len(chain)
+    win = 8
+    local = 60 * 2 * win / (chain[np.minimum(n - 1, np.arange(n) + win)] - chain[np.maximum(0, np.arange(n) - win)])
+    if n < 2 * min_len:
+        return [(0, n)]
+    cuts = [c for c in range(0, n, step) if c == 0 or min_len <= c <= n - min_len] + [n]
+    best = {0: (0.0, [])}
+    for j in cuts[1:]:
+        options = []
+        for i in cuts:
+            if i < j and j - i >= min_len and i in best:
+                off = np.minimum(np.abs(local[i:j] / np.median(local[i:j]) - 1) * 100, 3.0)  # %, fills clipped
+                options.append((best[i][0] + float((off ** 2).sum()) / 16 + penalty, best[i][1] + [(i, j)]))
+        if options:
+            best[j] = min(options, key=lambda option: option[0])
+    runs = [best[n][1][0]]
+    for run in best[n][1][1:]:
+        last = runs[-1]
+        if abs(np.median(local[last[0]:last[1]]) / np.median(local[run[0]:run[1]]) - 1) < merge:
+            runs[-1] = (last[0], run[1])
+        else:
+            runs.append(run)
+    return runs
+
+
+def _grid(act: np.ndarray, first: float, last: float, bpm: float, fit: float = 0.6) -> np.ndarray | None:
+    """The fixed grid from `first` to `last` that sits on the most beat activation (tempo within 1.5 % of `bpm`,
+    any phase), a whole BPM when that is as good; None when its beats average less than `fit`: the band plays
+    freely there and the beats follow it. Fitting the activation, not the chain, keeps a drum machine on one line
+    where beat_this has two (СМРТ: 40-100 ms apart, the chain jumped between them)."""
+    def best_phase(tempo, step):
+        period = 60 / tempo
+        k = np.arange(int((last - first + 0.2) / period) + 1)
+        phases = np.arange(-0.1, period - 0.1, step)
+        frames = np.clip(np.round((first + phases[:, None] + k[None, :] * period) * FPS).astype(int), 0, len(act) - 1)
+        scores = act[frames].mean(axis=1)
+        return float(scores.max()), first + phases[int(scores.argmax())] + k * period
+    score, beats = max((best_phase(tempo, 0.005) + (tempo,) for tempo in np.arange(bpm * 0.985, bpm * 1.015, 0.02)),
+                       key=lambda found: found[0])[:2]
+    whole = round(60 / float(np.median(np.diff(beats))))
+    if abs(60 / float(np.median(np.diff(beats))) - whole) < 0.06:
+        whole_score, whole_beats = best_phase(whole, 0.002)
+        if whole_score >= score - 0.01:
+            score, beats = whole_score, whole_beats
+    return beats if score >= fit else None
 
 
 def _smooth(beats: np.ndarray, half: int = 4) -> np.ndarray:
@@ -96,22 +129,58 @@ def _smooth(beats: np.ndarray, half: int = 4) -> np.ndarray:
     return out
 
 
-def tempo_every_four(beats) -> list[list[float]]:
-    """[[time, bpm], ...] from each fourth beat to the one four later, to one decimal."""
-    return [[round(float(beats[i]), 3), round(240 / float(beats[i + 4] - beats[i]), 1)]
-            for i in range(0, len(beats) - 4, 4)]
-
-
-def track(beat_logits, peaks) -> tuple[np.ndarray, str]:
-    """Beat times (seconds of the file) and «steady» or «live», from beat_this's beat logits and its own peaks
-    (used only for the typical interval). Too few peaks: they are returned as they are."""
+def track(beat_logits, peaks) -> tuple[np.ndarray, list[list[float]], str]:
+    """Beat times (seconds of the file), the tempo shown for each run of one tempo ([[start, bpm]], to one decimal)
+    and «steady» (one grid for the whole song) or «live», from beat_this's beat logits and its own peaks (used only
+    for the typical interval). Too few peaks: they are returned as they are."""
     peaks = np.asarray(peaks, float)
     if len(peaks) < 8:
-        return peaks, "live"
+        return peaks, [], "live"
     gaps = np.diff(peaks)
     typical = np.median(gaps)
     period = float(np.median(gaps[(gaps > 0.75 * typical) & (gaps < 1.33 * typical)]))
     times, act = _evidence(beat_logits)
-    beats = times[_trim(_chain(act, period * FPS), act)]
-    grid = _steady_grid(beats)
-    return (grid, "steady") if grid is not None else (_smooth(beats), "live")
+    chain = times[_trim(_chain(act, period * FPS), act)]
+    found, tempo, grids = [], [], 0
+    for first, end in _sections(chain):
+        part = chain[first:end]
+        bpm = 60 / float(np.median(np.diff(part)))
+        grid = _grid(act, part[0], part[-1], bpm) if len(part) > 8 else None
+        part = grid if grid is not None else _smooth(part)
+        grids += grid is not None
+        if found:  # the run before ends on its own grid: no beat closer than half a beat to its last one
+            part = part[part > found[-1][-1] + 0.5 * float(np.median(np.diff(part)))]
+        if len(part):
+            found.append(part)
+            tempo.append([float(part[0]), round(60 / float(np.median(np.diff(part))), 1) if len(part) > 1 else round(bpm, 1)])
+    beats = np.concatenate(found)
+    return beats, tempo, "steady" if grids == len(tempo) == 1 else "live"
+
+
+def bars(beats, downbeat_logits, switch: float = 4.0) -> list[float]:
+    """Bar starts among the beats: one meter (4, or 3 when clearly better) for the song, and the first beat moves
+    only where the downbeat activation gains `switch` from it (a bar of two in a 4/4 song is rare; beat_this's own
+    downbeats gave Adele nine of them in a row)."""
+    beats = np.asarray(beats, float)
+    if not len(beats):
+        return []
+    act = 1 / (1 + np.exp(-np.asarray(downbeat_logits, float)))
+    frames = np.clip(np.round(beats * 50).astype(int), 0, len(act) - 1)
+    strength = np.array([act[max(0, frame - 2):frame + 3].max() for frame in frames])
+    found = []
+    for meter in (3, 4):
+        score = np.zeros(meter)
+        back = np.zeros((len(beats), meter), int)
+        for k, value in enumerate(strength):
+            jump = score.max() - switch
+            back[k] = np.where(score >= jump, np.arange(meter), score.argmax())
+            score = np.maximum(score, jump) + np.where(np.arange(meter) == k % meter, value, 0.0)
+        phase = int(score.argmax())
+        starts = []
+        for k in range(len(beats) - 1, -1, -1):
+            if k % meter == phase:
+                starts.append(float(beats[k]))
+            phase = back[k, phase]
+        found.append((score.max() * meter / len(beats), starts[::-1]))
+    (three, in_three), (four, in_four) = found
+    return in_three if three > four + 0.1 else in_four
