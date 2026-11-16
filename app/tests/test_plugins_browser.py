@@ -252,13 +252,14 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.wait_for_function("!document.querySelector('.chord-current')")
             assert page.locator(".chord-layer .chord-label").all_text_contents() == ["C", "Dm"]
 
-            # Settings → Plugins lists the installed ones with a switch; the chords' size and weight change the open
+            # Settings → Plugins shows the settings of the plugins that are on; the chords' size and weight change the open
             # project at once and are saved for every project.
             font = "[...document.querySelectorAll('.chord-track .chord-label')].map((el) => getComputedStyle(el).fontSize + ' ' + getComputedStyle(el).fontWeight)"
             assert page.evaluate(font) == ["13.2px 400", "13.2px 400"]  # 20 % over version 22's 11 px, not bold
             page.locator('a[data-screen="settings"]').click()
             assert page.locator("#plugins-summary").is_hidden()
-            assert page.locator(".installed-plugin > .plugin-switch span").all_text_contents() == ["Wheel zoom", "Beat grid", "Trim", "Equalizer", "Chords", "Tuner"]
+            # Only the plugins that are on and have settings; the others are only in the store.
+            assert page.locator(".installed-plugin h3").all_text_contents() == ["Chords"]
             chords_settings = page.locator('.installed-plugin[data-plugin="chords"] .plugin-settings')
             slider = chords_settings.locator('[data-setting="size"]')
             assert (slider.get_attribute("min"), slider.get_attribute("max")) == ("5.5", "33")
@@ -276,18 +277,13 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
                     break
                 page.wait_for_timeout(50)
             assert state["installed"]["chords"]["settings"] == {"size": 22, "bold": True}
-            # The switch turns a plugin off and on from Settings.
-            page.locator('.installed-plugin[data-plugin="trim"] > .plugin-switch input').click()
-            page.wait_for_function("!document.querySelector('[data-action=\"trim-start\"]')")
-            assert state["installed"]["trim"]["enabled"] is False
-            page.locator('.installed-plugin[data-plugin="trim"] > .plugin-switch input').click()
-            page.locator('[data-action="trim-start"]').wait_for(state="attached")
             page.keyboard.press("Escape")
 
             # Tuner: a circle per string; a click plays its tone until a click elsewhere, Esc or Space (which then
             # does not start the song); the tuning and the volume are kept.
             tuner = page.locator('[data-action="tuner"]')
             assert tuner.inner_text().strip() == "" and tuner.get_attribute("aria-label") == "Tuner"  # a tuning fork only
+            assert page.evaluate("document.querySelector('[data-action=\"tuner\"]').closest('.tuner').nextElementSibling.id") == "help-trigger"  # in the header
             tuner.click()
             notes = page.locator(".tuner-note")
             assert [note.get_attribute("data-note") for note in notes.all()] == ["E2", "A2", "D3", "G3", "B3", "E4"]

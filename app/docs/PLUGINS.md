@@ -49,7 +49,7 @@ API route), not to a plugin.
 project is open. It may return a cleanup function, or a promise of one. When the project closes or the plugin is
 turned off, the app calls the cleanup and then undoes what the plugin added through `ctx`:
 
-- elements added with `ctx.add`, `ctx.addFooter`, `ctx.addLane` and `ctx.addStemControl`;
+- elements added with `ctx.add`, `ctx.addFooter`, `ctx.addHeader`, `ctx.addLane` and `ctx.addStemControl`;
 - listeners registered with `ctx.on`, `ctx.onTime` and `ctx.onView`;
 - the view, the play range and every stem effect it set.
 
@@ -76,6 +76,7 @@ should be caught by the plugin and shown on its own button.
 | `waves` | The grid of stem rows |
 | `add(parent, element)` | Appends a plugin element, removed when the plugin stops |
 | `addFooter(element)` | Into the plugins' row under the footer (the metronome, quality and speed row stays the app's) |
+| `addHeader(element)` | Into the header, before the shortcuts' "?" (an icon button, like the tuner's) |
 | `addLane(element)` | A row over the stems, exactly as wide as the waveforms (give it a height); hidden while all its elements are `hidden` |
 | `addStemControl(index, element)` | Before the S and M buttons of a stem row |
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |

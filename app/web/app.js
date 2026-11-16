@@ -2513,10 +2513,10 @@ async function loadPlugins() {
 function renderPluginViews() {
   renderStore();
   renderPluginAlert();
-  renderInstalledPlugins();
+  const withSettings = renderInstalledPlugins();
   const installed = pluginList.filter((plugin) => plugin.installed).length;
   const summary = document.querySelector("#plugins-summary");
-  summary.hidden = installed > 0;  // the list of installed plugins says it then
+  summary.hidden = withSettings > 0;  // the plugins' settings say it then
   summary.textContent = pluginList.length
     ? t("{installed} of {count} installed", { installed, count: pluginList.length })
     : t("No plugins are available.");
@@ -2580,6 +2580,11 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     addFooter: (element) => ctx.add(host.footer, element),
+    addHeader: (element) => {  // into the header, before the shortcuts' "?" (the tuner)
+      document.querySelector("#help-trigger").before(element);
+      undo.push(() => element.remove());
+      return element;
+    },
     addLane: (element) => ctx.add(host.lanes, element),  // a row over the stems, as wide as the waveforms
     addStemControl: (index, element) => {
       host.stemControls[index].prepend(element);
@@ -2743,48 +2748,24 @@ function changePluginSettings(plugin, values) {
   }, 400));
 }
 
-// Settings → Plugins (version 23): the installed plugins, each with its switch and its own settings, if it has any
-// (the module's settings(panel, api), drawn by the plugin; shown while it is on).
+// Settings → Plugins (version 23): the plugins that are on and have settings (the module's settings(panel, api),
+// drawn by the plugin); turning one on or off, installing and removing are the store's.
 function renderInstalledPlugins() {
-  document.querySelector("#installed-plugins").replaceChildren(...pluginList.filter((plugin) => plugin.installed).map((plugin) => {
+  const shown = pluginList.filter((plugin) => plugin.installed && plugin.enabled && typeof loadedPlugins.get(plugin.id)?.settings === "function");
+  document.querySelector("#installed-plugins").replaceChildren(...shown.map((plugin) => {
     const item = document.createElement("div");
     item.className = "installed-plugin";
     item.dataset.plugin = plugin.id;
-    const head = document.createElement("label");
-    head.className = "plugin-switch";
-    const name = document.createElement("span");
+    const name = item.appendChild(document.createElement("h3"));
     name.textContent = t(plugin.name);
-    const input = document.createElement("input");
-    input.type = "checkbox";
-    input.checked = plugin.enabled;
-    input.addEventListener("change", async () => {
-      input.disabled = true;
-      try {
-        await switchPlugin(plugin, input.checked);
-      } catch (error) {
-        input.checked = plugin.enabled;
-        input.disabled = false;
-        name.textContent = `${t(plugin.name)} · ${error.message}`;
-      }
+    const panel = item.appendChild(document.createElement("div"));
+    panel.className = "plugin-settings";
+    guarded(plugin.id, loadedPlugins.get(plugin.id).settings)(panel, {
+      values: { ...(plugin.settings || {}) }, save: (values) => changePluginSettings(plugin, { ...values }), t, tn, formatDecimal,
     });
-    head.append(name, input);
-    item.append(head);
-    if (plugin.error) {
-      const error = document.createElement("p");
-      error.className = "store-error";
-      error.textContent = t("Turned off because of an error: {error}", { error: plugin.error });
-      item.append(error);
-    }
-    const module = loadedPlugins.get(plugin.id);
-    if (plugin.enabled && module && typeof module.settings === "function") {
-      const panel = item.appendChild(document.createElement("div"));
-      panel.className = "plugin-settings";
-      guarded(plugin.id, module.settings)(panel, {
-        values: { ...(plugin.settings || {}) }, save: (values) => changePluginSettings(plugin, { ...values }), t, tn, formatDecimal,
-      });
-    }
     return item;
   }));
+  return shown.length;
 }
 
 function renderStore() {

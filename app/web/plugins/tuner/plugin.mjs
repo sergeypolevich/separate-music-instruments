@@ -1,4 +1,4 @@
-// Tuner: a button in the footer opens a row of circles, one per string of the chosen tuning. A click on a circle
+// Tuner: a button in the header, before the "?", opens a row of circles, one per string of the chosen tuning. A click on a circle
 // plays a steady tone of that note (organ-like, with overtones, so a bass's low B is heard on laptop speakers too)
 // until a click elsewhere, Esc or Space; then Space plays the song again. Its own volume, kept with the tuning.
 
@@ -32,11 +32,11 @@ const ICON = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentC
 
 export function project(ctx) {
   ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/tuner/plugin.css" }));
-  const holder = ctx.addFooter(document.createElement("div"));
+  const holder = ctx.addHeader(document.createElement("div"));
   holder.className = "tuner";
   const button = holder.appendChild(document.createElement("button"));
   button.type = "button";
-  button.className = "footer-toggle tuner-toggle";
+  button.className = "settings-link tuner-toggle";
   button.dataset.action = "tuner";
   button.setAttribute("aria-expanded", "false");
   button.innerHTML = ICON;  // a tuning fork, no text (version 23)
@@ -133,7 +133,7 @@ export function project(ctx) {
     button.setAttribute("aria-expanded", String(!panel.hidden));
     button.setAttribute("aria-pressed", String(!panel.hidden));
     if (panel.hidden) stop();
-    else {  // over its button, moved left as far as it must to stay 16 px inside the window (a phone)
+    else {  // under its button, moved left as far as it must to stay 16 px inside the window (a phone)
       panel.style.left = "0px";
       const right = panel.getBoundingClientRect().right;
       panel.style.left = `${Math.min(0, document.documentElement.clientWidth - 16 - right)}px`;

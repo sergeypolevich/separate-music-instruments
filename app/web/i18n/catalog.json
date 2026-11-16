@@ -1492,17 +1492,6 @@
    ]
   },
   {
-   "block": "renderInstalledPlugins",
-   "elements": [
-    {
-     "id": "e0",
-     "widget": "Text",
-     "text": "Turned off because of an error: {error}",
-     "index": 0
-    }
-   ]
-  },
-  {
    "block": "renderStore",
    "elements": [
     {
