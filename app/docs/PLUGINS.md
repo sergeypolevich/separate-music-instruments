@@ -38,6 +38,7 @@ The store card lists them, and `ctx` has the matching functions only when the ma
 | `playback` | Changes what is played | `ctx.range()`, `ctx.setRange(range)`, `ctx.dropLoop()` |
 | `analysis` | Runs an analysis on this computer | `ctx.beats()`, `ctx.analyze(kind, onProgress)`, `ctx.analysisState(kind)` |
 | `tone` | Plays its own sound | `ctx.audioContext`, to make a sound of its own (the tuner's tone) and play it straight to the speakers, not into the stems' mix |
+| `input` | Records from your audio input | `ctx.audioContext`, `ctx.precise()`, `ctx.songTimeAt(contextTime)`, `ctx.stemAudio(index)` (version 24, the practice plugin) |
 
 No plugin code runs on the computer itself. Heavy work is a service of the app that a plugin asks for. Today that
 means the beats and chord detection. A new kind of analysis is added to the app (`audio_stems/analysis.py` and its
@@ -81,6 +82,7 @@ should be caught by the plugin and shown on its own button.
 | `addStemControl(index, element)` | Before the S and M buttons of a stem row |
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |
+| `levels(index)` | A promise of the stem's 8192 stored peaks (0-1) over the song (version 24) |
 | `loadData()`, `saveData(object)` | The plugin's own data for this project (JSON, at most 64 KB); removing the plugin deletes it |
 | `settings`, `onSettings(callback(settings))`, `saveSettings(object)` | The plugin's settings, the same in every project (version 23); a call after each change made in Settings; storing a change made in the project (the tuner's volume) |
 | `current` | `false` once the project has closed (check it after an `await`) |
@@ -88,6 +90,17 @@ should be caught by the plugin and shown on its own button.
 
 With `sound`: `setEffect(index, {input, output})` puts a chain of Web Audio nodes between the stem's volume and the
 master volume, and `setEffect(index, null)` takes it out. Use `ctx.audioContext` to make the nodes.
+
+With `input`: the plugin opens the input itself (`getUserMedia`, the browser asks the user) on `ctx.audioContext`.
+`precise()` makes the stems play from their decoded audio on that context's clock (as they are at 100 %, through the
+stretch engine at other speeds) until the plugin stops, and resolves `true` when ready; then `songTimeAt(time)` gives the
+song second heard at an AudioContext time (`null` while paused, before the last seek or while the stems stream).
+`stemAudio(index)` resolves `{samples, sampleRate}`: the stem as one channel from song time 0.
+
+A manifest's `"storage_mb"` (version 24, at most 1000) gives the plugin files of its own per project: `ctx.files.list()`
+resolves `{files: [{name, bytes}], limit_bytes}`, `load(name)` an ArrayBuffer, `save(name, body)` stores (refused over the
+limit in all), `remove(name)` deletes. Names are lowercase letters, digits, `-` and `_` with one extension (`take-1.wav`).
+They live in `Plugins/<id>/<project>/` in the media folder and go with the project or the plugin.
 
 With `playback`: `setRange({start, end})` keeps playback between the two times and shows only them; `null` gives
 the whole song back.
@@ -109,7 +122,7 @@ switch and a sample row.
 ## Texts and languages
 
 Write every text in English through `ctx.t("…")` or `ctx.tn(count, "…", "…")`, with literal strings, so that
-`python -m audio_stems.i18n` finds them. The manifest's name and description are collected too. Each plugin is
+`python -m audio_stems.i18n` finds them (in every `.mjs` of the plugin's folder). The manifest's name and description are collected too. Each plugin is
 its own block for the translation service. Stem names (Vocal, Drums…) stay in English.
 
 ## Tests
