@@ -126,6 +126,10 @@ test("practice tuner: a click is found where it rises out of the noise, nothing 
   for (let i = 437; i < 480; i++) samples[i] = 0.4 * Math.exp(-(i - 437) / 10) * (i % 2 ? 1 : -1);
   assert.equal(findClick(samples, 100), 437);
   assert.equal(findClick(new Float32Array(1000).fill(0.003), 100), -1);
+  const pickup = new Float32Array(1000).map((_, i) => (i % 2 ? 0.00003 : -0.00003));  // an earcup at a guitar pickup
+  for (let i = 437; i < 480; i++) pickup[i] = 0.00037 * Math.exp(-(i - 437) / 10) * (i % 2 ? 1 : -1);
+  assert.equal(findClick(pickup, 100), 437);
+  assert.equal(findClick(new Float32Array(1000).map((_, i) => (i === 500 ? 0.00006 : 0)), 100), -1);  // 16-bit silence
   const loudNoise = new Float32Array(1000).map((_, i) => (i < 100 ? 0.2 : 0.25));  // nothing stands out
   assert.equal(findClick(loudNoise, 100), -1);
 });

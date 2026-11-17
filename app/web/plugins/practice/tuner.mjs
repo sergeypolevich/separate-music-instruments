@@ -13,7 +13,8 @@ export function findClick(samples, before, levels = {}) {  // levels gets the no
   for (let i = 0; i < before; i++) noise = Math.max(noise, Math.abs(samples[i]));
   for (let i = before; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
   Object.assign(levels, { noise, peak });
-  if (peak < Math.max(0.01, noise * 3)) return -1;
+  // only against the noise: an earcup at a guitar pickup gives ~0.0004; 0.0001 (-80 dB) keeps a silent 16-bit input out
+  if (peak < Math.max(0.0001, noise * 3)) return -1;
   const threshold = noise + (peak - noise) * 0.3;
   for (let i = before; i < samples.length; i++) if (Math.abs(samples[i]) >= threshold) return i;
   return -1;
