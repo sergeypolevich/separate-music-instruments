@@ -1,11 +1,10 @@
 // Practice (version 24): play your part along with the song. A target button in a stem row picks the stem you
-// play (you mute it yourself with M); a lane over the stems shows 3 s around the playhead (at 70 %), the stem's
-// peaks above and your audio input below, drawn as it arrives. The stems play through the decoded engine while
-// practising, so a captured frame's AudioContext time maps to the song second heard then (ctx.songTimeAt);
-// the input is drawn earlier by the measured latency (the latency tuner, Settings → Plugins → Practice).
+// play (you mute it yourself with M); a mixer row «You» under that stem (ctx.addTrack) shows your audio input on
+// the stems' time scale, drawn as it arrives, and plays your last take through its own volume, S, M and EQ.
+// The stems play through the decoded engine while practising, so a captured frame's AudioContext time maps to the
+// song second heard then (ctx.songTimeAt); the input is placed earlier by the measured latency (the latency tuner).
 
-export const SPAN = 3;  // seconds in the lane
-export const PLAYHEAD = 0.7;  // where the playhead stands in it
+export const PEAK = 0.001;  // the take's peaks: one a millisecond of song, drawn one column a screen pixel
 const TOLERANCE = { min: 5, max: 40, fallback: 15 };  // ms
 
 export function choice(settings = {}) {
@@ -15,6 +14,24 @@ export function choice(settings = {}) {
     tolerance: Number.isFinite(tolerance) ? Math.min(TOLERANCE.max, Math.max(TOLERANCE.min, tolerance)) : TOLERANCE.fallback,
     latency: settings.latency && typeof settings.latency === "object" ? settings.latency : {},
   };
+}
+
+// The song seconds a captured block covers: it was heard `lag` (the measured latency) before the AudioContext saw it.
+// null when the song was not playing on (paused, a seek or the loop's jump back).
+export function blockTimes(frame, length, rate, lag, songTimeAt) {
+  const from = songTimeAt(frame / rate - lag), to = songTimeAt((frame + length) / rate - lag);
+  return from === null || to === null || !(to > from) || to - from > 1 ? null : { from, to };
+}
+
+// The loudest peak under each of `width` columns showing song seconds view.start to view.end (-1: nothing heard).
+export function columnPeaks(peaks, step, view, width) {
+  const out = new Float32Array(width).fill(-1), perColumn = (view.end - view.start) / width;
+  for (let x = 0; x < width; x++) {
+    const from = Math.max(0, Math.floor((view.start + x * perColumn) / step));
+    const to = Math.min(peaks.length, Math.max(from + 1, Math.ceil((view.start + (x + 1) * perColumn) / step)));
+    for (let i = from; i < to; i++) if (peaks[i] > out[x]) out[x] = peaks[i];
+  }
+  return out;
 }
 
 // A block of input heard from song second `from` to `to` raises the peaks of the buckets it covers (-1: nothing yet).
@@ -157,9 +174,10 @@ async function outputGroup() {
 
 export async function project(ctx) {
   stylesheet(document.head, ctx.add);
-  const lane = ctx.addLane(document.createElement("div"));
-  lane.className = "practice-lane";
-  lane.hidden = true;
+  const track = ctx.addTrack({ name: "practice", label: ctx.t("You") });  // under the chosen stem
+  track.place(-1);
+  const lane = track.wave;
+  lane.classList.add("practice-lane");
   const canvas = lane.appendChild(document.createElement("canvas"));
   canvas.setAttribute("aria-hidden", "true");
   const bar = lane.appendChild(document.createElement("div"));
@@ -188,10 +206,6 @@ export async function project(ctx) {
   const status = bar.appendChild(document.createElement("span"));
   status.className = "practice-status";
   status.setAttribute("aria-live", "polite");
-  const youName = lane.appendChild(document.createElement("span"));
-  youName.className = "practice-name";
-  youName.style.top = "calc(50% + 4px)";
-  youName.textContent = ctx.t("You");
 
   let settings = choice(ctx.settings);
   ctx.onSettings((values) => {
@@ -201,7 +215,7 @@ export async function project(ctx) {
   const data = (await ctx.loadData()) || {};
   if (!ctx.current) return undefined;
   let stem = ctx.stems.findIndex((item) => item.name === data.stem);
-  let levels = null, levelMax = 1, take = null, takeMax = 0.05, beats = [], downbeats = [];
+  let take = null, takeMax = 0.05;  // the take's peaks (PEAK apart, made once the song's length is known)
   let capture = null;  // the recording's input: {key, close()}
   let measuredKey = null;  // the input and output of the last recording or measurement
   let runs = [];  // the take being recorded: [{from, to, chunks}]
@@ -211,8 +225,6 @@ export async function project(ctx) {
   let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
   let shownRuns = null;  // the runs whose peaks the lane shows
   let player = null;  // the last take playing along: {at, song, speed, sources}
-  const output = ctx.audioContext.createGain();
-  output.connect(ctx.audioContext.destination);
 
   const buttons = ctx.stems.map((item, index) => {
     const button = document.createElement("button");
@@ -242,24 +254,14 @@ export async function project(ctx) {
     stopPlayer();
     listen.disabled = true;
     buttons.forEach((button, at) => button.setAttribute("aria-pressed", String(at === index)));
-    lane.hidden = index < 0;
-    levels = null;
+    track.place(index);
+    take = null;
     if (index < 0) {
       stopRecording();
       return;
     }
-    const peaks = await ctx.levels(index);
-    if (!ctx.current || stem !== index) return;
-    levels = Float32Array.from(peaks);
-    levelMax = Math.max(0.05, ...levels);
-    take = new Float32Array(levels.length).fill(-1);
     takeMax = 0.05;
-    youName.textContent = ctx.t("You");
-    lane.querySelector(".practice-original")?.remove();
-    const name = lane.appendChild(document.createElement("span"));
-    name.className = "practice-name practice-original";
-    name.style.top = "42px";
-    name.textContent = ctx.stems[index].label;
+    shownRuns = null;
     loadLastTake(index);
   }
 
@@ -277,18 +279,20 @@ export async function project(ctx) {
     }
   }
 
-  // The song seconds a peak covers; the length is known only once the stems' metadata has loaded.
-  const bucketSize = () => (levels && ctx.duration > 0 ? ctx.duration / levels.length : 0);
+  // The take's peaks, once the song's length is known (the stems' metadata).
+  const takePeaks = () => {
+    if (!take && stem >= 0 && ctx.duration > 0) take = new Float32Array(Math.ceil(ctx.duration / PEAK) + 1).fill(-1);
+    return take;
+  };
   const latency = () => (capture ? Number(settings.latency[capture.key]) || 0 : 0);
 
   function onBlock({ data: block }) {
-    const bucket = bucketSize();
-    if (!take || !bucket || !ctx.playing) return;
-    const rate = ctx.audioContext.sampleRate, lag = latency();
-    const from = ctx.songTimeAt(block.frame / rate - lag);
-    const to = ctx.songTimeAt((block.frame + block.samples.length) / rate - lag);
-    if (from === null || to === null || !(to > from) || to - from > 1) return;  // paused, a seek or the loop's jump back
-    addPeaks(take, bucket, from, to, block.samples);
+    const peaks = takePeaks();
+    if (!peaks || !ctx.playing) return;
+    const times = blockTimes(block.frame, block.samples.length, ctx.audioContext.sampleRate, latency(), ctx.songTimeAt);
+    if (!times) return;
+    const { from, to } = times;
+    addPeaks(peaks, PEAK, from, to, block.samples);
     addToRuns(runs, from, to, block.samples);
     for (const value of block.samples) if (Math.abs(value) > takeMax) takeMax = Math.abs(value);
   }
@@ -485,7 +489,7 @@ export async function project(ctx) {
       const source = audio.createBufferSource();
       source.buffer = run.buffer;
       source.playbackRate.value = speed;
-      source.connect(output);
+      source.connect(track.input);  // the row's volume, S, M and EQ, then the master
       source.start(now + Math.max(0, run.from - song) / speed, Math.max(0, song - run.from));
       player.sources.push(source);
     }
@@ -533,12 +537,8 @@ export async function project(ctx) {
 
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 
-  ctx.beats().then((result) => {
-    beats = (result && result.beats) || [];
-    downbeats = (result && result.downbeats) || [];
-  }).catch(() => {});  // no beat lines without the analysis
-
-  // Drawing: one frame per screen refresh, only while the lane shows; about a hundred bars a lane.
+  // Drawing: one frame per screen refresh while the row shows, on the stems' time scale (zoom, range, playhead and
+  // beat lines come from the host and the other plugins): the loudest millisecond under each screen pixel.
   const context2d = canvas.getContext("2d");
   let frame = 0;
   const color = (name) => getComputedStyle(lane).getPropertyValue(name).trim();
@@ -547,46 +547,28 @@ export async function project(ctx) {
     if (wasPlaying && !ctx.playing) finishTake();  // a pause ends the take
     wasPlaying = ctx.playing;
     follow();
-    const bucket = bucketSize();
-    if (lane.hidden || !bucket) return;
+    const peaks = takePeaks();
+    if (track.row.hidden || !peaks) return;
     if (lastRuns.length && shownRuns !== lastRuns) {  // a take loaded from disk: its peaks, once the length is known
       shownRuns = lastRuns;
       for (const run of lastRuns) {
-        addPeaks(take, bucket, run.from, run.to, run.samples);
+        addPeaks(peaks, PEAK, run.from, run.to, run.samples);
         for (const value of run.samples) if (Math.abs(value) > takeMax) takeMax = Math.abs(value);
       }
     }
     const dpr = window.devicePixelRatio || 1;
     const width = Math.round(canvas.clientWidth * dpr), height = Math.round(canvas.clientHeight * dpr);
-    if (!width || !height) return;
+    const view = ctx.view;
+    if (!width || !height || !(view.end > view.start)) return;
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
-    const now = ctx.position, start = now - PLAYHEAD * SPAN, x = (time) => ((time - start) / SPAN) * width;
-    const half = height / 2;
     context2d.clearRect(0, 0, width, height);
-    const line = color("--line"), strong = color("--line-strong");
-    const bars = new Set(downbeats.map((time) => Math.round(time * 1000)));
-    for (const time of beats) {
-      if (time < start || time > start + SPAN) continue;
-      const bold = bars.has(Math.round(time * 1000));
-      context2d.fillStyle = bold ? strong : line;
-      context2d.fillRect(Math.round(x(time)), 0, Math.max(1, Math.round((bold ? 2 : 1) * dpr)), height);
+    context2d.fillStyle = color("--warn");
+    const mid = height / 2, room = mid * 0.9, columns = columnPeaks(peaks, PEAK, view, width);
+    for (let x = 0; x < width; x++) {
+      if (columns[x] < 0) continue;
+      const size = Math.max(0.5, Math.min(1, columns[x] / takeMax) * room);
+      context2d.fillRect(x, mid - size, 1, size * 2);
     }
-    context2d.fillStyle = line;
-    context2d.fillRect(0, Math.round(half), width, Math.max(1, Math.round(dpr)));
-    const lanePeaks = (peaks, top, scale, fill) => {
-      context2d.fillStyle = fill;
-      const mid = top + half / 2, room = half * 0.42, barWidth = Math.max(1, (bucket / SPAN) * width - dpr);
-      const first = Math.max(0, Math.floor(start / bucket)), last = Math.min(peaks.length - 1, Math.ceil((start + SPAN) / bucket));
-      for (let i = first; i <= last; i++) {
-        if (peaks[i] < 0) continue;
-        const size = Math.max(dpr, Math.min(1, peaks[i] / scale) * room);
-        context2d.fillRect(x(i * bucket), mid - size, barWidth, size * 2);
-      }
-    };
-    lanePeaks(levels, 0, levelMax, color("--accent"));
-    lanePeaks(take, half, takeMax, color("--warn"));
-    context2d.fillStyle = color("--text");
-    context2d.fillRect(Math.round(x(now)), 0, Math.max(1, Math.round(dpr)), height);
   }
   frame = requestAnimationFrame(draw);
 
@@ -595,7 +577,6 @@ export async function project(ctx) {
     cancelAnimationFrame(frame);
     stopRecording();
     stopPlayer();
-    output.disconnect();
   };
 }
 

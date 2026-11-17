@@ -368,17 +368,18 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
 
 WARN = (227, 189, 87)  # the dark theme's --warn: the practice lane's "You" bars
 YOU_BARS = """(() => { const c = document.querySelector('.practice-lane canvas'); const g = c.getContext('2d');
-  const d = g.getImageData(0, c.height / 2, c.width, c.height / 2).data; let n = 0;
+  if (!c.width) return 0;
+  const d = g.getImageData(0, 0, c.width, c.height).data; let n = 0;
   for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - %d) < 12 && Math.abs(d[i + 1] - %d) < 12 && Math.abs(d[i + 2] - %d) < 12) n++;
   return n; })()""" % WARN
 
 
 @pytest.mark.browser
 def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
-    """Version 24: a stem row's target picks the stem, the lane shows it, Record captures the (fake) input while the
-    song plays through the decoded engine, and the choice and the settings are kept."""
+    """Version 24: a stem row's target picks the stem, a mixer row «You» under it (S, M, volume, EQ) shows the input
+    Record captures (fake) while the song plays through the decoded engine; the choice and the settings are kept."""
     sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
-    state = {"installed": {"practice": {"enabled": True}}, "data": {}, "requests": [],
+    state = {"installed": {"practice": {"enabled": True}, "eq": {"enabled": True}}, "data": {}, "requests": [],
              "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
     server = _serve(ROOT / "web", state)
     base = f"http://127.0.0.1:{server.server_port}"
@@ -403,6 +404,19 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             wave = page.locator(".mixer-waveform").first.bounding_box()
             box = lane.bounding_box()
             assert abs(box["x"] - wave["x"]) < 1 and abs(box["width"] - wave["width"]) < 1  # as wide as the waveforms
+            you = page.locator(".plugin-track")
+            bass, other = page.locator('.mixer-row[data-stem="bass"]').bounding_box(), page.locator('.mixer-row[data-stem="other"]').bounding_box()
+            assert bass["y"] < box["y"] < other["y"]  # right under the stem practised, over the next one
+            assert you.locator(".mixer-label").text_content() == "You"
+            assert you.locator('[data-control="eq"]').count() == 1 and you.locator('[data-control="gain"]').count() == 1
+            you.locator('[data-control="solo"]').click()  # S on «You»: the stems are silenced, like any solo
+            assert page.locator('.mixer-row[data-stem="bass"]').get_attribute("data-silenced") == "true"
+            you.locator('[data-control="solo"]').click()
+            page.locator('.mixer-row[data-stem="drums"] [data-control="solo"]').click()  # a stem's solo silences «You»
+            assert you.get_attribute("data-silenced") == "true"
+            page.locator('.mixer-row[data-stem="drums"] [data-control="solo"]').click()
+            playhead = page.locator(".playhead-layer").bounding_box()
+            assert playhead["y"] + playhead["height"] >= box["y"] + box["height"] - 1  # the playhead, loop and grid cover it
             assert state["data"]["practice"] == {"stem": "bass"}
             assert page.evaluate(YOU_BARS) == 0
             page.locator('[data-action="practice-record"]').click()

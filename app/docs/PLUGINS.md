@@ -50,7 +50,7 @@ API route), not to a plugin.
 project is open. It may return a cleanup function, or a promise of one. When the project closes or the plugin is
 turned off, the app calls the cleanup and then undoes what the plugin added through `ctx`:
 
-- elements added with `ctx.add`, `ctx.addFooter`, `ctx.addHeader`, `ctx.addLane` and `ctx.addStemControl`;
+- elements added with `ctx.add`, `ctx.addFooter`, `ctx.addHeader`, `ctx.addLane`, `ctx.addTrack` and `ctx.addStemControl`;
 - listeners registered with `ctx.on`, `ctx.onTime` and `ctx.onView`;
 - the view, the play range and every stem effect it set.
 
@@ -80,6 +80,8 @@ should be caught by the plugin and shown on its own button.
 | `addHeader(element)` | Into the header, before the shortcuts' "?" (an icon button, like the tuner's) |
 | `addLane(element)` | A row over the stems, exactly as wide as the waveforms (give it a height); hidden while all its elements are `hidden` |
 | `addStemControl(index, element)` | Before the S and M buttons of a stem row |
+| `addTrack({name, label, after})` | Version 24: a mixer row of its own right under stem `after`, with the stems' volume, S and M (one more mixer channel: its solo silences the stems, theirs silence it). Returns `{index, row, wave, input, place(stem), remove()}`: draw into `wave` (the waveform cell, on the stems' time scale `ctx.view`; the playhead layer lies over it, so give clickable elements `z-index: 3`), connect sound to `input` (an AudioNode: then the row's volume, a plugin effect and the master), `place(-1)` hides the row. Removed when the plugin stops |
+| `tracks`, `onTrack(callback)` | The plugins' tracks so far (`[{index, name, label}]`) and each one added later; `index` works with `addStemControl` and `setEffect` (the equalizer puts its button there) |
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |
 | `levels(index)` | A promise of the stem's 8192 stored peaks (0-1) over the song (version 24) |

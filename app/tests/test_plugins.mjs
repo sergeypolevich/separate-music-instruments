@@ -8,7 +8,7 @@ import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { match, onsets, summary } from "../web/plugins/practice/score.mjs";
-import { addToRuns, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
+import { addToRuns, blockTimes, columnPeaks, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -209,4 +209,25 @@ test("practice capture mixes every input channel into one, so a card's input 2 i
   assert.equal(capture.port.sent[0].frame, 4096);
   assert.ok(capture.port.sent[0].samples.every((value) => value === 0.25));
   assert.equal(capture.process([]), true);
+});
+
+test("practice: a block goes to the song time it was played, the measured latency earlier", () => {
+  const songTimeAt = (time) => (time < 10 ? null : time - 10 + 42);  // the song at 42 s when the context was at 10 s
+  const times = blockTimes(44100 * 12, 4410, 44100, 0.1096, songTimeAt);  // heard at 12 s, 109.6 ms latency
+  close(times.from, 44 - 0.1096);
+  close(times.to - times.from, 0.1);
+  assert.equal(blockTimes(44100 * 10, 4410, 44100, 0.1096, songTimeAt), null);  // before the song played
+  assert.equal(blockTimes(0, 4410, 44100, 0, () => 5), null);  // the song stood still: paused
+});
+
+test("practice: one column a screen pixel, the loudest millisecond under it, at any zoom", () => {
+  const peaks = new Float32Array(10000).fill(-1);  // 10 s, a peak a millisecond
+  peaks[2500] = 0.8;
+  peaks[2501] = 0.3;
+  const whole = columnPeaks(peaks, 0.001, { start: 0, end: 10 }, 1000);  // 10 ms a column
+  assert.ok(Math.abs(whole[250] - 0.8) < 1e-6);  // float32
+  assert.equal(whole.filter((value) => value >= 0).length, 1);
+  const zoomed = columnPeaks(peaks, 0.001, { start: 2, end: 3 }, 2000);  // half a millisecond a column
+  assert.ok(Math.abs(zoomed[1000] - 0.8) < 1e-6 && Math.abs(zoomed[1002] - 0.3) < 1e-6);
+  assert.equal(zoomed[999], -1);
 });

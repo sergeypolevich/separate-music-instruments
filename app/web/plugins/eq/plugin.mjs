@@ -38,10 +38,13 @@ const formatHz = (ctx, hz) => (hz >= 1000 ? ctx.t("{n} kHz", { n: ctx.formatDeci
 
 export function project(ctx) {
   ctx.add(document.head, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/eq/plugin.css" }));
-  const bandsByStem = ctx.stems.map(() => defaultBands());
-  const off = ctx.stems.map(() => false);  // the stem's EQ switched off: heard without it, the bands kept
-  const filters = ctx.stems.map(() => null);  // BiquadFilterNodes of a stem, made the first time it is not flat
+  // By mixer index: the stems, then the plugins' tracks (the practice take), each saved under its name.
+  const rows = [];  // [{name, label}]
+  const bandsByStem = [];
+  const off = [];  // the stem's EQ switched off: heard without it, the bands kept
+  const filters = [];  // BiquadFilterNodes of a stem, made the first time it is not flat
   const buttons = [];
+  let saved = null;  // the stored bands, once loaded: a track added later takes its own from them
   let saveTimer = null;
 
   const apply = (index) => {
@@ -67,12 +70,21 @@ export function project(ctx) {
     window.clearTimeout(saveTimer);
     saveTimer = window.setTimeout(() => {
       const stems = {};
-      ctx.stems.forEach((stem, index) => { if (!flat(bandsByStem[index])) stems[stem.name] = bandsByStem[index]; });
-      ctx.saveData({ stems, off: ctx.stems.filter((stem, index) => off[index] && stems[stem.name]).map((stem) => stem.name) });
+      rows.forEach((row, index) => { if (!flat(bandsByStem[index])) stems[row.name] = bandsByStem[index]; });
+      ctx.saveData({ stems, off: rows.filter((row, index) => off[index] && stems[row.name]).map((row) => row.name) });
     }, 400);
   };
 
-  ctx.stems.forEach((stem, index) => {
+  const restore = (index) => {
+    const name = rows[index].name;
+    if (saved.stems && saved.stems[name]) bandsByStem[index] = readBands(saved.stems[name]);
+    off[index] = Array.isArray(saved.off) && saved.off.includes(name);
+    apply(index);
+  };
+  const addRow = (index, stem) => {
+    rows[index] = stem;
+    bandsByStem[index] = defaultBands();
+    off[index] = false;
     const button = document.createElement("button");
     button.type = "button";
     button.className = "mixer-toggle eq-toggle";
@@ -81,9 +93,17 @@ export function project(ctx) {
     button.setAttribute("aria-pressed", "false");
     button.setAttribute("aria-label", ctx.t("Equalizer: {stem}", { stem: stem.label }));
     button.title = ctx.t("Equalizer");
-    buttons.push(ctx.addStemControl(index, button));
+    buttons[index] = ctx.addStemControl(index, button);
     ctx.on(button, "click", () => openEditor(index));
-  });
+  };
+  ctx.stems.forEach((stem, index) => addRow(index, stem));
+  const addTrack = (track) => {
+    if (rows[track.index]) return;
+    addRow(track.index, track);
+    if (saved) restore(track.index);
+  };
+  (ctx.tracks || []).forEach(addTrack);
+  if (ctx.onTrack) ctx.onTrack(addTrack);
 
   // The editor: one dialog for the stem whose EQ button was pressed.
   const dialog = ctx.add(document.body, document.createElement("dialog"));
@@ -255,17 +275,14 @@ export function project(ctx) {
     current = index;
     hideTip();
     showPower();
-    title.textContent = ctx.t("Equalizer · {stem}", { stem: ctx.stems[index].label });
+    title.textContent = ctx.t("Equalizer · {stem}", { stem: rows[index].label });
     dialog.showModal();
     draw();
   };
 
-  return ctx.loadData().then((saved) => {
-    ctx.stems.forEach((stem, index) => {
-      if (saved.stems && saved.stems[stem.name]) bandsByStem[index] = readBands(saved.stems[stem.name]);
-      off[index] = Array.isArray(saved.off) && saved.off.includes(stem.name);
-      apply(index);
-    });
+  return ctx.loadData().then((data) => {
+    saved = data || {};
+    rows.forEach((_row, index) => restore(index));
     return () => {
       window.clearTimeout(saveTimer);
       window.clearTimeout(tipTimer);

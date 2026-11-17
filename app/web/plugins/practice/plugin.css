@@ -1,9 +1,9 @@
-/* Practice (version 24): the lane over the stems, the stem button, the settings. */
-.practice-lane { position: relative; height: 150px; border-radius: 8px; background: var(--waveform-bg); overflow: hidden; }
-.practice-lane[hidden] { display: none; }
-.practice-lane canvas { display: block; width: 100%; height: 100%; }
-.practice-bar { position: absolute; top: 6px; left: 6px; right: 6px; display: flex; align-items: center; gap: 8px; pointer-events: auto; }
-.practice-record { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 8px;
+/* Practice (version 24): the row «You» under the chosen stem, the stem button, the settings. */
+.practice-lane canvas { position: absolute; inset: 0; display: block; width: 100%; height: 100%; }
+.mixer-row[data-silenced="true"] .practice-lane canvas { opacity: .2; }
+/* over the playhead layer (z-index 2), which takes the clicks everywhere else in the row */
+.practice-bar { position: absolute; z-index: 3; top: 4px; left: 4px; display: flex; align-items: center; gap: 6px; max-width: calc(100% - 8px); }
+.practice-record { display: inline-flex; align-items: center; gap: 6px; min-height: 26px; padding: 0 9px; border: 1px solid var(--line-strong); border-radius: 8px;
   background: var(--panel); color: var(--text); font: 600 12px 'DM Sans', sans-serif; cursor: pointer; }
 .practice-record .icon { width: 16px; height: 16px; }
 .practice-record:disabled { opacity: .45; cursor: default; }
@@ -11,8 +11,7 @@
 [data-action="practice-record"][aria-pressed="true"] { border-color: var(--danger); color: var(--danger); }
 .practice-listen[aria-pressed="true"] { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
 .practice-status { min-width: 0; overflow: hidden; color: var(--muted); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
-.practice-status:not(:empty), .practice-name { padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--panel) 85%, transparent); }
-.practice-name { position: absolute; left: 6px; color: var(--text-soft); font-size: 11px; pointer-events: none; }
+.practice-status:not(:empty) { padding: 1px 6px; border-radius: 6px; background: color-mix(in srgb, var(--panel) 85%, transparent); }
 .mixer-toggle.practice-target { display: inline-grid; place-items: center; width: 29px; padding: 0; }
 .mixer-toggle.practice-target .icon { width: 15px; height: 15px; }
 .mixer-toggle.practice-target[aria-pressed="true"] { border-color: transparent; background: var(--accent); color: var(--accent-ink); }

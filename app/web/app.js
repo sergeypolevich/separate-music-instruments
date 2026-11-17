@@ -1196,10 +1196,12 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     };
     const mixerRowElements = [];
     const waveSvgs = [];
-    const stemControls = [];  // the S/M group of each row; a plugin's stem button goes before them
+    const stemControls = [];  // the S/M group of each row (stems, then plugin tracks); a plugin's button goes before them
+    const pluginTracks = [];  // [{index, name, label, after, row}]: a plugin's own row under a stem (the practice take)
     const mixer = new MixerSession(gainNodes, (values, audible) => {
       tracks.forEach((audio, index) => { audio.dataset.effectiveGain = String(values[index]); });
       mixerRowElements.forEach((row, index) => { row.dataset.silenced = String(!audible[index]); });
+      pluginTracks.forEach((track) => { track.row.dataset.silenced = String(!audible[track.index]); });
     });
     activeMixer = mixer;
 
@@ -1449,21 +1451,14 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (transport.inLoop(timeAt(event))) transport.setLoop(null, transport.currentTime);
     });
 
-    stems.forEach((asset, index) => {
-      const row = document.createElement("div");
-      row.className = "mixer-row";
-      mixerRowElements.push(row);
-      row.addEventListener("pointerdown", () => selectStem(index));
-      // Explicit rows: the playhead layer spans all stem rows, which would push auto-placed rows down.
-      row.style.gridRow = String(index + 1);
-      row.dataset.stem = asset.stem_name;
+    // A mixer row's left side: the name, S and M, the volume (0-150 %); for the stems and the plugins' tracks.
+    const mixerLeft = (index, label, icon) => {
       const left = document.createElement("div");
       left.className = "mixer-left";
       const name = document.createElement("span");
       name.className = "mixer-name";
       // On a narrow screen only the first letter shows (CSS), after the icon; the letter is also the stem's hotkey.
-      const label = stemLabels[asset.stem_name] || asset.stem_name;
-      name.innerHTML = `${transportIcons[asset.stem_name] ? iconSvg(asset.stem_name) : ""}<span class="mixer-label" data-short="${label[0]}">${label}</span>`;
+      name.innerHTML = `${icon ? iconSvg(icon) : ""}<span class="mixer-label" data-short="${label[0]}">${label}</span>`;
       const switches = document.createElement("div");
       switches.className = "mixer-switches";
       const solo = document.createElement("button");
@@ -1471,7 +1466,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       solo.className = "mixer-toggle";
       solo.textContent = "S";
       solo.dataset.control = "solo";
-      solo.setAttribute("aria-label", `Solo: ${stemLabels[asset.stem_name]}`);
+      solo.setAttribute("aria-label", `Solo: ${label}`);
       solo.setAttribute("aria-pressed", "false");
       solo.addEventListener("click", () => {
         const selected = solo.getAttribute("aria-pressed") !== "true";
@@ -1483,7 +1478,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       mute.className = "mixer-toggle";
       mute.textContent = "M";
       mute.dataset.control = "mute";
-      mute.setAttribute("aria-label", `Mute: ${stemLabels[asset.stem_name]}`);
+      mute.setAttribute("aria-label", `Mute: ${label}`);
       mute.setAttribute("aria-pressed", "false");
       mute.addEventListener("click", () => {
         const muted = mute.getAttribute("aria-pressed") !== "true";
@@ -1491,7 +1486,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
         mixer.setMute(index, muted);
       });
       switches.append(solo, mute);
-      stemControls.push(switches);
+      stemControls[index] = switches;
       const fader = document.createElement("div");
       fader.className = "mixer-fader";
       const gain = document.createElement("input");
@@ -1505,7 +1500,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       showFill();
       gain.dataset.control = "gain";
       gain.tabIndex = -1; // volume is mouse-only; arrow keys belong to the global hotkeys
-      gain.setAttribute("aria-label", t("{stem} volume", { stem: stemLabels[asset.stem_name] }));
+      gain.setAttribute("aria-label", t("{stem} volume", { stem: label }));
       gain.addEventListener("input", () => {
         const percent = snapFaderPercent(Number(gain.value));
         gain.value = String(percent);
@@ -1517,6 +1512,18 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       heading.className = "mixer-heading";
       heading.append(name, switches);
       left.append(heading, fader);
+      return { left, switches };
+    };
+    stems.forEach((asset, index) => {
+      const row = document.createElement("div");
+      row.className = "mixer-row";
+      mixerRowElements.push(row);
+      row.addEventListener("pointerdown", () => selectStem(index));
+      // Explicit rows: the playhead layer spans all stem rows, which would push auto-placed rows down.
+      row.style.gridRow = String(index + 1);
+      row.dataset.stem = asset.stem_name;
+      const label = stemLabels[asset.stem_name] || asset.stem_name;
+      const { left } = mixerLeft(index, label, transportIcons[asset.stem_name] ? asset.stem_name : null);
       const wave = document.createElement("div");
       wave.className = "mixer-waveform";
       const waveSvg = document.createElementNS(SVG_NS, "svg");
@@ -1945,7 +1952,58 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     }));
     detailControls.replaceChildren(masterRow);
     detailTransport.replaceChildren(buttons);
-    playheadLayer.style.gridRow = `1 / span ${stems.length}`;
+    // Grid rows in order: each stem, then the plugin tracks under it; the playhead layer covers them all.
+    const layoutRows = () => {
+      let line = 0;
+      mixerRowElements.forEach((row, index) => {
+        row.style.gridRow = String(++line);
+        pluginTracks.filter((track) => track.after === index && !track.row.hidden).forEach((track) => { track.row.style.gridRow = String(++line); });
+      });
+      playheadLayer.style.gridRow = `1 / span ${line}`;
+    };
+    const trackListeners = new Set();
+    // A plugin's track (version 24): a mixer row under stem `after` with the stems' controls; its sound goes into
+    // `input`, then its volume, S and M, a plugin's effect (EQ) and the master. Hotkeys select stems only.
+    const addTrack = ({ name, label, after = stems.length - 1 }) => {
+      const gain = audioContext.createGain();
+      gain.connect(masterGain);
+      effects.push(null);
+      const index = mixer.add(gain);
+      const row = document.createElement("div");
+      row.className = "mixer-row plugin-track";
+      row.dataset.track = name;
+      const { left } = mixerLeft(index, label, null);
+      const wave = document.createElement("div");
+      wave.className = "mixer-waveform";
+      row.append(left, wave);
+      const track = { index, name, label, after, row };
+      pluginTracks.push(track);
+      mixerRows.insertBefore(row, playheadLayer.parentNode === mixerRows ? playheadLayer : null);
+      layoutRows();
+      mixer.apply();
+      trackListeners.forEach((callback) => callback({ index, name, label }));
+      return {
+        index, row, wave, input: gain,
+        place: (stem) => {  // under another stem; -1 hides the row (its solo is dropped, so it never silences the song)
+          row.hidden = stem < 0;
+          if (stem >= 0) track.after = stem;
+          if (row.hidden && mixer.solos[index]) {
+            row.querySelector('[data-control="solo"]').setAttribute("aria-pressed", "false");
+            mixer.setSolo(index, false);
+          }
+          layoutRows();
+        },
+        remove: () => {
+          row.remove();
+          gain.disconnect();
+          mixer.setSolo(index, false);
+          mixer.setMute(index, true);
+          pluginTracks.splice(pluginTracks.indexOf(track), 1);
+          layoutRows();
+        },
+      };
+    };
+    layoutRows();
     mixerRows.append(playheadLayer);
     if (original) playbackPanel.replaceChildren(error, mixerRows, ...tracks);  // metronome, upgrade, speed: with the stems
     else playbackPanel.replaceChildren(error, lanes, mixerRows, footer, pluginFooter, ...tracks);
@@ -1991,6 +2049,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     if (!original) {
       startPlugins({
         projectId, footer: pluginFooter, lanes, overlay: pluginLayer, timeline: playheadLayer, waves: mixerRows, stemControls, audioContext, setEffect, viewListeners, timeListeners,
+        addTrack, trackListeners, tracks: () => pluginTracks.map(({ index, name, label }) => ({ index, name, label })),
         stems: stems.map((asset) => ({ name: asset.stem_name, label: stemLabels[asset.stem_name] || asset.stem_name })),
         duration: () => duration,
         position: () => transport.currentTime,
@@ -2690,6 +2749,13 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     addLane: (element) => ctx.add(host.lanes, element),  // a row over the stems, as wide as the waveforms
+    addTrack: (options) => {  // a mixer row of its own under a stem (version 24): {index, row, wave, input, place, remove}
+      const track = host.addTrack(options);
+      undo.push(() => track.remove());
+      return track;
+    },
+    get tracks() { return host.tracks(); },  // the plugins' tracks so far: [{index, name, label}]
+    onTrack: (callback) => listen(host.trackListeners, callback),  // a plugin's track added later
     addStemControl: (index, element) => {
       host.stemControls[index].prepend(element);
       undo.push(() => element.remove());

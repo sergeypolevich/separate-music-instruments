@@ -14,6 +14,15 @@ export class MixerSession {
     this.apply();
   }
 
+  add(node) {  // a plugin's track (the practice take): one more channel under the same solo and mute
+    this.gainNodes.push(node);
+    this.gains.push(1);
+    this.mutes.push(false);
+    this.solos.push(false);
+    this.apply();
+    return this.gainNodes.length - 1;
+  }
+
   setGain(index, gain) {
     this.assertIndex(index);
     const value = Number(gain);

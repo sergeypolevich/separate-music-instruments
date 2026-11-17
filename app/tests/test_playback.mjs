@@ -139,6 +139,20 @@ test("mute, multiple solo, and clearing solo compose with each track gain", () =
   assert.equal(nodes[0].gain.value, 0.4);
 });
 
+test("a plugin's track joins the mixer: its solo silences the stems, a stem's solo silences it", () => {
+  const nodes = makeGainNodes().slice(0, 4);
+  const mixer = new MixerSession(nodes);
+  const take = { gain: { value: 1 } };
+  assert.equal(mixer.add(take), 4);
+  mixer.setGain(4, 0.5);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [1, 1, 1, 1, 0.5]);
+  mixer.setSolo(4, true);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [0, 0, 0, 0, 0.5]);
+  mixer.setSolo(4, false);
+  mixer.setSolo(2, true);
+  assert.deepEqual(nodes.map((node) => node.gain.value), [0, 0, 1, 0, 0]);
+});
+
 test("mixer reports which tracks S/M silence, independent of gain", () => {
   const reports = [];
   const mixer = new MixerSession(makeGainNodes(), (_gains, audible) => reports.push(audible));
