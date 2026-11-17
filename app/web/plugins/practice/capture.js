@@ -9,11 +9,14 @@ class PracticeCapture extends AudioWorkletProcessor {
   }
 
   process(inputs) {
-    const channel = inputs[0] && inputs[0][0];
-    if (!channel) return true;
-    for (let i = 0; i < channel.length; i++) {
+    // Every channel mixed to one: a card's input 2 arrives as the second channel (Chrome ignores channelCount: 1).
+    const channels = inputs[0] || [];
+    if (!channels.length) return true;
+    for (let i = 0; i < channels[0].length; i++) {
       if (this.filled === 0) this.first = currentFrame + i;
-      this.block[this.filled++] = channel[i];
+      let sum = 0;
+      for (const channel of channels) sum += channel[i];
+      this.block[this.filled++] = sum / channels.length;
       if (this.filled === this.block.length) {
         this.port.postMessage({ frame: this.first, samples: this.block }, [this.block.buffer]);
         this.block = new Float32Array(1024);

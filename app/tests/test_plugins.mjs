@@ -191,3 +191,18 @@ test("practice takes: a run is stored as 16-bit mono WAV and read back", () => {
   assert.equal(new DataView(bytes).getUint32(24, true), 44100);
   assert.deepEqual([...wavSamples(bytes)].map((v) => +v.toFixed(3)), [0, 0.5, -0.5, 1, -1]);  // clipped at full scale
 });
+
+test("practice capture mixes every input channel into one, so a card's input 2 is heard", async () => {
+  let Processor;
+  globalThis.AudioWorkletProcessor = class { constructor() { this.port = { sent: [], postMessage(m) { this.sent.push(m); } }; } };
+  globalThis.registerProcessor = (_name, cls) => { Processor = cls; };
+  globalThis.currentFrame = 4096;
+  await import("../web/plugins/practice/capture.js");
+  const capture = new Processor();
+  const silent = new Float32Array(128), voice = new Float32Array(128).fill(0.5);
+  for (let i = 0; i < 8; i++) capture.process([[silent, voice]]);
+  assert.equal(capture.port.sent.length, 1);
+  assert.equal(capture.port.sent[0].frame, 4096);
+  assert.ok(capture.port.sent[0].samples.every((value) => value === 0.25));
+  assert.equal(capture.process([]), true);
+});
