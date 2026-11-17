@@ -105,6 +105,11 @@ def _serve(web, state, wav=None):
 
         def do_POST(self):
             body = self._body()
+            if self.path == "/api/v1/client-log":  # the page's log: kept apart from the requests
+                state.setdefault("log", []).extend(body["events"])
+                self.send_response(204)
+                self.end_headers()
+                return
             state["requests"].append(f"POST {self.path}")
             if self.path.endswith("/error"):
                 plugin_id = self.path.split("/")[-2]
@@ -496,11 +501,78 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
                 page.wait_for_timeout(100)
             (key, seconds), = saved.items()
             assert key.startswith("default>") and 0.0374 <= seconds < 0.08  # the loop's delay plus the stream's own
+            finished = _logged(page, state, "practice_tuner_finished")
+            assert finished["details"]["result"] == "stable" and len(finished["details"]["clicks"]) >= 6
+            names = [item["event"] for item in state["log"]]
+            for name in ("ui_click", "practice_tuner_opened", "practice_tuner_start_pressed", "practice_input_requested",
+                         "practice_input_opened", "practice_tuner_started", "practice_tuner_click"):
+                assert name in names, names
+            opened = next(item for item in state["log"] if item["event"] == "practice_input_opened")["details"]
+            assert opened["why"] == "tuner" and opened["engine"]["state"] == "running" and "permission" in opened
             assert "saved for this input and output" in dialog.locator(".practice-detail").text_content()
             dialog.locator('[data-action="close"]').click()
             page.locator(".practice-dialog").wait_for(state="detached")  # the close event comes a task later
             assert latency.get_attribute("aria-label").startswith("Latency ") and latency.text_content().endswith(" ms")
             assert errors == []
+            browser.close()
+    finally:
+        server.shutdown()
+
+
+def _logged(page, state, name):
+    """The first page log event called `name`, once the page has sent it (a batch a second)."""
+    for _ in range(60):
+        found = [item for item in state.get("log", []) if item["event"] == name]
+        if found:
+            return found[0]
+        page.wait_for_timeout(100)
+    raise AssertionError(f"{name} not logged: {[item['event'] for item in state.get('log', [])]}")
+
+
+# The device refuses the raw input (no echo cancellation, mono), as a busy or picky Windows driver does; it opens plainly.
+PICKY_INPUT = """
+(() => {
+  const open = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = async (constraints) => {
+    if (constraints.audio && constraints.audio.echoCancellation === false) throw new DOMException("Could not start audio source", "NotReadableError");
+    return open(constraints);
+  };
+})();
+"""
+
+
+@pytest.mark.browser
+def test_practice_logs_why_the_input_did_not_start(tmp_path):
+    """Version 24: an input that does not start is in the log with the step, the error, the permission, the devices
+    and what opens instead (the same input without the raw settings, the default input)."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    state = {"installed": {"practice": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
+             "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state)
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            page.add_init_script(PICKY_INPUT)
+            page.goto(base, wait_until="load")
+            page.locator(".project-tab").first.click()
+            page.locator(".practice-lane").wait_for()
+            page.locator('[data-action="practice-record"]').click()
+            page.wait_for_function("document.querySelector('.practice-status').textContent.includes('Could not start audio source')", timeout=15000)
+            failed = _logged(page, state, "practice_input_failed")
+            details = failed["details"]
+            assert failed["level"] == "error" and details["why"] == "recording" and details["step"] == "getUserMedia"
+            assert details["error"] == "NotReadableError" and details["message"] == "Could not start audio source"
+            assert details["asked"]["echoCancellation"] is False and details["open_streams"] == 0
+            assert details["permission"] in ("granted", "prompt", "unknown") and isinstance(details["devices"], list)
+            assert details["probes"]["same_input_plain"]["ok"] is True and details["probes"]["default_plain"]["ok"] is True
+            assert _logged(page, state, "practice_recording_failed")["details"]["error"] == "NotReadableError"
+            clicks = [item for item in state["log"] if item["event"] == "ui_click"]
+            assert [item["details"]["control"] for item in clicks][-1] == "practice-record" and clicks[-1]["session"]
+            assert clicks[0]["details"]["text"] == "Song. Done"  # the project tab, by what it says
             browser.close()
     finally:
         server.shutdown()

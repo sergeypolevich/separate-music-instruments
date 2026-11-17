@@ -8,10 +8,11 @@ export const MIN_CLICKS = 6, MAX_CLICKS = 16, AGREE = 0.0008;  // stop when the 
 
 // The first sample of a click in `samples` (input from BEFORE seconds before it was played): where the level rises
 // to 30 % of the way from the noise floor to the peak. -1 when no click stands out of the noise.
-export function findClick(samples, before) {
+export function findClick(samples, before, levels = {}) {  // levels gets the noise and peak, for the log
   let noise = 0, peak = 0;
   for (let i = 0; i < before; i++) noise = Math.max(noise, Math.abs(samples[i]));
   for (let i = before; i < samples.length; i++) peak = Math.max(peak, Math.abs(samples[i]));
+  Object.assign(levels, { noise, peak });
   if (peak < Math.max(0.01, noise * 3)) return -1;
   const threshold = noise + (peak - noise) * 0.3;
   for (let i = before; i < samples.length; i++) if (Math.abs(samples[i]) >= threshold) return i;
@@ -37,7 +38,7 @@ const ms = (seconds, formatDecimal) => `${formatDecimal(Math.round(seconds * 100
 const clickShape = (t) => (t < 0 || t > 0.03 ? 0 : Math.exp(-t / 0.004) * Math.sin(2 * Math.PI * 2000 * t));
 
 // The dialog. openInput(onBlock) starts the input (blocks of {frame, samples}); save(key, seconds) stores a result.
-export function openTuner(ctx, { openInput, save, known }) {
+export function openTuner(ctx, { openInput, save, known, engineState = () => ({}) }) {
   const t = ctx.t;
   const audio = ctx.audioContext;
   const dialog = ctx.add(document.body, document.createElement("dialog"));
@@ -68,6 +69,9 @@ export function openTuner(ctx, { openInput, save, known }) {
   detail.textContent = known ? t("Measured before for this input and output") : t("Not measured yet");
   button.textContent = t("Start");
 
+  const log = ctx.log || (() => {});  // every step to logs/app.jsonl (events practice_tuner_*)
+  const round = (seconds) => (seconds === null || seconds === undefined ? null : Math.round(seconds * 100000) / 100);  // ms, 2 decimals
+  log("tuner_opened", { known_ms: round(known), engine: engineState(audio) });
   const found = () => run.clicks.filter((click) => click.latency).map((click) => click.latency);
   function click(at) {
     const oscillator = audio.createOscillator(), envelope = audio.createGain();
@@ -98,6 +102,10 @@ export function openTuner(ctx, { openInput, save, known }) {
     button.textContent = t("Start again");
     pill.hidden = false;
     run.capture.close();
+    log("tuner_finished", { result: state.stable ? "stable" : state.silent ? "silent" : state.stopped ? "stopped" : "not_stable",
+      estimate_ms: round(state.estimate), spread_ms: round(state.spread), clicks: run.clicks.filter((c) => c.latency !== undefined).map((c) => round(c.latency)),
+      blocks: run.received, seconds: Math.round((audio.currentTime - run.started) * 100) / 100, engine: engineState(audio) },
+    state.stable ? "info" : "warning");
     if (state.stable) {
       save(run.key, state.estimate);
       pill.textContent = t("Stable");
@@ -122,14 +130,20 @@ export function openTuner(ctx, { openInput, save, known }) {
     frame = requestAnimationFrame(step);
     if (run && !run.done) {
       const now = audio.currentTime, last = run.clicks.at(-1);
+      if (!run.warned && performance.now() - run.wall > 2000 && (!run.received || now - run.started < 0.5)) {
+        run.warned = true;  // two seconds and no input or a clock that stands still: say so once
+        log("tuner_stalled", { blocks: run.received, clock_seconds: Math.round((now - run.started) * 1000) / 1000, engine: engineState(audio) }, "warning");
+      }
       if (run.clicks.length < MAX_CLICKS && (!last || now >= last.at)) run.clicks.push({ at: (last ? last.at : now + 0.3) + (last ? 0.45 + Math.random() * 0.3 : 0) });
       for (const item of run.clicks) {
         if (run.done) break;
         if (item.latency !== undefined || item.scheduled === undefined) continue;
         const samples = input(item.at - BEFORE, item.at + WINDOW);
         if (!samples) continue;
-        const index = findClick(samples, Math.round(BEFORE * audio.sampleRate));
+        const levels = {}, index = findClick(samples, Math.round(BEFORE * audio.sampleRate), levels);
         item.latency = index < 0 ? null : index / audio.sampleRate - BEFORE;
+        log("tuner_click", { number: run.clicks.indexOf(item) + 1, latency_ms: round(item.latency),
+          noise: Math.round(levels.noise * 10000) / 10000, peak: Math.round(levels.peak * 10000) / 10000, blocks: run.received });
         const dot = dots.appendChild(document.createElement("span"));
         dot.dataset.found = String(index >= 0);
         dot.textContent = String(run.clicks.indexOf(item) + 1);
@@ -153,7 +167,7 @@ export function openTuner(ctx, { openInput, save, known }) {
 
   async function start() {
     if (run && !run.done) {  // Stop
-      finish({ stable: false, silent: false });
+      finish({ stable: false, silent: false, stopped: true });
       pill.textContent = t("Stopped");
       detail.textContent = t("Not saved");
       return;
@@ -164,11 +178,15 @@ export function openTuner(ctx, { openInput, save, known }) {
     detail.textContent = t("Waiting for the first click");
     shift = 0;
     const blocks = [];
+    log("tuner_start_pressed", { engine: engineState(audio) });
     try {
-      const capture = await openInput(({ data }) => blocks.push(data));
-      run = { capture, clicks: [], blocks, key: capture.key, done: false };
+      let count = 0;
+      const capture = await openInput(({ data }) => { blocks.push(data); count++; if (run) run.received = count; });
+      run = { capture, clicks: [], blocks, key: capture.key, done: false, received: count, started: audio.currentTime, wall: performance.now() };
+      log("tuner_started", { key: String(capture.key).slice(0, 20), engine: engineState(audio) });
       button.textContent = t("Stop");
     } catch (error) {
+      log("tuner_input_failed", { error: String((error && error.name) || "Error"), message: String((error && error.message) || error) }, "error");
       detail.textContent = t("The audio input did not start: {error}", { error: (error && error.message) || error });
     }
   }
@@ -282,6 +300,7 @@ export function openTuner(ctx, { openInput, save, known }) {
   ctx.on(button, "click", start);
   ctx.on(close, "click", () => dialog.close());
   ctx.on(dialog, "close", () => {
+    log("tuner_closed", { running: Boolean(run && !run.done) });
     cancelAnimationFrame(frame);
     if (run && !run.done) run.capture.close();
     dialog.remove();

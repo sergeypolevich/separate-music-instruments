@@ -188,6 +188,23 @@ def _redact(value: str) -> str:
     return _BEARER_TOKEN.sub("Bearer ***", value)
 
 
+_RECORD_FIELDS = set(vars(logging.LogRecord("", 0, "", 0, "", (), None))) | {"message", "asctime"}
+_FIXED_FIELDS = {"event", "ClientID", "batch_id", "job_id", "attempt", "error_type"}
+
+
+def _redacted(value: object) -> object:
+    """Extra fields of a record (a client's details too): strings redacted, nested lists and objects walked."""
+    if isinstance(value, str):
+        return _redact(value)
+    if isinstance(value, dict):
+        return {str(key): _redacted(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_redacted(item) for item in value]
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return _redact(str(value))
+
+
 class JsonLineFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         timestamp = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(timespec="milliseconds")
@@ -208,6 +225,9 @@ class JsonLineFormatter(logging.Formatter):
             payload["stack_trace"] = _redact(self.formatException(record.exc_info))
         elif hasattr(record, "error_type"):
             payload["error_type"] = record.error_type
+        for key, value in vars(record).items():  # every other extra field (project_id, details, ...)
+            if key not in _RECORD_FIELDS and key not in _FIXED_FIELDS and key not in payload:
+                payload[key] = _redacted(value)
         return json.dumps(payload, ensure_ascii=False)
 
 

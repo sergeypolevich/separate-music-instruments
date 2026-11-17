@@ -83,6 +83,7 @@ should be caught by the plugin and shown on its own button.
 | `on(target, type, callback, options)` | `addEventListener`, guarded and removed when the plugin stops |
 | `detailedWaveforms()` | Redraws the waveforms from 8192 peaks (for zooming in) |
 | `levels(index)` | A promise of the stem's 8192 stored peaks (0-1) over the song (version 24) |
+| `log(event, details, level)` | A step of the plugin into the app's log, `logs/app.jsonl` (version 24): the event is named `<plugin>_<event>`, `details` is a small JSON object (at most 8000 characters), `level` is `"info"` (default), `"warning"` or `"error"`. Log what was asked, what the browser answered and how it ended; never what the user typed |
 | `loadData()`, `saveData(object)` | The plugin's own data for this project (JSON, at most 64 KB); removing the plugin deletes it |
 | `settings`, `onSettings(callback(settings))`, `saveSettings(object)` | The plugin's settings, the same in every project (version 23); a call after each change made in Settings; storing a change made in the project (the tuner's volume) |
 | `current` | `false` once the project has closed (check it after an `await`) |

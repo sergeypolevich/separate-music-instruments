@@ -96,6 +96,49 @@ const ICONS = {
   latency: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></svg>',
 };
 const captureModules = new WeakMap();  // AudioContext → the worklet module, added once
+let openStreams = 0;  // inputs this plugin holds open now: a second one on the same device may fail
+
+// After a failed start, what does open (each closed at once), so the log tells the device from the settings asked.
+async function probeInputs(input) {
+  const tries = [["same_input_plain", input ? { deviceId: { exact: input } } : true], ["default_plain", true]];
+  const results = {};
+  for (const [name, audio] of tries) {
+    const started = performance.now();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio });
+      const track = stream.getAudioTracks()[0];
+      results[name] = { ok: true, label: track ? track.label : null, ms: Math.round(performance.now() - started),
+        rate: (track && track.getSettings().sampleRate) || null };
+      stream.getTracks().forEach((item) => item.stop());
+    } catch (error) {
+      results[name] = { ok: false, error: String((error && error.name) || "Error"), message: String((error && error.message) || error) };
+    }
+  }
+  return results;
+}
+
+// The microphone permission as the browser has it now: granted, prompt (it will ask), denied, or unknown.
+async function micPermission() {
+  try {
+    return (await navigator.permissions.query({ name: "microphone" })).state;
+  } catch (_error) {
+    return "unknown";
+  }
+}
+
+// The inputs the browser lists; without the permission it hides their names (and often all but the default).
+async function inputDevices() {
+  try {
+    return (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === "audioinput")
+      .map((device) => ({ id: device.deviceId.slice(0, 8), label: device.label || null, group: device.groupId.slice(0, 8) }));
+  } catch (error) {
+    return String((error && error.name) || error);
+  }
+}
+
+// The audio engine as it is: a suspended one plays nothing and its clock stands still.
+const engineState = (audio) => ({ state: audio.state, rate: audio.sampleRate, time: Math.round(audio.currentTime * 1000) / 1000,
+  base_ms: Math.round((audio.baseLatency || 0) * 10000) / 10, output_ms: Math.round((audio.outputLatency || 0) * 10000) / 10 });
 
 function stylesheet(parent, add) {
   return add(parent, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/practice/plugin.css" }));
@@ -229,8 +272,8 @@ export async function project(ctx) {
       if (!ctx.current || stem !== index || lastRuns.length) return;  // another stem, or a newer take recorded meanwhile
       lastRuns = loaded;
       listen.disabled = false;
-    } catch (_error) {
-      // a file removed by hand: nothing to show or hear
+    } catch (error) {
+      ctx.log("take_load_failed", { message: String((error && error.message) || error) }, "warning");  // a file removed by hand
     }
   }
 
@@ -252,15 +295,43 @@ export async function project(ctx) {
 
   // The audio input in blocks of {frame, samples} (capture.js) on the AudioContext the song plays on, without the
   // browser's echo cancellation, noise suppression and gain control (they delay and change the sound).
-  async function openInput(onBlock) {
-    const audio = ctx.audioContext;
-    if (!captureModules.has(audio)) captureModules.set(audio, audio.audioWorklet.addModule("plugins/practice/capture.js"));
-    await captureModules.get(audio);
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: {
-      deviceId: settings.input ? { exact: settings.input } : undefined,
-      echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1,
-    } });
+  // Each step is logged (logs/app.jsonl, events practice_input_*): the permission before and after the browser
+  // was asked, how long it took, the device asked for and the one opened, the engine's state.
+  async function openInput(onBlock, why) {
+    const audio = ctx.audioContext, started = performance.now();
+    const asked = { why, input: settings.input ? settings.input.slice(0, 8) : "default", permission: await micPermission(), engine: engineState(audio) };
+    ctx.log("input_requested", asked);
+    let stream, step = "worklet";
+    const constraints = { deviceId: settings.input ? { exact: settings.input } : undefined,
+      echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 };
+    try {
+      if (!captureModules.has(audio)) captureModules.set(audio, audio.audioWorklet.addModule("plugins/practice/capture.js"));
+      await captureModules.get(audio);
+      step = "getUserMedia";
+      stream = await navigator.mediaDevices.getUserMedia({ audio: constraints });
+    } catch (error) {
+      if (step === "worklet") captureModules.delete(audio);  // a failed module load is tried again next time
+      const name = String((error && error.name) || "Error");
+      ctx.log("input_failed", { why, step, error: name, message: String((error && error.message) || error),
+        constraint: (error && error.constraint) || null, ms: Math.round(performance.now() - started),
+        asked: { ...constraints, deviceId: settings.input ? settings.input.slice(0, 8) : "default" }, open_streams: openStreams,
+        permission: await micPermission(), devices: await inputDevices(), engine: engineState(audio),
+        probes: step === "getUserMedia" && name !== "NotAllowedError" && name !== "SecurityError" ? await probeInputs(settings.input) : null }, "error");
+      throw error;
+    }
+    openStreams++;
     const output = await outputGroup();
+    const track = stream.getAudioTracks()[0], got = (track && track.getSettings && track.getSettings()) || {};
+    ctx.log("input_opened", { why, ms: Math.round(performance.now() - started), permission: await micPermission(),
+      label: track ? track.label : null, device: (got.deviceId || "").slice(0, 8), rate: got.sampleRate || null,
+      channels: got.channelCount || null, latency_ms: got.latency ? Math.round(got.latency * 10000) / 10 : null,
+      echo: got.echoCancellation ?? null, noise: got.noiseSuppression ?? null, gain: got.autoGainControl ?? null,
+      open_streams: openStreams, muted: track ? track.muted : null, state: track ? track.readyState : null, engine: engineState(audio), devices: await inputDevices() });
+    if (track) {
+      track.addEventListener("ended", () => ctx.log("input_ended", { why, label: track.label }, "warning"));
+      track.addEventListener("mute", () => ctx.log("input_muted", { why, label: track.label }, "warning"));
+      track.addEventListener("unmute", () => ctx.log("input_unmuted", { why, label: track.label }));
+    }
     const source = audio.createMediaStreamSource(stream);
     const node = new AudioWorkletNode(audio, "practice-capture");
     const sink = audio.createGain();  // silent: Chrome runs a worklet only while it leads to the output
@@ -270,9 +341,14 @@ export async function project(ctx) {
     const key = latencyKey(settings.input, output);
     measuredKey = key;
     showLatency();
+    let closed = false;
     return {
       key,
       close() {
+        if (closed) return;
+        closed = true;
+        openStreams--;
+        ctx.log("input_closed", { why, seconds: Math.round(performance.now() - started) / 1000, open_streams: openStreams, engine: engineState(audio) });
         node.port.onmessage = null;
         source.disconnect();
         node.disconnect();
@@ -286,11 +362,16 @@ export async function project(ctx) {
     record.setAttribute("aria-pressed", "true");
     status.textContent = ctx.t("Preparing…");
     try {
-      if (!(await ctx.precise()) || !ctx.current) return;
+      ctx.log("recording_requested", { stem: stem >= 0 ? ctx.stems[stem].name : null, playing: ctx.playing, engine: engineState(ctx.audioContext) });
+      const precise = await ctx.precise();
+      if (!precise || !ctx.current) {
+        ctx.log("recording_not_started", { precise: Boolean(precise), current: Boolean(ctx.current) }, "warning");
+        return;
+      }
       const index = stem;
       reference = reference || ctx.stemAudio(index).then(({ samples, sampleRate }) => onsets(samples, sampleRate));
       reference.catch(() => { if (stem === index) reference = null; });
-      const opened = await openInput(onBlock);
+      const opened = await openInput(onBlock, "recording");
       if (!ctx.current || record.getAttribute("aria-pressed") !== "true") {
         opened.close();
         return;
@@ -298,6 +379,7 @@ export async function project(ctx) {
       capture = opened;
       showStatus();
     } catch (error) {
+      ctx.log("recording_failed", { error: String((error && error.name) || "Error"), message: String((error && error.message) || error) }, "error");
       record.setAttribute("aria-pressed", "false");
       status.textContent = error && error.name === "NotAllowedError"
         ? ctx.t("The browser did not allow the audio input")
@@ -317,6 +399,8 @@ export async function project(ctx) {
   async function finishTake() {
     const recorded = runs, chosen = stem, tolerance = settings.tolerance / 1000;
     runs = [];
+    if (chosen >= 0) ctx.log("take_ended", { stem: ctx.stems[chosen].name, runs: recorded.length,
+      seconds: Math.round(recorded.reduce((sum, run) => sum + run.to - run.from, 0) * 100) / 100, peak: Math.round(takeMax * 1000) / 1000 });
     if (!recorded.length || chosen < 0) return;
     lastRuns = recorded.map((run) => ({ from: run.from, to: run.to, samples: samplesOf(run) }));
     shownRuns = lastRuns;
@@ -326,10 +410,14 @@ export async function project(ctx) {
     let notes;
     try {
       notes = takeNotes(recorded, await reference);
-    } catch (_error) {
+    } catch (error) {
+      ctx.log("score_failed", { message: String((error && error.message) || error) }, "warning");
       return;  // the stem could not be decoded: no score, the recording still showed
     }
-    if (!ctx.current || notes.covered.length < 4) return;  // too short to say anything
+    if (!ctx.current || notes.covered.length < 4) {  // too short to say anything
+      ctx.log("score_skipped", { original_notes: notes.covered.length, played_notes: notes.played.length });
+      return;
+    }
     const offsets = match(notes.covered, notes.played);
     const history = scores.slice(-5);
     const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history,
@@ -337,6 +425,7 @@ export async function project(ctx) {
     scores.push({ at: new Date().toISOString(), stem: ctx.stems[chosen].name, tolerance: settings.tolerance,
       ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Math.round(value * 10000) / 10000])) });
     data.scores = scores.slice(-20);
+    ctx.log("score", scores.at(-1));
     ctx.saveData(data);
   }
   let wasPlaying = false;
@@ -362,7 +451,9 @@ export async function project(ctx) {
       takes.push({ stem: stemName, at: new Date(stamp).toISOString(), runs: saved.map((run, k) => ({ file: files[k].name, from: run.from, to: run.to })) });
       data.takes = takes;
       await ctx.saveData(data);
-    } catch (_error) {
+      ctx.log("take_saved", { files: files.length, bytes: size, kept: takes.length });
+    } catch (error) {
+      ctx.log("take_save_failed", { bytes: size, message: String((error && error.message) || error) }, "error");
       if (ctx.current) status.textContent = ctx.t("The take could not be saved");
     }
   }
@@ -426,7 +517,8 @@ export async function project(ctx) {
   ctx.on(measure, "click", () => {
     stopRecording();
     openTuner(ctx, {
-      openInput,
+      openInput: (onBlock) => openInput(onBlock, "tuner"),
+      engineState,
       known: measuredKey ? settings.latency[measuredKey] : null,
       save: (key, seconds) => {
         settings.latency = { ...settings.latency, [key]: Math.round(seconds * 100000) / 100000 };

@@ -10,6 +10,7 @@ import re
 from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
+import time
 from typing import Annotated, Callable
 from urllib.parse import unquote
 from uuid import UUID
@@ -116,6 +117,25 @@ def _folder_bytes(path: Path) -> int:
         return sum(item.stat().st_size for item in path.rglob("*") if item.is_file() and not item.is_symlink())
     except OSError:
         return 0
+
+
+_CLIENT_EVENT = r"^[a-z][a-z0-9_]{0,63}$"
+_CLIENT_DETAILS_CHARS = 8000  # one event's details; a tuner run with its 16 clicks is about 1500
+client_logger = logging.getLogger("audio_stems.client")
+
+
+class ClientEvent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    event: Annotated[str, Field(pattern=_CLIENT_EVENT)]
+    level: Annotated[str, Field(pattern=r"^(info|warning|error)$")] = "info"
+    at: Annotated[str, Field(max_length=40)] = ""
+    session: Annotated[str, Field(max_length=40)] = ""
+    details: dict = Field(default_factory=dict)
+
+
+class ClientLog(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    events: list[ClientEvent] = Field(max_length=100)
 
 
 class UpdateApplyRequest(BaseModel):
@@ -246,6 +266,36 @@ def create_app(
         allow_origins=[f"http://{host}:{settings.api_port}" for host in ("127.0.0.1", "localhost")],
         allow_methods=["GET"],
     )
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        """What the system did in answer: every change asked for and every failed request, with its time."""
+        started = time.perf_counter()
+        quiet = request.method in ("GET", "HEAD") or request.url.path == "/api/v1/client-log"
+        try:
+            response = await call_next(request)
+        except Exception:
+            logger.exception("Request failed", extra={"event": "http_request_failed", "ClientID": _OWNER_ID,
+                                                      "method": request.method, "path": request.url.path})
+            raise
+        if not quiet or response.status_code >= 400:
+            (logger.warning if response.status_code >= 400 else logger.info)(
+                "%s %s %s", request.method, request.url.path, response.status_code,
+                extra={"event": "http_request", "ClientID": _OWNER_ID, "method": request.method, "path": request.url.path,
+                       "status": response.status_code, "ms": round((time.perf_counter() - started) * 1000)})
+        return response
+
+    @app.post("/api/v1/client-log", status_code=status.HTTP_204_NO_CONTENT)
+    def client_log(body: ClientLog) -> Response:
+        """What the page did (buttons pressed, plugins' steps, its errors), into the same log as the server's."""
+        for item in body.events:
+            details = item.details
+            if len(json.dumps(details, ensure_ascii=False)) > _CLIENT_DETAILS_CHARS:
+                details = {"truncated": json.dumps(details, ensure_ascii=False)[:_CLIENT_DETAILS_CHARS]}
+            getattr(client_logger, item.level)(item.event, extra={
+                "event": item.event, "ClientID": _OWNER_ID, "client_time": item.at, "session": item.session,
+                "details": details})
+        return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.exception_handler(RequestValidationError)
     async def invalid_request(_request: Request, exc: RequestValidationError):
