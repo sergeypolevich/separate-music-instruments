@@ -377,6 +377,9 @@ export async function project(ctx) {
         return;
       }
       capture = opened;
+      if (take) take.fill(-1);  // a new take starts on an empty lane; the last one stays saved, to hear again
+      takeMax = 0.05;
+      shownRuns = lastRuns;
       showStatus();
     } catch (error) {
       ctx.log("recording_failed", { error: String((error && error.name) || "Error"), message: String((error && error.message) || error) }, "error");

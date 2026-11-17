@@ -414,6 +414,9 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             page.keyboard.press("Space")
             page.locator('[data-action="practice-record"]').click()
             assert page.locator('[data-action="practice-record"]').get_attribute("aria-pressed") == "false"
+            page.locator('[data-action="practice-record"]').click()  # a new take: the lane starts empty
+            page.wait_for_function(YOU_BARS + " === 0")
+            page.locator('[data-action="practice-record"]').click()
 
             page.reload(wait_until="load")  # the stem stays chosen for this project
             page.locator(".project-tab").first.click()
