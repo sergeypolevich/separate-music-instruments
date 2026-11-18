@@ -1,5 +1,5 @@
 // Wheel zoom: the wheel (or a trackpad pinch, or two fingers on a phone) zooms the waveforms around the pointer;
-// Shift + wheel, a sideways swipe or two fingers moving sideways move the view. While playing, once the playhead
+// Shift + wheel, a sideways swipe, two fingers moving sideways or a drag with the right button move the view. While playing, once the playhead
 // reaches the view's right edge the view moves with it, the playhead LEAD of the view from the left (ctx.followLead
 // when a plugin sets one; at the song's ends the view stays and the playhead runs on); a zoom keeps that, a move by
 // hand stops it until playback starts again. A jump (Home, a seek) out of the view takes the view along.
@@ -92,9 +92,30 @@ export function project(ctx) {
   }, { passive: false });
   ctx.on(timeline, "touchend", () => { pinch = null; });
 
+  // The right button held: the view moves with the pointer (the left one seeks and makes loops).
+  let grab = null, grabbed = false;
+  ctx.on(timeline, "pointerdown", (event) => {
+    if (event.button !== 2 || whole()) return;
+    timeline.setPointerCapture(event.pointerId);
+    grab = { x: event.clientX, view: ctx.view, pointerId: event.pointerId };
+    grabbed = false;
+  });
+  ctx.on(timeline, "pointermove", (event) => {
+    if (!grab || event.pointerId !== grab.pointerId || (!grabbed && Math.abs(event.clientX - grab.x) < 3)) return;
+    grabbed = true;
+    following = false;
+    const { view } = grab;
+    show(panBy(view, ctx.bounds, -((event.clientX - grab.x) / timeline.clientWidth) * (view.end - view.start)));
+  });
+  const release = () => { grab = null; };
+  ctx.on(timeline, "pointerup", release);
+  ctx.on(timeline, "pointercancel", release);
+  ctx.on(timeline, "contextmenu", (event) => { if (grabbed) event.preventDefault(); });  // no menu after a drag, dev_mode too
+
   ctx.onTime((position, playing) => {
     if (playing && !wasPlaying) following = true;  // ▶ follows again
-    const jumped = Math.abs(position - last) > 1, moved = jumped || (!playing && position !== last);
+    // Paused, the time comes only with a seek (⏮ at 0 too, after the view was moved by hand).
+    const jumped = Math.abs(position - last) > 1, moved = jumped || !playing;
     if (!playing || jumped) held = false;  // a seek: the playhead is free in the view again
     wasPlaying = playing;
     last = position;

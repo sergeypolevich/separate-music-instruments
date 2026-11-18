@@ -90,6 +90,13 @@ const dropOverlay = document.querySelector("#drop-overlay");
 const searchOverlay = document.querySelector("#search-overlay");
 const searchTrigger = document.querySelector("#search-trigger");
 const projectTabs = document.querySelector("#project-tabs");
+// No browser menu on the right button: it moves the zoomed waveforms. Text fields keep it (paste); ?dev_mode in the
+// address gives it back everywhere (inspect).
+const devMode = new URLSearchParams(location.search).has("dev_mode");
+document.addEventListener("contextmenu", (event) => {
+  const text = event.target instanceof Element && event.target.closest('textarea, [contenteditable="true"], input:not([type]), input[type="text"], input[type="search"], input[type="url"], input[type="number"]');
+  if (!devMode && !text) event.preventDefault();
+});
 const projectEmpty = document.querySelector("#project-empty");
 const projectDetail = document.querySelector("#project-detail");
 const detailTitle = document.querySelector("#detail-title");

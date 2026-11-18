@@ -216,6 +216,19 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.wait_for_function(f"Math.abs({view_start} - 2) < 0.05")  # 4.2 s clamped to the song's end: 2-5 s
             page.locator('[data-action="reset"]').click()
             page.wait_for_function(f"Math.abs({view_start}) < 0.05")
+            # The right button dragged a third of the width to the left moves the 3 s view 1 s on; no seek, no loop.
+            page.mouse.move(box["x"] + box["width"] * 0.6, box["y"] + 20)
+            page.mouse.down(button="right")
+            page.mouse.move(box["x"] + box["width"] * 0.6 - box["width"] / 3, box["y"] + 20, steps=5)
+            page.mouse.up(button="right")
+            assert page.evaluate(view_start) == pytest.approx(1, abs=0.05)
+            assert page.evaluate("activeTransport.currentTime") == 0 and page.evaluate("activeTransport.loop") is None
+            # The page has no browser menu on the right button, but text fields do (paste).
+            menu = "(selector) => { const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); document.querySelector(selector).dispatchEvent(event); return event.defaultPrevented; }"
+            assert page.evaluate(menu, ".playhead-layer") and page.evaluate(menu, "#detail-title")
+            assert not page.evaluate(menu, "#inputs")  # the song search
+            page.locator('[data-action="reset"]').click()
+            page.wait_for_function(f"Math.abs({view_start}) < 0.05")
             # A zoom while playing keeps the view on the playhead (version 24; it used to stop following).
             page.evaluate("document.activeElement.blur(); activeTransport.seek(1.5)")
             page.keyboard.press("Space")
@@ -378,6 +391,9 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert "DELETE /api/v1/plugins/eq" in state["requests"]
             assert page.locator(".chord-layer .chord-label").count() == 2 and page.locator(".beat-line").count() == 10
             assert not errors, errors
+            # ?dev_mode in the address gives the browser's menu back (to inspect the page).
+            page.goto(base + "/?dev_mode=1", wait_until="load")
+            assert not page.evaluate("(() => { const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true }); document.body.dispatchEvent(event); return event.defaultPrevented; })()")
             browser.close()
     finally:
         server.shutdown()
