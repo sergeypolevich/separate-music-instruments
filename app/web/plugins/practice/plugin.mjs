@@ -439,7 +439,11 @@ export async function project(ctx) {
     const offsets = match(notes.covered, notes.played);
     const history = scores.slice(-5), from = recorded[0].from, to = recorded[recorded.length - 1].to;
     const beats = await Promise.race([analysis, new Promise((resolve) => setTimeout(resolve, 3000))]);  // no wait on a slow analysis
-    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history, from, to, beat: beatAt(beats, (from + to) / 2) });
+    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history, from, to, beat: beatAt(beats, (from + to) / 2),
+      limits: TOLERANCE, onTolerance: (value) => {  // the same setting as in Settings → Plugins → Practice
+        settings.tolerance = value;
+        ctx.saveSettings({ ...settings });
+      } });
     scores.push({ at: new Date().toISOString(), stem: ctx.stems[chosen].name, tolerance: settings.tolerance,
       ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Math.round(value * 10000) / 10000])) });
     data.scores = scores.slice(-20);

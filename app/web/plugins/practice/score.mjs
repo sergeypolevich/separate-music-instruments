@@ -179,14 +179,14 @@ const kind = (offset, tolerance) => (offset === null ? "missed" : Math.abs(offse
 
 // The panel after a take: the counts, a histogram of the offsets and a strip through the part played.
 // With `beat` (a beat's seconds) the offsets are also told as note values: «20 ms» says little, «1/16» says much.
-export function showScore(ctx, { reference, offsets, tolerance, from, to, history, beat = null }) {
-  const t = ctx.t, result = summary(offsets, tolerance);
+// Its slider moves the tolerance (`limits` in ms) and draws again; `onTolerance(ms)` keeps a value let go of.
+export function showScore(ctx, { reference, offsets, tolerance, from, to, history, beat = null, limits = { min: 5, max: 40 }, onTolerance = () => {} }) {
+  const t = ctx.t;
   const ms = (seconds) => `${seconds > 0.0005 ? "+" : ""}${Math.round(seconds * 1000)} ms`;
   const note = (seconds) => {
     const value = noteValue(seconds, beat);
     return beat ? (value ? t("≈ {note} note", { note: value }) : t("under 1/256 note")) : "";
   };
-  const percent = result.notes ? Math.round((result.onTime / result.notes) * 100) : 0;
   const dialog = ctx.add(document.body, document.createElement("dialog"));
   dialog.className = "practice-dialog practice-score";
   dialog.innerHTML = `<div class="practice-card">
@@ -195,6 +195,8 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
     <div class="practice-legend"></div>
     <svg class="practice-histogram" viewBox="0 0 900 ${beat ? 186 : 170}" role="img"></svg>
     <svg class="practice-strip" viewBox="0 0 900 60" role="img"></svg>
+    <label class="practice-tolerance"><span></span><input type="range" step="1" data-setting="tolerance"><output></output></label>
+    <p class="practice-why"></p>
     <p class="practice-history"></p>
   </div>`;
   const $ = (selector) => dialog.querySelector(selector);
@@ -203,69 +205,81 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
   close.textContent = "✕";
   close.setAttribute("aria-label", t("Close"));
   close.title = t("Close");
-  const tiles = [
-    ["main", t("On time"), t("{hit} of {count} · {percent} %", { hit: result.onTime, count: result.notes, percent }), "on-time"],
-    ["", t("Early"), String(result.early), "early"],
-    ["", t("Late"), String(result.late), "late"],
-    ["", t("Missed"), String(result.missed), "missed"],
-    ["", t("Average"), ms(result.mean), "", note(result.mean), "average"],
-    ["", t("Spread"), `±${Math.round(result.spread * 1000)} ms`, "", note(result.spread), "spread"],
-  ];
-  $(".practice-tiles").append(...tiles.map(([size, name, value, swatch, aside = "", key = ""]) => {
-    const tile = document.createElement("div");
-    tile.className = `practice-tile ${size}`;
-    tile.dataset.tile = swatch || key;
-    tile.innerHTML = `<span class="practice-key">${swatch ? `<i class="practice-swatch" data-kind="${swatch}"></i>` : ""}</span><span class="practice-value"></span>`;
-    tile.querySelector(".practice-key").append(name);
-    tile.querySelector(".practice-value").textContent = value;
-    if (aside) tile.append(Object.assign(document.createElement("span"), { className: "practice-note", textContent: aside }));
-    return tile;
-  }));
-  const within = Math.round(tolerance * 1000);
-  $(".practice-legend").textContent = beat
-    ? t("On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
-      { tolerance: within, note: noteValue(tolerance, beat) || "1/256", bpm: Math.round(60 / beat) })
-    : t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: within });
-
-  // Histogram: 5 ms bins from -70 to +70 ms, the tolerance band behind.
-  const histogram = $(".practice-histogram");
+  const left = 30, width = 860, top = 10, height = 130, x = (seconds) => left + ((seconds * 1000 + 70) / 140) * width;
+  const histogram = $(".practice-histogram"), strip = $(".practice-strip");
   histogram.setAttribute("aria-label", beat ? t("How far the notes were from the original, in note values and milliseconds")
     : t("How far the notes were from the original, in milliseconds"));
-  const left = 30, width = 860, top = 10, height = 130, x = (seconds) => left + ((seconds * 1000 + 70) / 140) * width;
-  histogram.append(element("rect", { class: "practice-band", x: x(-tolerance), y: top, width: x(tolerance) - x(-tolerance), height }));
-  const bins = new Array(28).fill(0);
-  offsets.forEach((offset) => {
-    if (offset !== null) bins[Math.min(27, Math.max(0, Math.floor((offset * 1000 + 70) / 5)))]++;
-  });
-  const tallest = Math.max(1, ...bins);
-  bins.forEach((count, bin) => {
-    if (!count) return;
-    const centre = (bin * 5 - 67.5) / 1000, size = (count / tallest) * (height - 6);
-    histogram.append(element("rect", { class: `practice-bar-${kind(centre, tolerance)}`, x: x(centre) - 13, y: top + height - size, width: 26, height: size, rx: 3 },
-      ""));
-  });
-  const ticks = beat ? noteTicks(beat).flatMap(({ seconds, label }) => [{ seconds: -seconds, label: `−${label}` }, { seconds, label: `+${label}` }])
-    : [-60, -40, -20, 20, 40, 60].map((value) => ({ seconds: value / 1000, label: `${value > 0 ? "+" : ""}${value}` }));
-  [{ seconds: 0, label: "0" }, ...ticks].forEach(({ seconds, label }) => {
-    histogram.append(element("line", { class: seconds ? "practice-tick" : "practice-zero", x1: x(seconds), x2: x(seconds), y1: top, y2: top + height }));
-    histogram.append(element("text", { x: x(seconds), y: 162, "text-anchor": "middle", "data-tick": label }, label));
-    if (beat && seconds) histogram.append(element("text", { class: "practice-ms", x: x(seconds), y: 180, "text-anchor": "middle" }, ms(seconds)));
-  });
-
-  // The strip: every original note of the take where it is in the song, coloured by how it was played.
-  const strip = $(".practice-strip");
   strip.setAttribute("aria-label", t("Every note of the take, from its start to its end"));
-  const along = (time) => left + ((time - from) / Math.max(0.001, to - from)) * width;
-  strip.append(element("line", { class: "practice-tick", x1: left, x2: left + width, y1: 30, y2: 30 }));
-  reference.forEach((time, i) => strip.append(element("rect", { class: `practice-bar-${kind(offsets[i], tolerance)}`, x: along(time) - 1.5, y: offsets[i] === null ? 36 : 14, width: 3, height: 16, rx: 1 })));
-  strip.append(element("text", { x: left, y: 58 }, formatTime(from)));
-  strip.append(element("text", { x: left + width, y: 58, "text-anchor": "end" }, formatTime(to)));
 
+  const draw = (tolerance) => {
+    const result = summary(offsets, tolerance);
+    const percent = result.notes ? Math.round((result.onTime / result.notes) * 100) : 0;
+    const tiles = [
+      ["main", t("On time"), t("{hit} of {count} · {percent} %", { hit: result.onTime, count: result.notes, percent }), "on-time"],
+      ["", t("Early"), String(result.early), "early"],
+      ["", t("Late"), String(result.late), "late"],
+      ["", t("Missed"), String(result.missed), "missed"],
+      ["", t("Average"), ms(result.mean), "", note(result.mean), "average"],
+      ["", t("Spread"), `±${Math.round(result.spread * 1000)} ms`, "", note(result.spread), "spread"],
+    ];
+    $(".practice-tiles").replaceChildren(...tiles.map(([size, name, value, swatch, aside = "", key = ""]) => {
+      const tile = document.createElement("div");
+      tile.className = `practice-tile ${size}`;
+      tile.dataset.tile = swatch || key;
+      tile.innerHTML = `<span class="practice-key">${swatch ? `<i class="practice-swatch" data-kind="${swatch}"></i>` : ""}</span><span class="practice-value"></span>`;
+      tile.querySelector(".practice-key").append(name);
+      tile.querySelector(".practice-value").textContent = value;
+      if (aside) tile.append(Object.assign(document.createElement("span"), { className: "practice-note", textContent: aside }));
+      return tile;
+    }));
+    const within = Math.round(tolerance * 1000);
+    $(".practice-legend").textContent = beat
+      ? t("On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
+        { tolerance: within, note: noteValue(tolerance, beat) || "1/256", bpm: Math.round(60 / beat) })
+      : t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: within });
+    $(".practice-tolerance output").textContent = beat ? `±${within} ms · ${noteValue(tolerance, beat) || "1/256"}` : `±${within} ms`;
+
+    // Histogram: 5 ms bins from -70 to +70 ms, the tolerance band behind.
+    histogram.replaceChildren(element("rect", { class: "practice-band", x: x(-tolerance), y: top, width: x(tolerance) - x(-tolerance), height }));
+    const bins = new Array(28).fill(0);
+    offsets.forEach((offset) => {
+      if (offset !== null) bins[Math.min(27, Math.max(0, Math.floor((offset * 1000 + 70) / 5)))]++;
+    });
+    const tallest = Math.max(1, ...bins);
+    bins.forEach((count, bin) => {
+      if (!count) return;
+      const centre = (bin * 5 - 67.5) / 1000, size = (count / tallest) * (height - 6);
+      histogram.append(element("rect", { class: `practice-bar-${kind(centre, tolerance)}`, x: x(centre) - 13, y: top + height - size, width: 26, height: size, rx: 3 }));
+    });
+    const ticks = beat ? noteTicks(beat).flatMap(({ seconds, label }) => [{ seconds: -seconds, label: `−${label}` }, { seconds, label: `+${label}` }])
+      : [-60, -40, -20, 20, 40, 60].map((value) => ({ seconds: value / 1000, label: `${value > 0 ? "+" : ""}${value}` }));
+    [{ seconds: 0, label: "0" }, ...ticks].forEach(({ seconds, label }) => {
+      histogram.append(element("line", { class: seconds ? "practice-tick" : "practice-zero", x1: x(seconds), x2: x(seconds), y1: top, y2: top + height }));
+      histogram.append(element("text", { x: x(seconds), y: 162, "text-anchor": "middle", "data-tick": label }, label));
+      if (beat && seconds) histogram.append(element("text", { class: "practice-ms", x: x(seconds), y: 180, "text-anchor": "middle" }, ms(seconds)));
+    });
+
+    // The strip: every original note of the take where it is in the song, coloured by how it was played.
+    const along = (time) => left + ((time - from) / Math.max(0.001, to - from)) * width;
+    strip.replaceChildren(element("line", { class: "practice-tick", x1: left, x2: left + width, y1: 30, y2: 30 }));
+    reference.forEach((time, i) => strip.append(element("rect", { class: `practice-bar-${kind(offsets[i], tolerance)}`, x: along(time) - 1.5, y: offsets[i] === null ? 36 : 14, width: 3, height: 16, rx: 1 })));
+    strip.append(element("text", { x: left, y: 58 }, formatTime(from)));
+    strip.append(element("text", { x: left + width, y: 58, "text-anchor": "end" }, formatTime(to)));
+    return result;
+  };
+
+  const slider = $(".practice-tolerance input");
+  $(".practice-tolerance span").textContent = t("On time within");
+  Object.assign(slider, { min: limits.min, max: limits.max, value: Math.round(tolerance * 1000) });
+  $(".practice-why").textContent = t("Why ±15 ms by default: about 20 ms apart is the least at which the ear tells which of two notes came first, so notes within ±15 ms sound together with the original. A tighter value trains finer timing; a looser one suits a first go.");
+  ctx.on(slider, "input", () => draw(Number(slider.value) / 1000));
+  ctx.on(slider, "change", () => onTolerance(Number(slider.value)));
   if (history.length) {
     $(".practice-history").textContent = t("Earlier takes: {list}", { list: history.map((item) => `${item.notes ? Math.round((item.onTime / item.notes) * 100) : 0} %`).join(" · ") });
   }
   ctx.on(close, "click", () => dialog.close());
   ctx.on(dialog, "close", () => dialog.remove());
+  const result = draw(tolerance);
   dialog.showModal();
   return result;
 }

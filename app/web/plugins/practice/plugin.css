@@ -52,6 +52,10 @@
 .practice-swatch[data-kind="late"], .practice-bar-late { background: var(--warn); fill: var(--warn); }
 .practice-swatch[data-kind="missed"], .practice-bar-missed { background: var(--danger); fill: var(--danger); }
 .practice-legend, .practice-history { margin: 0; color: var(--muted); font-size: 12px; }
+.practice-tolerance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
+.practice-tolerance input { flex: 1 1 160px; max-width: 260px; }
+.practice-tolerance output { font-variant-numeric: tabular-nums; }
+.practice-why { margin: 0; color: var(--muted); font-size: 12px; }
 .practice-histogram, .practice-strip { display: block; width: 100%; height: auto; }
 .practice-histogram text, .practice-strip text { fill: var(--muted); font: 11px 'DM Sans', sans-serif; }
 .practice-band { fill: color-mix(in srgb, var(--ok) 12%, transparent); }

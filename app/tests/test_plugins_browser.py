@@ -684,6 +684,19 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             assert "+63 ms" in score.locator(".practice-histogram").text_content()
             assert "1/128 at 120 BPM" in score.locator(".practice-legend").text_content()
             assert score.locator('[data-tile="spread"] .practice-note').text_content().endswith(" note")
+            # The tolerance moves right there, with why it is ±15 ms; the score is drawn again and the setting kept.
+            assert "20 ms" in score.locator(".practice-why").text_content()
+            assert score.locator(".practice-tolerance output").text_content() == "±15 ms · 1/128"
+            band = score.locator(".practice-band").bounding_box()["width"]
+            score.locator('.practice-tolerance [data-setting="tolerance"]').fill("40")
+            assert score.locator(".practice-tolerance output").text_content() == "±40 ms · 1/64"
+            assert "±40 ms" in score.locator(".practice-legend").text_content()
+            assert score.locator(".practice-band").bounding_box()["width"] > band * 2.5
+            for _ in range(50):
+                if state["installed"]["practice"].get("settings", {}).get("tolerance") == 40:
+                    break
+                page.wait_for_timeout(100)
+            assert state["installed"]["practice"]["settings"]["tolerance"] == 40
             for _ in range(50):
                 if state["data"]["practice"].get("scores"):
                     break
