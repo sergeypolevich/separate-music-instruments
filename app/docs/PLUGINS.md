@@ -73,7 +73,7 @@ should be caught by the plugin and shown on its own button.
 | `followLead`, `setFollowLead(share or null)` | Version 24: where a followed playhead stays in a zoomed view (0-1; `null`: the zoom's own 10 %). Practice sets 0.6 |
 | `onView(callback(view))` | After every change of the view, also when the length becomes known |
 | `onTime(callback(position, playing))` | On every frame while playing, and after every seek; the position is the drawn playhead's (smooth between the player's readings) |
-| `timeline` | The element over the waveforms that takes the clicks (seek, loop): for wheel or touch gestures |
+| `timeline` | The element over the waveforms that takes the clicks (seek, loop): for wheel or touch gestures; the left button is the host's, the right one the zoom's (a drag pans; the page shows no browser menu unless the address has `?dev_mode`) |
 | `overlay` | A layer over all waveforms, under the loop and the playhead, `pointer-events: none` (set `auto` on your own elements) |
 | `waves` | The grid of stem rows |
 | `add(parent, element)` | Appends a plugin element, removed when the plugin stops |
