@@ -7,7 +7,7 @@ import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
-import { match, onsets, summary } from "../web/plugins/practice/score.mjs";
+import { beatAt, match, noteTicks, noteValue, onsets, summary } from "../web/plugins/practice/score.mjs";
 import { addToRuns, blockTimes, columnPeaks, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
@@ -252,4 +252,22 @@ test("practice: one column a screen pixel, the loudest millisecond under it, at 
   const zoomed = columnPeaks(peaks, 0.001, { start: 2, end: 3 }, 2000);  // half a millisecond a column
   assert.ok(Math.abs(zoomed[1000] - 0.8) < 1e-6 && Math.abs(zoomed[1002] - 0.3) < 1e-6);
   assert.equal(zoomed[999], -1);
+});
+
+test("practice score tells offsets as note values, a beat being a quarter", () => {
+  assert.equal(beatAt({ bpm: 120, tempo: [[0, 120], [30, 60]] }, 10), 0.5);
+  assert.equal(beatAt({ bpm: 120, tempo: [[0, 120], [30, 60]] }, 40), 1);
+  assert.equal(beatAt({ bpm: 100, tempo: [] }, 5), 0.6);
+  assert.equal(beatAt({ bpm: null, tempo: [] }, 5), null);
+  assert.equal(beatAt(null, 5), null);
+  assert.equal(noteValue(0.125, 0.5), "1/16");  // 120 BPM: a sixteenth is 125 ms
+  assert.equal(noteValue(-0.031, 0.5), "1/64");
+  assert.equal(noteValue(0.015, 0.5), "1/128");
+  assert.equal(noteValue(0.001, 0.5), null);  // under 1/256
+  assert.equal(noteValue(0, 0.5), null);
+  assert.equal(noteValue(0.02, null), null);
+  assert.deepEqual(noteTicks(0.5).map((tick) => tick.label), ["1/32", "1/64", "1/128"]);
+  assert.deepEqual(noteTicks(1).map((tick) => tick.label), ["1/64", "1/128", "1/256"]);  // 60 BPM
+  const fast = noteTicks(60 / 180);  // a 1/16 at 180 BPM is 83 ms: past the 70 ms the histogram shows
+  assert.deepEqual(fast.map((tick) => tick.label), ["1/32", "1/64"]);
 });

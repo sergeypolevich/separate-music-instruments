@@ -106,7 +106,7 @@ export function latencyKey(input, output) {
 }
 
 import { openTuner } from "./tuner.mjs";
-import { match, onsets, showScore } from "./score.mjs";
+import { beatAt, match, onsets, showScore } from "./score.mjs";
 
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 const ICONS = {
@@ -223,6 +223,7 @@ export async function project(ctx) {
   let measuredKey = null;  // the input and output of the last recording or measurement
   let runs = [];  // the take being recorded: [{from, to, chunks}]
   let reference = null;  // the chosen stem's audio from song time 0 (a promise), decoded once
+  let analysis = null;  // the song's beats and tempo (a promise), asked for once a stem is chosen
   const scores = Array.isArray(data.scores) ? data.scores : [];
   const takes = Array.isArray(data.takes) ? data.takes : [];  // saved: [{stem, at, runs: [{file, from, to}]}]
   let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
@@ -266,6 +267,7 @@ export async function project(ctx) {
     }
     takeMax = 0.05;
     shownRuns = null;
+    analysis = analysis || Promise.resolve(ctx.beats ? ctx.beats() : null).catch(() => null);  // for the score's note values
     loadLastTake(index);
   }
 
@@ -435,9 +437,9 @@ export async function project(ctx) {
       return;
     }
     const offsets = match(notes.covered, notes.played);
-    const history = scores.slice(-5);
-    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history,
-      from: recorded[0].from, to: recorded[recorded.length - 1].to });
+    const history = scores.slice(-5), from = recorded[0].from, to = recorded[recorded.length - 1].to;
+    const beats = await Promise.race([analysis, new Promise((resolve) => setTimeout(resolve, 3000))]);  // no wait on a slow analysis
+    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history, from, to, beat: beatAt(beats, (from + to) / 2) });
     scores.push({ at: new Date().toISOString(), stem: ctx.stems[chosen].name, tolerance: settings.tolerance,
       ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Math.round(value * 10000) / 10000])) });
     data.scores = scores.slice(-20);

@@ -141,6 +141,33 @@ export function summary(offsets, tolerance) {
   };
 }
 
+// A beat's seconds at `time` from the beat analysis ({tempo: [[time, bpm], ...], bpm}); null without a tempo.
+export function beatAt(analysis, time) {
+  if (!analysis) return null;
+  const tempo = Array.isArray(analysis.tempo) ? analysis.tempo : [];
+  const bpm = (tempo.filter(([at]) => at <= time).at(-1) || tempo[0] || [0, analysis.bpm])[1];
+  return bpm > 0 ? 60 / bpm : null;
+}
+
+// The note value nearest to an offset, a beat being a quarter: 31 ms at 120 BPM is 1/64. null under 1/256.
+export function noteValue(seconds, beat) {
+  if (!(Math.abs(seconds) > 0) || !(beat > 0)) return null;
+  const denominator = 2 ** Math.round(Math.log2((4 * beat) / Math.abs(seconds)));
+  return denominator > 256 ? null : `1/${Math.max(4, denominator)}`;
+}
+
+// The histogram's ticks as note values within `reach` seconds, at least `apart` seconds from each other and zero.
+export function noteTicks(beat, reach = 0.07, apart = 0.012) {
+  const ticks = [];
+  for (let denominator = 4; denominator <= 256; denominator *= 2) {
+    const seconds = (4 * beat) / denominator;
+    if (seconds <= reach && seconds >= apart && (!ticks.length || ticks.at(-1).seconds - seconds >= apart)) {
+      ticks.push({ seconds, label: `1/${denominator}` });
+    }
+  }
+  return ticks;
+}
+
 const SVG = "http://www.w3.org/2000/svg";
 const element = (name, attributes = {}, text = "") => {
   const node = document.createElementNS(SVG, name);
@@ -151,9 +178,14 @@ const element = (name, attributes = {}, text = "") => {
 const kind = (offset, tolerance) => (offset === null ? "missed" : Math.abs(offset) <= tolerance ? "on-time" : offset < 0 ? "early" : "late");
 
 // The panel after a take: the counts, a histogram of the offsets and a strip through the part played.
-export function showScore(ctx, { reference, offsets, tolerance, from, to, history }) {
+// With `beat` (a beat's seconds) the offsets are also told as note values: «20 ms» says little, «1/16» says much.
+export function showScore(ctx, { reference, offsets, tolerance, from, to, history, beat = null }) {
   const t = ctx.t, result = summary(offsets, tolerance);
   const ms = (seconds) => `${seconds > 0.0005 ? "+" : ""}${Math.round(seconds * 1000)} ms`;
+  const note = (seconds) => {
+    const value = noteValue(seconds, beat);
+    return beat ? (value ? t("≈ {note} note", { note: value }) : t("under 1/256 note")) : "";
+  };
   const percent = result.notes ? Math.round((result.onTime / result.notes) * 100) : 0;
   const dialog = ctx.add(document.body, document.createElement("dialog"));
   dialog.className = "practice-dialog practice-score";
@@ -161,7 +193,7 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
     <div class="practice-heading"><h2></h2><button type="button" class="icon-button" data-action="close"></button></div>
     <div class="practice-tiles"></div>
     <div class="practice-legend"></div>
-    <svg class="practice-histogram" viewBox="0 0 900 170" role="img"></svg>
+    <svg class="practice-histogram" viewBox="0 0 900 ${beat ? 186 : 170}" role="img"></svg>
     <svg class="practice-strip" viewBox="0 0 900 60" role="img"></svg>
     <p class="practice-history"></p>
   </div>`;
@@ -176,23 +208,29 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
     ["", t("Early"), String(result.early), "early"],
     ["", t("Late"), String(result.late), "late"],
     ["", t("Missed"), String(result.missed), "missed"],
-    ["", t("Average"), ms(result.mean), ""],
-    ["", t("Spread"), `±${Math.round(result.spread * 1000)} ms`, ""],
+    ["", t("Average"), ms(result.mean), "", note(result.mean), "average"],
+    ["", t("Spread"), `±${Math.round(result.spread * 1000)} ms`, "", note(result.spread), "spread"],
   ];
-  $(".practice-tiles").append(...tiles.map(([size, name, value, swatch]) => {
+  $(".practice-tiles").append(...tiles.map(([size, name, value, swatch, aside = "", key = ""]) => {
     const tile = document.createElement("div");
     tile.className = `practice-tile ${size}`;
-    tile.dataset.tile = swatch || name;
+    tile.dataset.tile = swatch || key;
     tile.innerHTML = `<span class="practice-key">${swatch ? `<i class="practice-swatch" data-kind="${swatch}"></i>` : ""}</span><span class="practice-value"></span>`;
     tile.querySelector(".practice-key").append(name);
     tile.querySelector(".practice-value").textContent = value;
+    if (aside) tile.append(Object.assign(document.createElement("span"), { className: "practice-note", textContent: aside }));
     return tile;
   }));
-  $(".practice-legend").textContent = t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: Math.round(tolerance * 1000) });
+  const within = Math.round(tolerance * 1000);
+  $(".practice-legend").textContent = beat
+    ? t("On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
+      { tolerance: within, note: noteValue(tolerance, beat) || "1/256", bpm: Math.round(60 / beat) })
+    : t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: within });
 
   // Histogram: 5 ms bins from -70 to +70 ms, the tolerance band behind.
   const histogram = $(".practice-histogram");
-  histogram.setAttribute("aria-label", t("How far the notes were from the original, in milliseconds"));
+  histogram.setAttribute("aria-label", beat ? t("How far the notes were from the original, in note values and milliseconds")
+    : t("How far the notes were from the original, in milliseconds"));
   const left = 30, width = 860, top = 10, height = 130, x = (seconds) => left + ((seconds * 1000 + 70) / 140) * width;
   histogram.append(element("rect", { class: "practice-band", x: x(-tolerance), y: top, width: x(tolerance) - x(-tolerance), height }));
   const bins = new Array(28).fill(0);
@@ -206,9 +244,12 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
     histogram.append(element("rect", { class: `practice-bar-${kind(centre, tolerance)}`, x: x(centre) - 13, y: top + height - size, width: 26, height: size, rx: 3 },
       ""));
   });
-  [-60, -40, -20, 0, 20, 40, 60].forEach((value) => {
-    histogram.append(element("line", { class: value ? "practice-tick" : "practice-zero", x1: x(value / 1000), x2: x(value / 1000), y1: top, y2: top + height }));
-    histogram.append(element("text", { x: x(value / 1000), y: 162, "text-anchor": "middle" }, `${value > 0 ? "+" : ""}${value}`));
+  const ticks = beat ? noteTicks(beat).flatMap(({ seconds, label }) => [{ seconds: -seconds, label: `−${label}` }, { seconds, label: `+${label}` }])
+    : [-60, -40, -20, 20, 40, 60].map((value) => ({ seconds: value / 1000, label: `${value > 0 ? "+" : ""}${value}` }));
+  [{ seconds: 0, label: "0" }, ...ticks].forEach(({ seconds, label }) => {
+    histogram.append(element("line", { class: seconds ? "practice-tick" : "practice-zero", x1: x(seconds), x2: x(seconds), y1: top, y2: top + height }));
+    histogram.append(element("text", { x: x(seconds), y: 162, "text-anchor": "middle", "data-tick": label }, label));
+    if (beat && seconds) histogram.append(element("text", { class: "practice-ms", x: x(seconds), y: 180, "text-anchor": "middle" }, ms(seconds)));
   });
 
   // The strip: every original note of the take where it is in the song, coloured by how it was played.

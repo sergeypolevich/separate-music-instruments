@@ -678,6 +678,12 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             assert int(count) >= 6 and int(hit) >= int(count) - 1, value  # the song against itself: on time
             assert score.locator('[data-tile="missed"] .practice-value').text_content() in ("0", "1")
             assert score.locator(".practice-histogram rect").count() >= 2 and score.locator(".practice-strip rect").count() == int(count)
+            # The song's 120 BPM: the offsets also as note values, a beat being 1/4 (1/32 = 62.5 ms, 1/64, 1/128)
+            labels = score.locator(".practice-histogram [data-tick]").evaluate_all("nodes => nodes.map(node => node.textContent)")
+            assert labels == ["0", "−1/32", "+1/32", "−1/64", "+1/64", "−1/128", "+1/128"], labels
+            assert "+63 ms" in score.locator(".practice-histogram").text_content()
+            assert "1/128 at 120 BPM" in score.locator(".practice-legend").text_content()
+            assert score.locator('[data-tile="spread"] .practice-note').text_content().endswith(" note")
             for _ in range(50):
                 if state["data"]["practice"].get("scores"):
                     break

@@ -44,6 +44,8 @@
 .practice-key { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .practice-value { font: 700 20px Manrope, sans-serif; font-variant-numeric: tabular-nums; }
 .practice-tile.main .practice-value { font-size: 26px; }
+.practice-note { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.practice-histogram .practice-ms { font-size: 10px; opacity: .8; }
 .practice-swatch { width: 10px; height: 10px; border-radius: 3px; }
 .practice-swatch[data-kind="on-time"], .practice-bar-on-time { background: var(--ok); fill: var(--ok); }
 .practice-swatch[data-kind="early"], .practice-bar-early { background: var(--accent); fill: var(--accent); }
@@ -58,4 +60,5 @@
 @media (max-width: 520px) {
   .practice-tile.main .practice-value { font-size: 22px; }
   .practice-histogram text, .practice-strip text { font-size: 26px; }
+  .practice-histogram .practice-ms { font-size: 20px; }
 }
