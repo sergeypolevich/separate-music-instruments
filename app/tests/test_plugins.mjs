@@ -7,6 +7,7 @@ import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
+import { readmeHtml } from "../web/readme.mjs";
 import { beatAt, match, noteTicks, noteValue, onsets, summary } from "../web/plugins/practice/score.mjs";
 import { addToRuns, blockTimes, columnPeaks, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
@@ -270,4 +271,11 @@ test("practice score tells offsets as note values, a beat being a quarter", () =
   assert.deepEqual(noteTicks(1).map((tick) => tick.label), ["1/64", "1/128", "1/256"]);  // 60 BPM
   const fast = noteTicks(60 / 180);  // a 1/16 at 180 BPM is 83 ms: past the 70 ms the histogram shows
   assert.deepEqual(fast.map((tick) => tick.label), ["1/32", "1/64"]);
+});
+
+test("a plugin's README: headings, paragraphs, lists, bold and code; HTML stays text", () => {
+  const html = readmeHtml("# Name\r\n\nOne line\nand its next.\n\n## How\n\n1. **Press** it\n2. `?dev_mode`\n- a <b>tag</b> & \"quote\"\nAfter.");
+  assert.equal(html, "<h2>Name</h2><p>One line and its next.</p><h3>How</h3><ol><li><strong>Press</strong> it</li>"
+    + "<li><code>?dev_mode</code></li></ol><ul><li>a &lt;b&gt;tag&lt;/b&gt; &amp; &quot;quote&quot;</li></ul><p>After.</p>");
+  assert.equal(readmeHtml("<script>alert(1)</script>"), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
 });

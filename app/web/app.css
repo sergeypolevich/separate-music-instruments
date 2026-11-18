@@ -485,6 +485,16 @@ button[aria-busy="true"] { cursor: progress; }
 .store-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: auto; padding-top: 6px; }
 .store-actions .primary-button { min-height: 34px; }
 .store-actions .danger-quiet { margin-top: 0; }
+.readme-dialog { width: min(calc(100% - 32px), 680px); max-height: min(86vh, 900px); }
+.readme-close { position: sticky; top: 12px; float: right; margin: 12px 12px 0 0; }
+.readme-body { padding: 4px 24px 24px; color: var(--text-soft); font-size: 14px; line-height: 1.55; }
+.readme-body h2 { margin: 18px 0 8px; color: var(--text); font: 650 20px Manrope, sans-serif; }
+.readme-body h3 { margin: 20px 0 6px; color: var(--text); font: 650 15px Manrope, sans-serif; }
+.readme-body p, .readme-body ul, .readme-body ol { margin: 0 0 10px; }
+.readme-body ul, .readme-body ol { padding-left: 22px; }
+.readme-body li + li { margin-top: 4px; }
+.readme-body strong { color: var(--text); }
+.readme-body code { padding: 1px 5px; border-radius: 5px; background: var(--panel-soft); font-size: 13px; }
 .plugin-layer { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
 .plugin-lanes { display: grid; grid-template-columns: subgrid; }
 .plugin-lanes > * { grid-column: 2; }

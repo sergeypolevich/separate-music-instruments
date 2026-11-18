@@ -1526,26 +1526,43 @@
     {
      "id": "e2",
      "widget": "Text",
-     "text": "Install",
+     "text": "Read more",
      "index": 2
     },
     {
      "id": "e3",
      "widget": "Text",
-     "text": "Turn off",
+     "text": "Install",
      "index": 3
     },
     {
      "id": "e4",
      "widget": "Text",
-     "text": "Turn on",
+     "text": "Turn off",
      "index": 4
     },
     {
      "id": "e5",
      "widget": "Text",
-     "text": "Remove",
+     "text": "Turn on",
      "index": 5
+    },
+    {
+     "id": "e6",
+     "widget": "Text",
+     "text": "Remove",
+     "index": 6
+    }
+   ]
+  },
+  {
+   "block": "showReadme",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Close",
+     "index": 0
     }
    ]
   },

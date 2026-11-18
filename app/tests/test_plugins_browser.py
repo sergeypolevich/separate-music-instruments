@@ -169,6 +169,19 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert cards.count() == 8
             assert cards.first.locator("h2").text_content() == "Wheel zoom"
             assert page.locator('.store-card[data-plugin="eq"] .store-permissions').text_content() == "Changes the sound while playing"
+            # «Read more» shows the plugin's README.md over the store; Esc closes only it. Without a README: the card's text.
+            page.locator('.store-card[data-plugin="eq"] [data-action="readme"]').click()
+            readme = page.locator(".readme-dialog")
+            readme.wait_for()
+            assert readme.locator("h2").text_content() == "Equalizer" and readme.locator("h3").first.text_content() == "How to use"
+            assert readme.locator("ol li").count() == 5 and readme.locator("strong").first.text_content() == "EQ"
+            page.keyboard.press("Escape")
+            readme.wait_for(state="detached")
+            assert page.locator("#store-overlay").is_visible()
+            page.locator('.store-card[data-plugin="broken"] [data-action="readme"]').click()
+            assert readme.locator("h2").text_content() == "Broken" and readme.locator("p").text_content() == "Throws."
+            readme.locator(".readme-close").click()
+            readme.wait_for(state="detached")
             for plugin_id in ("zoom", "beat-grid", "trim", "eq", "chords", "tuner"):
                 page.locator(f'.store-card[data-plugin="{plugin_id}"] [data-action="install"]').click()
                 page.locator(f'.store-card[data-plugin="{plugin_id}"] [data-action="disable"]').wait_for()

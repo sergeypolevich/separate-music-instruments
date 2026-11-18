@@ -11,6 +11,8 @@ app/web/plugins/<id>/
   manifest.json   name, description, author, version, permissions, order in the store
   plugin.mjs      the code: an ES module that exports project(ctx)
   image.svg       the store card's picture, 16:9 (640 x 360)
+  README.md       for users, in English: what it does, how to use it, its permissions; the store's «Read more» shows it
+                  (# and ## headings, paragraphs, - and 1. lists, **bold**, `code`; the first line is "# <name>")
   plugin.css      optional; the plugin adds it to the page itself
 ```
 

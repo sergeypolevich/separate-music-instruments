@@ -23,6 +23,18 @@ def test_the_store_lists_the_plugins_with_valid_manifests():
     assert found["practice"]["storage_mb"] == 100 and "storage_mb" not in found["eq"]
 
 
+def test_every_plugin_has_a_readme_named_as_its_manifest_that_tells_its_permissions():
+    """Version 24: the store's «Read more» shows the plugin folder's README.md."""
+    labels = {"sound": "Changes the sound while playing", "playback": "Changes what is played", "tone": "Plays its own sound",
+              "input": "Records from your audio input", "analysis": "Runs an analysis on this computer"}
+    for plugin_id, manifest in plugins.catalog(WEB).items():
+        text = (WEB / "plugins" / plugin_id / "README.md").read_text(encoding="utf-8")
+        assert text.splitlines()[0] == f"# {manifest['name']}", plugin_id
+        permissions = text.split("## Permissions", 1)[1]
+        assert all(labels[name] in permissions for name in manifest["permissions"]), plugin_id
+        assert manifest["permissions"] or "None." in permissions, plugin_id
+
+
 def _app(tmp_path):
     from dataclasses import replace
 

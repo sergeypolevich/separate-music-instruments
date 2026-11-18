@@ -2487,11 +2487,12 @@ document.addEventListener("keydown", (event) => {
     openSearch();
     return;
   }
+  if (event.key === "Escape" && document.querySelector("dialog[open]")) return;  // it closes that window only
   if (event.key === "Escape" && !searchOverlay.hidden) {
     closeSearch();
     return;
   }
-  if (event.key === "Escape" && !storeOverlay.hidden && !document.querySelector("dialog[open]")) {
+  if (event.key === "Escape" && !storeOverlay.hidden) {
     closeStore();
     return;
   }
@@ -3034,6 +3035,12 @@ function renderStore() {
       });
       actions.append(element);
     };
+    const more = actions.appendChild(document.createElement("button"));
+    more.type = "button";
+    more.className = "quiet-button";
+    more.textContent = t("Read more");
+    more.dataset.action = "readme";
+    more.addEventListener("click", () => showReadme(plugin));
     if (!plugin.installed) button(t("Install"), "primary-button", "install");
     else {
       if (plugin.enabled) button(t("Turn off"), "quiet-button", "disable");
@@ -3044,6 +3051,32 @@ function renderStore() {
     card.append(image, body);
     return card;
   }));
+}
+
+// A plugin's README.md (in its folder, English) in a window over the store.
+async function showReadme(plugin) {
+  const { readmeHtml } = await import("./readme.mjs");
+  const dialog = document.body.appendChild(document.createElement("dialog"));
+  dialog.className = "confirm-dialog readme-dialog";
+  dialog.setAttribute("aria-label", t(plugin.name));
+  const close = dialog.appendChild(document.createElement("button"));
+  close.type = "button";
+  close.className = "icon-button readme-close";
+  close.textContent = "✕";
+  close.setAttribute("aria-label", t("Close"));
+  close.addEventListener("click", () => dialog.close());
+  const body = dialog.appendChild(document.createElement("div"));
+  body.className = "readme-body";
+  try {
+    const response = await fetch(`plugins/${encodeURIComponent(plugin.id)}/README.md`);
+    if (!response.ok) throw new Error(String(response.status));
+    body.innerHTML = readmeHtml(await response.text());
+  } catch {
+    body.innerHTML = readmeHtml(`# ${t(plugin.name)}\n\n${t(plugin.description)}`);  // no README: the card's text
+  }
+  dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });  // a click outside
+  dialog.addEventListener("close", () => dialog.remove());
+  dialog.showModal();
 }
 
 function renderPluginAlert() {
