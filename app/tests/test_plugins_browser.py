@@ -6,6 +6,7 @@ import shutil
 import threading
 import wave
 
+import numpy as np
 import pytest
 
 from audio_stems import plugins
@@ -708,3 +709,111 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             browser.close()
     finally:
         server.shutdown()
+
+
+# The output as it is rendered, block by block, with the song second of each block (only while the decoded engine plays).
+OUTPUT_TAP = """
+(() => {
+  const connect = AudioNode.prototype.connect;
+  window.__speakers = [];
+  AudioNode.prototype.connect = function (target, ...rest) {
+    const result = connect.call(this, target, ...rest);
+    if (target === this.context.destination) window.__speakers.push(this);
+    return result;
+  };
+  window.__tap = async (seconds) => {
+    const context = activeAudioContext;
+    if (!window.__tapNode) {
+      const code = `registerProcessor("tap", class extends AudioWorkletProcessor { process(inputs) { const c = inputs[0][0];
+        if (c) this.port.postMessage({ frame: currentFrame, samples: c.slice() }); return true; } });`;
+      await context.audioWorklet.addModule(URL.createObjectURL(new Blob([code], { type: "text/javascript" })));
+      window.__tapNode = new AudioWorkletNode(context, "tap");
+      const sink = context.createGain(); sink.gain.value = 0;
+      window.__tapNode.connect(sink); connect.call(sink, context.destination);
+      window.__speakers.filter((node) => node.context === context).forEach((node) => connect.call(node, window.__tapNode));
+    }
+    const blocks = [];
+    window.__tapNode.port.onmessage = ({ data }) => {
+      const song = activeTransport.songTimeAt(data.frame / context.sampleRate);
+      if (song !== null) blocks.push([song, Array.from(data.samples)]);
+    };
+    await new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+    window.__tapNode.port.onmessage = null;
+    return { rate: context.sampleRate, blocks };
+  };
+})();
+"""
+
+
+def _stem_as_take(stem_wav, start, song_from, song_to):
+    """The stem's left channel from song second `song_from` to `song_to` as a mono WAV take, and its length."""
+    with wave.open(io.BytesIO(stem_wav)) as source:
+        rate = source.getframerate()
+        data = np.frombuffer(source.readframes(source.getnframes()), dtype="<i2").reshape(-1, 2)[:, 0]
+    part = data[int(round((start + song_from) * rate)):int(round((start + song_to) * rate))]
+    out = io.BytesIO()
+    with wave.open(out, "wb") as take:
+        take.setnchannels(1)
+        take.setsampwidth(2)
+        take.setframerate(rate)
+        take.writeframes(part.tobytes())
+    return out.getvalue(), len(part) / rate
+
+
+def _song_grid(result, start, end):
+    """The recorded output blocks placed at their song seconds, from `start` to `end`."""
+    rate = result["rate"]
+    out = np.zeros(int((end - start) * rate))
+    for song, samples in result["blocks"]:
+        i = int(round((song - start) * rate))
+        if 0 <= i and i + len(samples) <= len(out):
+            out[i:i + len(samples)] = samples
+    return out, rate
+
+
+@pytest.mark.browser
+@pytest.mark.parametrize("start", [0.0, 0.3])
+def test_practice_plays_the_last_take_in_time(start):
+    """Version 24: a take that is the stem itself, heard back through «You», lines up with the stem to the sample
+    (the output recorded once with only the stem, once with only the take, both mapped to song time), also when the
+    music starts later in the files (start_seconds)."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    stem = _plucks_wav()
+    take, length = _stem_as_take(stem, start, 0.5, 4.5)
+    state = {"installed": {"practice": {"enabled": True}}, "start_seconds": start, "requests": [],
+             "data": {"practice": {"stem": "bass", "takes": [{"stem": "bass", "at": "2026-11-18T00:00:00Z", "runs": [{"file": "take-1-0.wav", "from": 0.5, "to": 0.5 + length}]}]}},
+             "files": {"take-1-0.wav": take}, "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state, stem)
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--autoplay-policy=no-user-gesture-required",))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            page.add_init_script(OUTPUT_TAP)
+            page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
+            page.locator(".project-tab").first.click()
+            page.wait_for_function("document.querySelector('[data-action=\"practice-listen\"]') && !document.querySelector('[data-action=\"practice-listen\"]').disabled")
+            page.locator('[data-action="practice-listen"]').click()
+            page.wait_for_function("activeTransport.stretching")
+            mute_you = page.locator('[data-track="practice"] [data-control="mute"]')
+            mute_bass = page.locator('.mixer-row[data-stem="bass"] [data-control="mute"]')
+            others = page.locator('.mixer-row[data-stem]:not([data-stem="bass"]) [data-control="mute"]')
+            for i in range(others.count()): others.nth(i).click()
+            results = []
+            for muted in (mute_you, mute_bass):
+                muted.click()
+                page.evaluate("activeTransport.seek(1)")
+                page.evaluate("activeTransport.play()")
+                results.append(page.evaluate("window.__tap(2.5)"))
+                page.evaluate("activeTransport.pause()")
+                muted.click()
+            browser.close()
+    finally:
+        server.shutdown()
+    (a, rate), (b, _) = _song_grid(results[0], 1.2, 3.2), _song_grid(results[1], 1.2, 3.2)
+    lags = range(-int(0.05 * rate), int(0.05 * rate))
+    corr = [np.dot(a[max(0, -l):len(a) - max(0, l)], b[max(0, l):len(b) - max(0, -l)]) for l in lags]
+    lag = list(lags)[int(np.argmax(corr))] / rate * 1000
+    assert np.dot(a, a) > 1 and abs(np.dot(b, b) / np.dot(a, a) - 1) < 0.1  # both were heard, as loud
+    assert abs(lag) < 1, lag  # milliseconds
