@@ -177,20 +177,47 @@ const element = (name, attributes = {}, text = "") => {
 };
 const kind = (offset, tolerance) => (offset === null ? "missed" : Math.abs(offset) <= tolerance ? "on-time" : offset < 0 ? "early" : "late");
 
-// The panel after a take: the counts, a histogram of the offsets and a strip through the part played.
-// With `beat` (a beat's seconds) the offsets are also told as note values: «20 ms» says little, «1/16» says much.
-// Its slider moves the tolerance (`limits` in ms) and draws again; `onTolerance(ms)` keeps a value let go of.
-export function showScore(ctx, { reference, offsets, tolerance, from, to, history, beat = null, limits = { min: 5, max: 40 }, onTolerance = () => {} }) {
+// Every note played against the nearest line of the beat grid, `parts` lines a beat (2: eighths): its offset from
+// that line, so at most half a step. Notes before the first beat or after the last are left out.
+export function gridOffsets(played, beats, parts = 2) {
+  const lines = [];
+  for (let i = 0; i + 1 < beats.length; i++) {
+    for (let k = 0; k < parts; k++) lines.push(beats[i] + ((beats[i + 1] - beats[i]) * k) / parts);
+  }
+  if (beats.length) lines.push(beats.at(-1));
+  const times = [], offsets = [];
+  let j = 0;
+  for (const time of played) {  // in order
+    if (!lines.length || time < lines[0] || time > lines.at(-1)) continue;
+    while (j + 1 < lines.length && lines[j + 1] <= time) j++;
+    const near = j + 1 < lines.length && lines[j + 1] - time < time - lines[j] ? lines[j + 1] : lines[j];
+    times.push(time);
+    offsets.push(time - near);
+  }
+  return { times, offsets };
+}
+
+// The panel after a take, in two tabs: the notes of the original stem against the ones played, and (with the song's
+// beats) every note played against the 1/8 grid. Each: the counts, a histogram of the offsets and a strip through
+// the part played. With `beat` (a beat's seconds) the offsets are also told as note values: «20 ms» says little,
+// «1/16» says much. The slider moves the tolerance (`limits` in ms) and draws again; `onTolerance(ms)` keeps it.
+export function showScore(ctx, { reference, offsets, tolerance, from, to, history, beat = null, grid = null, stemName = "",
+  limits = { min: 5, max: 40 }, onTolerance = () => {} }) {
   const t = ctx.t;
   const ms = (seconds) => `${seconds > 0.0005 ? "+" : ""}${Math.round(seconds * 1000)} ms`;
   const note = (seconds) => {
     const value = noteValue(seconds, beat);
     return beat ? (value ? t("≈ {note} note", { note: value }) : t("under 1/256 note")) : "";
   };
+  const views = [{ key: "stem", name: stemName ? t("Against the {stem}", { stem: stemName }) : t("Against the original"),
+    notes: reference, offsets, reach: 0.07 }];
+  if (grid && beat && grid.offsets.length) views.push({ key: "grid", name: t("Grid 1/8"), notes: grid.times, offsets: grid.offsets, reach: beat / 4 });
+  let view = views[0], within = tolerance;
   const dialog = ctx.add(document.body, document.createElement("dialog"));
   dialog.className = "practice-dialog practice-score";
   dialog.innerHTML = `<div class="practice-card">
     <div class="practice-heading"><h2></h2><button type="button" class="icon-button" data-action="close"></button></div>
+    <div class="practice-tabs" role="tablist"></div>
     <div class="practice-tiles"></div>
     <div class="practice-legend"></div>
     <svg class="practice-histogram" viewBox="0 0 900 ${beat ? 186 : 170}" role="img"></svg>
@@ -205,20 +232,29 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
   close.textContent = "✕";
   close.setAttribute("aria-label", t("Close"));
   close.title = t("Close");
-  const left = 30, width = 860, top = 10, height = 130, x = (seconds) => left + ((seconds * 1000 + 70) / 140) * width;
+  const left = 30, width = 860, top = 10, height = 130;
   const histogram = $(".practice-histogram"), strip = $(".practice-strip");
-  histogram.setAttribute("aria-label", beat ? t("How far the notes were from the original, in note values and milliseconds")
-    : t("How far the notes were from the original, in milliseconds"));
   strip.setAttribute("aria-label", t("Every note of the take, from its start to its end"));
+  const tabs = $(".practice-tabs");
+  tabs.hidden = views.length < 2;
+  views.forEach((item) => {
+    const tab = tabs.appendChild(document.createElement("button"));
+    Object.assign(tab, { type: "button", className: "practice-tab", textContent: item.name });
+    tab.dataset.view = item.key;
+    tab.setAttribute("role", "tab");
+    ctx.on(tab, "click", () => { view = item; draw(); });
+  });
 
-  const draw = (tolerance) => {
+  const draw = () => {
+    const tolerance = within, { offsets, notes, reach } = view, onGrid = view.key === "grid";
+    tabs.querySelectorAll(".practice-tab").forEach((tab) => tab.setAttribute("aria-selected", String(tab.dataset.view === view.key)));
     const result = summary(offsets, tolerance);
     const percent = result.notes ? Math.round((result.onTime / result.notes) * 100) : 0;
     const tiles = [
-      ["main", t("On time"), t("{hit} of {count} · {percent} %", { hit: result.onTime, count: result.notes, percent }), "on-time"],
+      ["main", onGrid ? t("On the grid") : t("On time"), t("{hit} of {count} · {percent} %", { hit: result.onTime, count: result.notes, percent }), "on-time"],
       ["", t("Early"), String(result.early), "early"],
       ["", t("Late"), String(result.late), "late"],
-      ["", t("Missed"), String(result.missed), "missed"],
+      ...(onGrid ? [] : [["", t("Missed"), String(result.missed), "missed"]]),
       ["", t("Average"), ms(result.mean), "", note(result.mean), "average"],
       ["", t("Spread"), `±${Math.round(result.spread * 1000)} ms`, "", note(result.spread), "spread"],
     ];
@@ -232,37 +268,44 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
       if (aside) tile.append(Object.assign(document.createElement("span"), { className: "practice-note", textContent: aside }));
       return tile;
     }));
-    const within = Math.round(tolerance * 1000);
-    $(".practice-legend").textContent = beat
-      ? t("On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
-        { tolerance: within, note: noteValue(tolerance, beat) || "1/256", bpm: Math.round(60 / beat) })
-      : t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: within });
-    $(".practice-tolerance output").textContent = beat ? `±${within} ms · ${noteValue(tolerance, beat) || "1/256"}` : `±${within} ms`;
+    const ms_ = Math.round(tolerance * 1000), noted = noteValue(tolerance, beat) || "1/256";
+    $(".practice-legend").textContent = onGrid
+      ? t("Each note you played against the nearest 1/8 of the song's beat grid ({bpm} BPM): on the grid within ±{tolerance} ms ({note}); early or late beyond it, up to 1/16, halfway to the next 1/8.",
+        { tolerance: ms_, note: noted, bpm: Math.round(60 / beat) })
+      : beat
+        ? t("On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
+          { tolerance: ms_, note: noted, bpm: Math.round(60 / beat) })
+        : t("On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.", { tolerance: ms_ });
+    $(".practice-tolerance output").textContent = beat ? `±${ms_} ms · ${noted}` : `±${ms_} ms`;
 
-    // Histogram: 5 ms bins from -70 to +70 ms, the tolerance band behind.
+    // Histogram: 28 bins over ±reach, the tolerance band behind.
+    histogram.setAttribute("aria-label", onGrid ? t("How far the notes played were from the 1/8 grid, in note values and milliseconds")
+      : beat ? t("How far the notes were from the original, in note values and milliseconds") : t("How far the notes were from the original, in milliseconds"));
+    const x = (seconds) => left + ((seconds + reach) / (2 * reach)) * width, bin = (2 * reach) / 28;
     histogram.replaceChildren(element("rect", { class: "practice-band", x: x(-tolerance), y: top, width: x(tolerance) - x(-tolerance), height }));
     const bins = new Array(28).fill(0);
     offsets.forEach((offset) => {
-      if (offset !== null) bins[Math.min(27, Math.max(0, Math.floor((offset * 1000 + 70) / 5)))]++;
+      if (offset !== null) bins[Math.min(27, Math.max(0, Math.floor((offset + reach) / bin)))]++;
     });
     const tallest = Math.max(1, ...bins);
-    bins.forEach((count, bin) => {
+    bins.forEach((count, i) => {
       if (!count) return;
-      const centre = (bin * 5 - 67.5) / 1000, size = (count / tallest) * (height - 6);
+      const centre = -reach + (i + 0.5) * bin, size = (count / tallest) * (height - 6);
       histogram.append(element("rect", { class: `practice-bar-${kind(centre, tolerance)}`, x: x(centre) - 13, y: top + height - size, width: 26, height: size, rx: 3 }));
     });
-    const ticks = beat ? noteTicks(beat).flatMap(({ seconds, label }) => [{ seconds: -seconds, label: `−${label}` }, { seconds, label: `+${label}` }])
+    const ticks = beat ? noteTicks(beat, reach * (1 + 1e-9)).flatMap(({ seconds, label }) => [{ seconds: -seconds, label: `−${label}` }, { seconds, label: `+${label}` }])
       : [-60, -40, -20, 20, 40, 60].map((value) => ({ seconds: value / 1000, label: `${value > 0 ? "+" : ""}${value}` }));
     [{ seconds: 0, label: "0" }, ...ticks].forEach(({ seconds, label }) => {
+      const anchor = seconds >= reach * 0.99 ? "end" : seconds <= -reach * 0.99 ? "start" : "middle";  // the edges' labels stay inside
       histogram.append(element("line", { class: seconds ? "practice-tick" : "practice-zero", x1: x(seconds), x2: x(seconds), y1: top, y2: top + height }));
-      histogram.append(element("text", { x: x(seconds), y: 162, "text-anchor": "middle", "data-tick": label }, label));
-      if (beat && seconds) histogram.append(element("text", { class: "practice-ms", x: x(seconds), y: 180, "text-anchor": "middle" }, ms(seconds)));
+      histogram.append(element("text", { x: x(seconds), y: 162, "text-anchor": anchor, "data-tick": label }, label));
+      if (beat && seconds) histogram.append(element("text", { class: "practice-ms", x: x(seconds), y: 180, "text-anchor": anchor }, ms(seconds)));
     });
 
-    // The strip: every original note of the take where it is in the song, coloured by how it was played.
+    // The strip: every note where it is in the song, coloured by how it was played (a missed one lower).
     const along = (time) => left + ((time - from) / Math.max(0.001, to - from)) * width;
     strip.replaceChildren(element("line", { class: "practice-tick", x1: left, x2: left + width, y1: 30, y2: 30 }));
-    reference.forEach((time, i) => strip.append(element("rect", { class: `practice-bar-${kind(offsets[i], tolerance)}`, x: along(time) - 1.5, y: offsets[i] === null ? 36 : 14, width: 3, height: 16, rx: 1 })));
+    notes.forEach((time, i) => strip.append(element("rect", { class: `practice-bar-${kind(offsets[i], tolerance)}`, x: along(time) - 1.5, y: offsets[i] === null ? 36 : 14, width: 3, height: 16, rx: 1 })));
     strip.append(element("text", { x: left, y: 58 }, formatTime(from)));
     strip.append(element("text", { x: left + width, y: 58, "text-anchor": "end" }, formatTime(to)));
     return result;
@@ -272,14 +315,14 @@ export function showScore(ctx, { reference, offsets, tolerance, from, to, histor
   $(".practice-tolerance span").textContent = t("On time within");
   Object.assign(slider, { min: limits.min, max: limits.max, value: Math.round(tolerance * 1000) });
   $(".practice-why").textContent = t("Why ±15 ms by default: about 20 ms apart is the least at which the ear tells which of two notes came first, so notes within ±15 ms sound together with the original. A tighter value trains finer timing; a looser one suits a first go.");
-  ctx.on(slider, "input", () => draw(Number(slider.value) / 1000));
+  ctx.on(slider, "input", () => { within = Number(slider.value) / 1000; draw(); });
   ctx.on(slider, "change", () => onTolerance(Number(slider.value)));
   if (history.length) {
     $(".practice-history").textContent = t("Earlier takes: {list}", { list: history.map((item) => `${item.notes ? Math.round((item.onTime / item.notes) * 100) : 0} %`).join(" · ") });
   }
   ctx.on(close, "click", () => dialog.close());
   ctx.on(dialog, "close", () => dialog.remove());
-  const result = draw(tolerance);
+  const result = draw();
   dialog.showModal();
   return result;
 }

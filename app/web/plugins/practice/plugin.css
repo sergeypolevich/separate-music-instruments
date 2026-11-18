@@ -52,6 +52,10 @@
 .practice-detail { color: var(--muted); font-size: 12px; }
 .practice-tune-lanes, .practice-close-up { display: block; width: 100%; height: 150px; border-radius: 10px; border: 1px solid var(--line); background: var(--waveform-bg); }
 /* The take's score. */
+.practice-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.practice-tabs[hidden] { display: none; }
+.practice-tab { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text-soft); font: 600 13px 'DM Sans', sans-serif; cursor: pointer; }
+.practice-tab[aria-selected="true"] { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
 .practice-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
 .practice-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
 .practice-tile.main { grid-column: span 2; }

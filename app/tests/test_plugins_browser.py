@@ -719,6 +719,19 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             assert "+63 ms" in score.locator(".practice-histogram").text_content()
             assert "1/128 at 120 BPM" in score.locator(".practice-legend").text_content()
             assert score.locator('[data-tile="spread"] .practice-note').text_content().endswith(" note")
+            # Two tabs: against the stem (open) and every note played against the song's 1/8 grid, up to ±1/16.
+            tabs = score.locator(".practice-tab")
+            assert tabs.all_text_contents() == ["Against the bass", "Grid 1/8"]
+            assert tabs.first.get_attribute("aria-selected") == "true"
+            tabs.nth(1).click()
+            assert tabs.nth(1).get_attribute("aria-selected") == "true"
+            assert score.locator('[data-tile="missed"]').count() == 0 and score.locator(".practice-key").first.text_content() == "On the grid"
+            assert "1/8 of the song's beat grid (120 BPM)" in score.locator(".practice-legend").text_content()
+            grid_ticks = score.locator(".practice-histogram [data-tick]").all_text_contents()
+            assert grid_ticks[:3] == ["0", "−1/16", "+1/16"] and "+125 ms" in score.locator(".practice-histogram").text_content()
+            assert int(score.locator('[data-tile="on-time"] .practice-value').text_content().partition(" of ")[2].split(" ")[0]) >= 4
+            tabs.first.click()
+            assert score.locator('[data-tile="missed"]').count() == 1
             # The tolerance moves right there, with why it is ±15 ms; the score is drawn again and the setting kept.
             assert "20 ms" in score.locator(".practice-why").text_content()
             assert score.locator(".practice-tolerance output").text_content() == "±15 ms · 1/128"

@@ -1903,266 +1903,302 @@
     {
      "id": "e23",
      "widget": "Text",
-     "text": "Take score",
+     "text": "Against the {stem}",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Text",
-     "text": "Close",
+     "text": "Against the original",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Text",
-     "text": "How far the notes were from the original, in note values and milliseconds",
+     "text": "Grid 1/8",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Text",
-     "text": "How far the notes were from the original, in milliseconds",
+     "text": "Take score",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Text",
-     "text": "Every note of the take, from its start to its end",
+     "text": "Close",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Text",
-     "text": "On time",
+     "text": "Every note of the take, from its start to its end",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Text",
-     "text": "{hit} of {count} · {percent} %",
+     "text": "On the grid",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Text",
-     "text": "Early",
+     "text": "On time",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Text",
-     "text": "Late",
+     "text": "{hit} of {count} · {percent} %",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Text",
-     "text": "Missed",
+     "text": "Early",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Text",
-     "text": "Average",
+     "text": "Late",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Text",
-     "text": "Spread",
+     "text": "Missed",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Text",
-     "text": "On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
+     "text": "Average",
      "index": 35
     },
     {
      "id": "e36",
      "widget": "Text",
-     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
+     "text": "Spread",
      "index": 36
     },
     {
      "id": "e37",
      "widget": "Text",
-     "text": "Why ±15 ms by default: about 20 ms apart is the least at which the ear tells which of two notes came first, so notes within ±15 ms sound together with the original. A tighter value trains finer timing; a looser one suits a first go.",
+     "text": "Each note you played against the nearest 1/8 of the song's beat grid ({bpm} BPM): on the grid within ±{tolerance} ms ({note}); early or late beyond it, up to 1/16, halfway to the next 1/8.",
      "index": 37
     },
     {
      "id": "e38",
      "widget": "Text",
-     "text": "Earlier takes: {list}",
+     "text": "On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
      "index": 38
     },
     {
      "id": "e39",
      "widget": "Text",
-     "text": "Latency",
+     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
      "index": 39
     },
     {
      "id": "e40",
      "widget": "Text",
-     "text": "Last click, close up",
+     "text": "How far the notes played were from the 1/8 grid, in note values and milliseconds",
      "index": 40
     },
     {
      "id": "e41",
      "widget": "Text",
-     "text": "The time from a sound in the headphones to its coming back through your input. Measured once, it puts what you play where you played it.",
+     "text": "How far the notes were from the original, in note values and milliseconds",
      "index": 41
     },
     {
      "id": "e42",
      "widget": "Text",
-     "text": "One earcup held on the guitar's pickup; the guitar and the headphones plugged into the sound card; then Start",
+     "text": "How far the notes were from the original, in milliseconds",
      "index": 42
     },
     {
      "id": "e43",
      "widget": "Text",
-     "text": "Sound card",
+     "text": "Why ±15 ms by default: about 20 ms apart is the least at which the ear tells which of two notes came first, so notes within ±15 ms sound together with the original. A tighter value trains finer timing; a looser one suits a first go.",
      "index": 43
     },
     {
      "id": "e44",
      "widget": "Text",
-     "text": "Start",
+     "text": "Earlier takes: {list}",
      "index": 44
     },
     {
      "id": "e45",
      "widget": "Text",
-     "text": "Plug in as you play: the instrument (or microphone) into the input chosen in Settings → Plugins → Practice, wired headphones into the output. Wireless headphones cannot be measured.",
+     "text": "Latency",
      "index": 45
     },
     {
      "id": "e46",
      "widget": "Text",
-     "text": "Hold one earcup against the pickup (for an acoustic instrument or a voice, against the microphone), the song's volume as you play.",
+     "text": "Last click, close up",
      "index": 46
     },
     {
      "id": "e47",
      "widget": "Text",
-     "text": "Press Start and keep still: clicks play one at a time and the recorded ones move into line with the played ones. «Stable» keeps the result for this input and output; measure again after changing either.",
+     "text": "The time from a sound in the headphones to its coming back through your input. Measured once, it puts what you play where you played it.",
      "index": 47
     },
     {
      "id": "e48",
      "widget": "Text",
-     "text": "Measured before for this input and output",
+     "text": "One earcup held on the guitar's pickup; the guitar and the headphones plugged into the sound card; then Start",
      "index": 48
     },
     {
      "id": "e49",
      "widget": "Text",
-     "text": "Not measured yet",
+     "text": "Sound card",
      "index": 49
     },
     {
      "id": "e50",
      "widget": "Text",
-     "text": "Start again",
+     "text": "Start",
      "index": 50
     },
     {
      "id": "e51",
      "widget": "Text",
-     "text": "Stable",
+     "text": "Plug in as you play: the instrument (or microphone) into the input chosen in Settings → Plugins → Practice, wired headphones into the output. Wireless headphones cannot be measured.",
      "index": 51
     },
     {
      "id": "e52",
      "widget": "Text",
-     "text": "{count} clicks · spread {spread} · saved for this input and output",
+     "text": "Hold one earcup against the pickup (for an acoustic instrument or a voice, against the microphone), the song's volume as you play.",
      "index": 52
     },
     {
      "id": "e53",
      "widget": "Text",
-     "text": "No click heard",
+     "text": "Press Start and keep still: clicks play one at a time and the recorded ones move into line with the played ones. «Stable» keeps the result for this input and output; measure again after changing either.",
      "index": 53
     },
     {
      "id": "e54",
      "widget": "Text",
-     "text": "Not stable",
+     "text": "Measured before for this input and output",
      "index": 54
     },
     {
      "id": "e55",
      "widget": "Text",
-     "text": "Hold the earcup closer to the pickup or turn the volume up.",
+     "text": "Not measured yet",
      "index": 55
     },
     {
      "id": "e56",
      "widget": "Text",
-     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
+     "text": "Start again",
      "index": 56
     },
     {
      "id": "e57",
      "widget": "Text",
-     "text": "Click 1",
+     "text": "Stable",
      "index": 57
     },
     {
      "id": "e58",
      "widget": "Text",
-     "text": "Click {count} · spread {spread}",
+     "text": "{count} clicks · spread {spread} · saved for this input and output",
      "index": 58
     },
     {
      "id": "e59",
      "widget": "Text",
-     "text": "Stopped",
+     "text": "No click heard",
      "index": 59
     },
     {
      "id": "e60",
      "widget": "Text",
-     "text": "Not saved",
+     "text": "Not stable",
      "index": 60
     },
     {
      "id": "e61",
      "widget": "Text",
-     "text": "Waiting for the first click",
+     "text": "Hold the earcup closer to the pickup or turn the volume up.",
      "index": 61
     },
     {
      "id": "e62",
      "widget": "Text",
-     "text": "Stop",
+     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
      "index": 62
     },
     {
      "id": "e63",
      "widget": "Text",
-     "text": "Played",
+     "text": "Click 1",
      "index": 63
     },
     {
      "id": "e64",
      "widget": "Text",
-     "text": "Recorded, moved back {latency}",
+     "text": "Click {count} · spread {spread}",
      "index": 64
     },
     {
      "id": "e65",
      "widget": "Text",
-     "text": "Recorded · off by {latency}",
+     "text": "Stopped",
      "index": 65
     },
     {
      "id": "e66",
      "widget": "Text",
-     "text": "Recorded",
+     "text": "Not saved",
      "index": 66
+    },
+    {
+     "id": "e67",
+     "widget": "Text",
+     "text": "Waiting for the first click",
+     "index": 67
+    },
+    {
+     "id": "e68",
+     "widget": "Text",
+     "text": "Stop",
+     "index": 68
+    },
+    {
+     "id": "e69",
+     "widget": "Text",
+     "text": "Played",
+     "index": 69
+    },
+    {
+     "id": "e70",
+     "widget": "Text",
+     "text": "Recorded, moved back {latency}",
+     "index": 70
+    },
+    {
+     "id": "e71",
+     "widget": "Text",
+     "text": "Recorded · off by {latency}",
+     "index": 71
+    },
+    {
+     "id": "e72",
+     "widget": "Text",
+     "text": "Recorded",
+     "index": 72
     }
    ]
   },

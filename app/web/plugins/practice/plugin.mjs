@@ -106,7 +106,7 @@ export function latencyKey(input, output) {
 }
 
 import { openTuner } from "./tuner.mjs";
-import { beatAt, match, onsets, showScore } from "./score.mjs";
+import { beatAt, gridOffsets, match, onsets, showScore } from "./score.mjs";
 
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 const ICONS = {
@@ -439,7 +439,9 @@ export async function project(ctx) {
     const offsets = match(notes.covered, notes.played);
     const history = scores.slice(-5), from = recorded[0].from, to = recorded[recorded.length - 1].to;
     const beats = await Promise.race([analysis, new Promise((resolve) => setTimeout(resolve, 3000))]);  // no wait on a slow analysis
+    const grid = beats && Array.isArray(beats.beats) ? gridOffsets(notes.played, beats.beats) : null;
     const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history, from, to, beat: beatAt(beats, (from + to) / 2),
+      grid, stemName: ctx.stems[chosen].name,
       limits: TOLERANCE, onTolerance: (value) => {  // the same setting as in Settings → Plugins → Practice
         settings.tolerance = value;
         ctx.saveSettings({ ...settings });

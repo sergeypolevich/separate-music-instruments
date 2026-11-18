@@ -8,7 +8,7 @@ import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { readmeHtml } from "../web/readme.mjs";
-import { beatAt, match, noteTicks, noteValue, onsets, summary } from "../web/plugins/practice/score.mjs";
+import { beatAt, gridOffsets, match, noteTicks, noteValue, onsets, summary } from "../web/plugins/practice/score.mjs";
 import { addToRuns, blockTimes, columnPeaks, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
@@ -278,4 +278,13 @@ test("a plugin's README: headings, paragraphs, lists, bold and code; HTML stays 
   assert.equal(html, "<h2>Name</h2><p>One line and its next.</p><h3>How</h3><ol><li><strong>Press</strong> it</li>"
     + "<li><code>?dev_mode</code></li></ol><ul><li>a &lt;b&gt;tag&lt;/b&gt; &amp; &quot;quote&quot;</li></ul><p>After.</p>");
   assert.equal(readmeHtml("<script>alert(1)</script>"), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
+});
+
+test("practice grid: each note played against the nearest 1/8 of the beats, never farther than 1/16", () => {
+  const beats = [1, 1.5, 2, 2.6];  // the last beat longer: its eighths split it in two
+  const { times, offsets } = gridOffsets([0.5, 1.01, 1.24, 1.26, 1.98, 2.31, 2.7], beats);
+  assert.deepEqual(times, [1.01, 1.24, 1.26, 1.98, 2.31]);  // 0.5 is before the first beat, 2.7 after the last
+  const close = (a, b) => a.forEach((value, i) => assert.ok(Math.abs(value - b[i]) < 1e-9, `${value} vs ${b[i]}`));
+  close(offsets, [0.01, -0.01, 0.01, -0.02, 0.01]);  // 1.24 is early for 1.25; 2.31 late for 2.3
+  assert.deepEqual(gridOffsets([1, 2], []), { times: [], offsets: [] });
 });
