@@ -1874,218 +1874,242 @@
     {
      "id": "e21",
      "widget": "Text",
-     "text": "Take score",
+     "text": "≈ {note} note",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Text",
-     "text": "Close",
+     "text": "under 1/256 note",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Text",
-     "text": "On time",
+     "text": "Take score",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Text",
-     "text": "{hit} of {count} · {percent} %",
+     "text": "Close",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Text",
-     "text": "Early",
+     "text": "On time",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Text",
-     "text": "Late",
+     "text": "{hit} of {count} · {percent} %",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Text",
-     "text": "Missed",
+     "text": "Early",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Text",
-     "text": "Average",
+     "text": "Late",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Text",
-     "text": "Spread",
+     "text": "Missed",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Text",
-     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
+     "text": "Average",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Text",
-     "text": "How far the notes were from the original, in milliseconds",
+     "text": "Spread",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Text",
-     "text": "Every note of the take, from its start to its end",
+     "text": "On time within ±{tolerance} ms ({note} at {bpm} BPM, a beat being 1/4); early or late beyond it; missed: no note within 80 ms.",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Text",
-     "text": "Earlier takes: {list}",
+     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Text",
-     "text": "Latency",
+     "text": "How far the notes were from the original, in note values and milliseconds",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Text",
-     "text": "Last click, close up",
+     "text": "How far the notes were from the original, in milliseconds",
      "index": 35
     },
     {
      "id": "e36",
      "widget": "Text",
-     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
+     "text": "Every note of the take, from its start to its end",
      "index": 36
     },
     {
      "id": "e37",
      "widget": "Text",
-     "text": "Measured before for this input and output",
+     "text": "Earlier takes: {list}",
      "index": 37
     },
     {
      "id": "e38",
      "widget": "Text",
-     "text": "Not measured yet",
+     "text": "Latency",
      "index": 38
     },
     {
      "id": "e39",
      "widget": "Text",
-     "text": "Start",
+     "text": "Last click, close up",
      "index": 39
     },
     {
      "id": "e40",
      "widget": "Text",
-     "text": "Start again",
+     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
      "index": 40
     },
     {
      "id": "e41",
      "widget": "Text",
-     "text": "Stable",
+     "text": "Measured before for this input and output",
      "index": 41
     },
     {
      "id": "e42",
      "widget": "Text",
-     "text": "{count} clicks · spread {spread} · saved for this input and output",
+     "text": "Not measured yet",
      "index": 42
     },
     {
      "id": "e43",
      "widget": "Text",
-     "text": "No click heard",
+     "text": "Start",
      "index": 43
     },
     {
      "id": "e44",
      "widget": "Text",
-     "text": "Not stable",
+     "text": "Start again",
      "index": 44
     },
     {
      "id": "e45",
      "widget": "Text",
-     "text": "Hold the earcup closer to the pickup or turn the volume up.",
+     "text": "Stable",
      "index": 45
     },
     {
      "id": "e46",
      "widget": "Text",
-     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
+     "text": "{count} clicks · spread {spread} · saved for this input and output",
      "index": 46
     },
     {
      "id": "e47",
      "widget": "Text",
-     "text": "Click 1",
+     "text": "No click heard",
      "index": 47
     },
     {
      "id": "e48",
      "widget": "Text",
-     "text": "Click {count} · spread {spread}",
+     "text": "Not stable",
      "index": 48
     },
     {
      "id": "e49",
      "widget": "Text",
-     "text": "Stopped",
+     "text": "Hold the earcup closer to the pickup or turn the volume up.",
      "index": 49
     },
     {
      "id": "e50",
      "widget": "Text",
-     "text": "Not saved",
+     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
      "index": 50
     },
     {
      "id": "e51",
      "widget": "Text",
-     "text": "Waiting for the first click",
+     "text": "Click 1",
      "index": 51
     },
     {
      "id": "e52",
      "widget": "Text",
-     "text": "Stop",
+     "text": "Click {count} · spread {spread}",
      "index": 52
     },
     {
      "id": "e53",
      "widget": "Text",
-     "text": "Played",
+     "text": "Stopped",
      "index": 53
     },
     {
      "id": "e54",
      "widget": "Text",
-     "text": "Recorded, moved back {latency}",
+     "text": "Not saved",
      "index": 54
     },
     {
      "id": "e55",
      "widget": "Text",
-     "text": "Recorded · off by {latency}",
+     "text": "Waiting for the first click",
      "index": 55
     },
     {
      "id": "e56",
      "widget": "Text",
-     "text": "Recorded",
+     "text": "Stop",
      "index": 56
+    },
+    {
+     "id": "e57",
+     "widget": "Text",
+     "text": "Played",
+     "index": 57
+    },
+    {
+     "id": "e58",
+     "widget": "Text",
+     "text": "Recorded, moved back {latency}",
+     "index": 58
+    },
+    {
+     "id": "e59",
+     "widget": "Text",
+     "text": "Recorded · off by {latency}",
+     "index": 59
+    },
+    {
+     "id": "e60",
+     "widget": "Text",
+     "text": "Recorded",
+     "index": 60
     }
    ]
   },
