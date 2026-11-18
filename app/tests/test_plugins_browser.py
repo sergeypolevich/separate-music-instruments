@@ -64,7 +64,7 @@ def _serve(web, state, wav=None):
             elif path.endswith("/chords"):
                 self._json(state["chords"])
             elif path == "/api/v1/projects/p1":
-                self._json(_project_detail("p1", "j1", "Song", STEMS))
+                self._json({**_project_detail("p1", "j1", "Song", STEMS), "start_seconds": state.get("start_seconds", 0.0)})
             elif path in ("/api/v1/queue", "/api/v1/models"):
                 self._json([])
             elif path == "/api/v1/storage":
@@ -208,6 +208,22 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             assert bar == pytest.approx(1 / 3, abs=0.01)
             assert page.evaluate("window.scrollY") == 0
             assert any("points=8192" in request for request in state["requests"])
+            # A seek out of the view takes the view along (the playhead a tenth in); ⏮ brings it back to the start.
+            view_start = """(() => { const s = document.querySelector('.waveform-preview').getBoundingClientRect();
+              const c = document.querySelector('.mixer-waveform').getBoundingClientRect(); return (c.left - s.left) / s.width * 5; })()"""
+            page.evaluate("activeTransport.seek(4.5)")
+            page.wait_for_function(f"Math.abs({view_start} - 2) < 0.05")  # 4.2 s clamped to the song's end: 2-5 s
+            page.locator('[data-action="reset"]').click()
+            page.wait_for_function(f"Math.abs({view_start}) < 0.05")
+            # A zoom while playing keeps the view on the playhead (version 24; it used to stop following).
+            page.evaluate("document.activeElement.blur(); activeTransport.seek(1.5)")
+            page.keyboard.press("Space")
+            page.wait_for_function("activeTransport.playing && activeTransport.currentTime > 1.6")
+            page.mouse.move(box["x"] + box["width"] / 2, box["y"] + 20)  # back over the waveforms from the ⏮ button
+            page.mouse.wheel(0, 100)
+            page.wait_for_function(f"{widen} < 1.6")  # zoomed out a little, still following
+            page.wait_for_function(f"{view_start} > 1", timeout=8000)
+            page.evaluate("activeTransport.pause(); activeTransport.seek(2)")
             page.mouse.wheel(0, 2000)  # back out: the whole song
             page.wait_for_function("document.querySelector('.waveform-preview').style.width === '' && document.querySelector('.waveform-preview').style.transform === ''")
 
@@ -409,6 +425,13 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             assert bass["y"] < box["y"] < other["y"]  # right under the stem practised, over the next one
             assert you.locator(".mixer-label").text_content() == "You"
             assert you.locator('[data-control="eq"]').count() == 1 and you.locator('[data-control="gain"]').count() == 1
+            # The row's own buttons are in its left side, on a line over the name, S, M and EQ; none over the waveform.
+            left, heading = you.locator(".mixer-left").bounding_box(), you.locator(".mixer-heading").bounding_box()
+            for action in ("practice-record", "practice-listen", "practice-latency"):
+                button = you.locator(f'.mixer-left [data-action="{action}"]').bounding_box()
+                assert left["x"] <= button["x"] and button["x"] + button["width"] <= left["x"] + left["width"] + 1, action
+                assert button["y"] + button["height"] <= heading["y"] + 1, action
+            assert lane.locator("button").count() == 0
             you.locator('[data-control="solo"]').click()  # S on «You»: the stems are silenced, like any solo
             assert page.locator('.mixer-row[data-stem="bass"]').get_attribute("data-silenced") == "true"
             you.locator('[data-control="solo"]').click()

@@ -34,6 +34,7 @@ test("zoom follows the playhead from the right edge on, 10 % from the left, and 
   assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 50, false), { start: 49, end: 59 });  // left the view
   assert.deepEqual(followPlayhead({ start: 89, end: 99 }, bounds, 95, true), { start: 90, end: 100 });  // the end
   assert.deepEqual(followPlayhead({ start: 0, end: 10 }, bounds, 0.5, true), { start: 0, end: 10 });  // the start
+  assert.deepEqual(followPlayhead({ start: 10, end: 20 }, bounds, 50, false, 0.6), { start: 44, end: 54 });  // Practice: 60 % in
 });
 
 test("the grid shows the pale beats only when there is room for them", () => {

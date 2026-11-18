@@ -1983,7 +1983,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       mixer.apply();
       trackListeners.forEach((callback) => callback({ index, name, label }));
       return {
-        index, row, wave, input: gain,
+        index, row, left, wave, input: gain,
         place: (stem) => {  // under another stem; -1 hides the row (its solo is dropped, so it never silences the song)
           row.hidden = stem < 0;
           if (stem >= 0) track.after = stem;
@@ -2731,6 +2731,12 @@ function pluginContext(id, permissions, host) {
       host.setView(view);
     },
     onView: (callback) => listen(host.viewListeners, callback),
+    // Where a followed playhead stays in the view (0-1; Zoom's own default when null): Practice keeps it at 60 %.
+    get followLead() { return host.followLead ?? null; },
+    setFollowLead: (lead) => {
+      restoreOnStop("followLead", () => { host.followLead = null; });
+      host.followLead = lead;
+    },
     onTime: (callback) => listen(host.timeListeners, callback),
     on: (target, type, callback, options) => {
       const wrapped = guarded(id, callback);
@@ -2749,7 +2755,7 @@ function pluginContext(id, permissions, host) {
       return element;
     },
     addLane: (element) => ctx.add(host.lanes, element),  // a row over the stems, as wide as the waveforms
-    addTrack: (options) => {  // a mixer row of its own under a stem (version 24): {index, row, wave, input, place, remove}
+    addTrack: (options) => {  // a mixer row of its own under a stem (version 24): {index, row, left, wave, input, place, remove}
       const track = host.addTrack(options);
       undo.push(() => track.remove());
       return track;

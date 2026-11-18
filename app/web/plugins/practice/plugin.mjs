@@ -180,7 +180,8 @@ export async function project(ctx) {
   lane.classList.add("practice-lane");
   const canvas = lane.appendChild(document.createElement("canvas"));
   canvas.setAttribute("aria-hidden", "true");
-  const bar = lane.appendChild(document.createElement("div"));
+  track.left.classList.add("practice-left");
+  const bar = track.left.insertBefore(document.createElement("div"), track.left.firstChild);  // a line over the name, S, M and EQ
   bar.className = "practice-bar";
   const record = bar.appendChild(document.createElement("button"));
   record.type = "button";
@@ -203,7 +204,7 @@ export async function project(ctx) {
   measure.type = "button";
   measure.className = "practice-record practice-latency";
   measure.dataset.action = "practice-latency";
-  const status = bar.appendChild(document.createElement("span"));
+  const status = lane.appendChild(document.createElement("span"));  // over the waveform, only while it says something
   status.className = "practice-status";
   status.setAttribute("aria-live", "polite");
 
@@ -255,6 +256,7 @@ export async function project(ctx) {
     listen.disabled = true;
     buttons.forEach((button, at) => button.setAttribute("aria-pressed", String(at === index)));
     track.place(index);
+    ctx.setFollowLead(index >= 0 ? 0.6 : null);  // the take behind the playhead stays in sight while zoomed
     take = null;
     if (index < 0) {
       stopRecording();

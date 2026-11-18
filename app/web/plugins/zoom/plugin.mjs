@@ -1,7 +1,8 @@
 // Wheel zoom: the wheel (or a trackpad pinch, or two fingers on a phone) zooms the waveforms around the pointer;
 // Shift + wheel, a sideways swipe or two fingers moving sideways move the view. While playing, once the playhead
-// reaches the view's right edge the view moves with it, the playhead LEAD of the view from the left (at the song's
-// ends the view stays and the playhead runs on); a zoom or a move by hand stops that until playback starts again.
+// reaches the view's right edge the view moves with it, the playhead LEAD of the view from the left (ctx.followLead
+// when a plugin sets one; at the song's ends the view stays and the playhead runs on); a zoom keeps that, a move by
+// hand stops it until playback starts again. A jump (Home, a seek) out of the view takes the view along.
 
 export const MIN_SECONDS = 3;  // the shortest view
 export const LEAD = 0.1;  // while followed, the playhead's place in the view
@@ -23,10 +24,10 @@ export const panBy = (view, bounds, seconds) => clampView(view.start + seconds, 
 
 // While playing: the view that keeps the playhead LEAD from its left edge, once `held` (the playhead has reached
 // the right edge or left the view); null while the playhead moves inside the view on its own.
-export function followPlayhead(view, bounds, position, held) {
+export function followPlayhead(view, bounds, position, held, lead = LEAD) {
   const length = view.end - view.start;
   if (!held && position >= view.start && position < view.end) return null;
-  return clampView(position - LEAD * length, length, bounds);
+  return clampView(position - lead * length, length, bounds);
 }
 
 export function project(ctx) {
@@ -56,11 +57,11 @@ export function project(ctx) {
   ctx.on(timeline, "wheel", (event) => {
     if (!(ctx.duration > 0)) return;
     event.preventDefault();  // the page does not scroll over the waveforms
-    following = false;
     const view = ctx.view;
     const lines = event.deltaMode === 1 ? 16 : 1;
     const sideways = event.shiftKey || Math.abs(event.deltaX) > Math.abs(event.deltaY);
     if (sideways) {
+      following = false;
       const delta = (Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY) * lines;
       show(panBy(view, ctx.bounds, (delta / timeline.clientWidth) * (view.end - view.start)));
       return;
@@ -77,13 +78,13 @@ export function project(ctx) {
     if (event.touches.length !== 2 || !(ctx.duration > 0)) return;
     const [a, b] = fingers(event);
     pinch = { distance: Math.max(20, Math.abs(a - b)), centre: (a + b) / 2, view: ctx.view };
-    following = false;
   }, { passive: true });
   ctx.on(timeline, "touchmove", (event) => {
     if (!pinch || event.touches.length !== 2) return;
     event.preventDefault();
     const [a, b] = fingers(event);
     const { view, distance, centre } = pinch;
+    if (Math.abs((a + b) / 2 - centre) > 30) following = false;  // the fingers moved the view sideways, not just zoomed
     const rect = timeline.getBoundingClientRect();
     const anchor = view.start + ((centre - rect.left) / rect.width) * (view.end - view.start);
     const zoomed = zoomAround(view, ctx.bounds, anchor, distance / Math.max(20, Math.abs(a - b)));
@@ -93,11 +94,18 @@ export function project(ctx) {
 
   ctx.onTime((position, playing) => {
     if (playing && !wasPlaying) following = true;  // ▶ follows again
-    if (!playing || Math.abs(position - last) > 1) held = false;  // a seek: the playhead is free in the view again
+    const jumped = Math.abs(position - last) > 1, moved = jumped || (!playing && position !== last);
+    if (!playing || jumped) held = false;  // a seek: the playhead is free in the view again
     wasPlaying = playing;
     last = position;
-    if (!playing || !following || whole()) return;
-    const next = followPlayhead(ctx.view, ctx.bounds, position, held);
+    if (whole()) return;
+    const lead = ctx.followLead ?? LEAD;
+    if (moved && (position < ctx.view.start || position >= ctx.view.end)) {  // Home or a seek out of sight
+      ctx.setView(followPlayhead(ctx.view, ctx.bounds, position, true, lead));
+      return;
+    }
+    if (!playing || !following) return;
+    const next = followPlayhead(ctx.view, ctx.bounds, position, held, lead);
     if (!next) return;
     held = true;
     if (Math.abs(next.start - ctx.view.start) > 1e-4) ctx.setView(next);
