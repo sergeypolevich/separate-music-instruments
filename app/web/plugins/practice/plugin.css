@@ -3,7 +3,7 @@
 .mixer-row[data-silenced="true"] .practice-lane canvas { opacity: .2; }
 /* the row's buttons on a line of their own over the name, S, M and EQ */
 .mixer-left.practice-left { grid-template-rows: auto 22px 18px; }
-.practice-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-width: 0; }
+.practice-bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; min-width: 0; }
 .practice-record { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 0 7px; border: 1px solid var(--line-strong); border-radius: 8px;
   background: var(--panel); color: var(--text); font: 600 12px 'DM Sans', sans-serif; cursor: pointer; }
 .practice-record .icon { width: 16px; height: 16px; }

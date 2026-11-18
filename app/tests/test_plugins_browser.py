@@ -432,6 +432,8 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
                 button = you.locator(f'.mixer-left [data-action="{action}"]').bounding_box()
                 assert left["x"] <= button["x"] and button["x"] + button["width"] <= left["x"] + left["width"] + 1, action
                 assert button["y"] + button["height"] <= heading["y"] + 1, action
+            # ...aligned to the right, flush with the end of the line under them
+            assert abs(button["x"] + button["width"] - (heading["x"] + heading["width"])) <= 2
             assert lane.locator("button").count() == 0
             you.locator('[data-control="solo"]').click()  # S on «You»: the stems are silenced, like any solo
             assert page.locator('.mixer-row[data-stem="bass"]').get_attribute("data-silenced") == "true"
