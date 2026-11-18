@@ -26,6 +26,20 @@
 .practice-heading h2 { margin: 0; font: 650 17px Manrope, sans-serif; }
 .practice-card h3 { margin: 4px 0 0; font: 600 13px 'DM Sans', sans-serif; color: var(--text-soft); }
 .practice-hint { margin: 0; color: var(--text-soft); font-size: 13px; }
+.practice-how { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+.practice-setup { display: block; width: 100%; height: auto; border-radius: 10px; background: var(--panel-soft); color: var(--text-soft); }
+.practice-setup .practice-setup-line, .practice-setup-line path { fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.practice-setup circle.practice-setup-dot, .practice-setup g.practice-setup-line circle { fill: none; stroke: currentColor; stroke-width: 3; }
+.practice-setup-thin path { fill: none; stroke: currentColor; stroke-width: 1.2; opacity: .45; }
+.practice-setup-strong { fill: var(--accent); }
+.practice-setup-wave { fill: none; stroke: var(--accent); stroke-width: 3; stroke-linecap: round; }
+.practice-setup text { fill: currentColor; font: 600 15px 'DM Sans', sans-serif; }
+.practice-setup-start { fill: var(--accent); }
+.practice-setup .practice-setup-start-text { fill: var(--accent-ink); }
+.practice-setup-number circle { fill: var(--text); }
+.practice-setup .practice-setup-number text { fill: var(--panel); font: 700 14px Manrope, sans-serif; }
+.practice-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--text-soft); font-size: 13px; }
+@media (max-width: 640px) { .practice-how { grid-template-columns: 1fr; } }
 .practice-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .practice-dots { display: flex; flex-wrap: wrap; gap: 5px; }
 .practice-dots span { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--ok); color: #0c1a05; font-size: 10px; font-variant-numeric: tabular-nums; }

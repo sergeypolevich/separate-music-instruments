@@ -533,6 +533,12 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
             latency.click()
             dialog = page.locator(".practice-dialog")
             assert dialog.is_visible() and dialog.locator("h2").text_content() == "Latency"
+            # How to set it up: a picture (the earcup on the pickup, the sound card, Start) and three numbered steps.
+            assert "earcup" in dialog.locator(".practice-setup").get_attribute("aria-label")
+            assert dialog.locator(".practice-setup [data-label]").all_text_contents() == ["Sound card", "Start"]
+            steps = dialog.locator(".practice-steps li").all_text_contents()
+            assert len(steps) == 3 and "Wireless" in steps[0] and "pickup" in steps[1] and "Stable" in steps[2]
+            assert dialog.locator(".practice-setup").bounding_box()["width"] > 300
             dialog.locator('[data-action="measure"]').click()
             page.wait_for_function("document.querySelector('.practice-pill') && !document.querySelector('.practice-pill').hidden", timeout=30000)
             assert dialog.locator(".practice-pill").text_content() == "Stable", dialog.locator(".practice-detail").text_content()

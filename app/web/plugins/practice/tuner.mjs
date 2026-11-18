@@ -38,6 +38,37 @@ export function settle(found, tried) {
 const ms = (seconds, formatDecimal) => `${formatDecimal(Math.round(seconds * 10000) / 10)} ms`;
 const clickShape = (t) => (t < 0 || t > 0.03 ? 0 : Math.exp(-t / 0.004) * Math.sin(2 * Math.PI * 2000 * t));
 
+// How to measure: the earcup on the pickup, the instrument and the headphones on the sound card, then Start.
+// Numbered as the steps under it; drawn in the theme's colours.
+const SETUP = `<svg class="practice-setup" viewBox="0 0 640 250" role="img">
+  <g class="practice-setup-line">
+    <path d="M40 140C40 95 75 78 110 92C135 100 150 82 175 76C200 70 215 82 205 98C198 108 200 116 225 124L225 156C200 164 198 172 205 182C215 198 200 210 175 204C150 198 135 180 110 188C75 202 40 185 40 140Z"/>
+    <path d="M225 128H500M225 152H500M500 126L556 116Q570 114 570 126V154Q570 166 556 164L500 154"/>
+    <path d="M120 194C170 222 420 222 532 200"/>
+    <path d="M128 96C126 22 252 8 262 58"/>
+    <path d="M274 80C420 56 636 70 606 182"/>
+    <rect x="532" y="182" width="88" height="40" rx="8"/>
+  </g>
+  <g class="practice-setup-thin">
+    <path d="M250 128v24M275 128v24M300 128v24M325 128v24M350 128v24M375 128v24M400 128v24M425 128v24M450 128v24M475 128v24"/>
+    <path d="M86 133H566M86 140H566M86 147H566"/>
+  </g>
+  <rect class="practice-setup-line" x="80" y="118" width="12" height="44" rx="3"/>
+  <rect class="practice-setup-line" x="160" y="112" width="16" height="56" rx="5"/>
+  <rect class="practice-setup-strong" x="120" y="112" width="16" height="56" rx="5"/>
+  <rect class="practice-setup-strong" x="106" y="92" width="44" height="22" rx="11"/>
+  <rect class="practice-setup-line" x="250" y="58" width="24" height="44" rx="12"/>
+  <path class="practice-setup-wave" d="M160 86c6 5 6 13 0 18M170 80c10 9 10 23 0 32"/>
+  <circle class="practice-setup-line" cx="120" cy="194" r="5"/>
+  <circle class="practice-setup-line" cx="556" cy="202" r="5"/><circle class="practice-setup-line" cx="596" cy="202" r="5"/>
+  <text x="576" y="244" text-anchor="middle" data-label="card"></text>
+  <rect class="practice-setup-start" x="528" y="16" width="96" height="36" rx="9"/>
+  <text x="576" y="39" text-anchor="middle" class="practice-setup-start-text" data-label="start"></text>
+  <g class="practice-setup-number"><circle cx="526" cy="174" r="13"/><text x="526" y="179" text-anchor="middle">1</text></g>
+  <g class="practice-setup-number"><circle cx="90" cy="82" r="13"/><text x="90" y="87" text-anchor="middle">2</text></g>
+  <g class="practice-setup-number"><circle cx="508" cy="34" r="13"/><text x="508" y="39" text-anchor="middle">3</text></g>
+</svg>`;
+
 // The dialog. openInput(onBlock) starts the input (blocks of {frame, samples}); save(key, seconds) stores a result.
 export function openTuner(ctx, { openInput, save, known, engineState = () => ({}) }) {
   const t = ctx.t;
@@ -47,6 +78,7 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
   dialog.innerHTML = `<div class="practice-card">
     <div class="practice-heading"><h2></h2><button type="button" class="icon-button" data-action="close"></button></div>
     <p class="practice-hint"></p>
+    <div class="practice-how">${SETUP}<ol class="practice-steps"><li></li><li></li><li></li></ol></div>
     <div class="practice-row"><button type="button" class="primary-button" data-action="measure"></button><div class="practice-dots"></div></div>
     <div class="practice-result" aria-live="polite"><span class="practice-big"></span><span class="practice-pill" hidden></span><span class="practice-detail"></span></div>
     <canvas class="practice-tune-lanes" aria-hidden="true"></canvas>
@@ -56,7 +88,14 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
   const $ = (selector) => dialog.querySelector(selector);
   $("h2").textContent = t("Latency");
   $("h3").textContent = t("Last click, close up");
-  $(".practice-hint").textContent = t("Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.");
+  $(".practice-hint").textContent = t("The time from a sound in the headphones to its coming back through your input. Measured once, it puts what you play where you played it.");
+  $(".practice-setup").setAttribute("aria-label", t("One earcup held on the guitar's pickup; the guitar and the headphones plugged into the sound card; then Start"));
+  $('[data-label="card"]').textContent = t("Sound card");
+  $('[data-label="start"]').textContent = t("Start");
+  [t("Plug in as you play: the instrument (or microphone) into the input chosen in Settings → Plugins → Practice, wired headphones into the output. Wireless headphones cannot be measured."),
+    t("Hold one earcup against the pickup (for an acoustic instrument or a voice, against the microphone), the song's volume as you play."),
+    t("Press Start and keep still: clicks play one at a time and the recorded ones move into line with the played ones. «Stable» keeps the result for this input and output; measure again after changing either.")]
+    .forEach((text, i) => { $(".practice-steps").children[i].textContent = text; });
   const close = $('[data-action="close"]');
   close.textContent = "✕";
   close.setAttribute("aria-label", t("Close"));
