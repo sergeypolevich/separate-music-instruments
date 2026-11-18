@@ -87,14 +87,16 @@ export function wavSamples(bytes) {
   return samples;
 }
 
-// The note starts of the take (song seconds) and the original's notes inside what was recorded (0.1 s in from the
-// edges, where a note may be cut).
-export function takeNotes(runs, reference) {
-  const played = [], covered = [];
+// The note starts of the take (song seconds) and of the original over the same stretch, each run on its own (the
+// detection's thresholds follow the part heard), the original's 0.1 s in from the edges, where a note may be cut.
+// `reference` is the stem from song time 0: {samples, sampleRate}.
+export async function takeNotes(runs, reference) {
+  const played = [], covered = [], rate = reference.sampleRate;
   for (const run of runs) {
     const samples = samplesOf(run);
-    played.push(...onsets(samples, samples.length / (run.to - run.from)).map((time) => run.from + time));
-    covered.push(...reference.filter((time) => time >= run.from + 0.1 && time <= run.to - 0.1));
+    played.push(...(await onsets(samples, samples.length / (run.to - run.from))).map((time) => run.from + time));
+    const first = Math.max(0, Math.round(run.from * rate)), part = reference.samples.subarray(first, Math.round(run.to * rate));
+    covered.push(...(await onsets(part, rate)).map((time) => first / rate + time).filter((time) => time >= run.from + 0.1 && time <= run.to - 0.1));
   }
   return { played: played.sort((a, b) => a - b), covered };
 }
@@ -220,7 +222,7 @@ export async function project(ctx) {
   let capture = null;  // the recording's input: {key, close()}
   let measuredKey = null;  // the input and output of the last recording or measurement
   let runs = [];  // the take being recorded: [{from, to, chunks}]
-  let reference = null;  // the chosen stem's note starts (a promise), found once
+  let reference = null;  // the chosen stem's audio from song time 0 (a promise), decoded once
   const scores = Array.isArray(data.scores) ? data.scores : [];
   const takes = Array.isArray(data.takes) ? data.takes : [];  // saved: [{stem, at, runs: [{file, from, to}]}]
   let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
@@ -375,7 +377,7 @@ export async function project(ctx) {
         return;
       }
       const index = stem;
-      reference = reference || ctx.stemAudio(index).then(({ samples, sampleRate }) => onsets(samples, sampleRate));
+      reference = reference || ctx.stemAudio(index);
       reference.catch(() => { if (stem === index) reference = null; });
       const opened = await openInput(onBlock, "recording");
       if (!ctx.current || record.getAttribute("aria-pressed") !== "true") {
@@ -417,12 +419,17 @@ export async function project(ctx) {
     saveTake(lastRuns, ctx.stems[chosen].name);
     if (!reference) return;
     let notes;
+    const scoring = ctx.t("Scoring…"), started = performance.now();
+    if (!status.textContent) status.textContent = scoring;  // about 1 s for 20 s of take
     try {
-      notes = takeNotes(recorded, await reference);
+      notes = await takeNotes(recorded, await reference);
     } catch (error) {
       ctx.log("score_failed", { message: String((error && error.message) || error) }, "warning");
       return;  // the stem could not be decoded: no score, the recording still showed
+    } finally {
+      if (status.textContent === scoring) status.textContent = "";
     }
+    ctx.log("score_notes", { ms: Math.round(performance.now() - started), original_notes: notes.covered.length, played_notes: notes.played.length });
     if (!ctx.current || notes.covered.length < 4) {  // too short to say anything
       ctx.log("score_skipped", { original_notes: notes.covered.length, played_notes: notes.played.length });
       return;

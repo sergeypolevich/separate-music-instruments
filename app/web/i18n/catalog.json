@@ -1814,272 +1814,278 @@
     {
      "id": "e11",
      "widget": "Text",
-     "text": "The take could not be saved",
+     "text": "Scoring…",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Text",
-     "text": "Latency not measured",
+     "text": "The take could not be saved",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Text",
-     "text": "Measure the delay of your input and output",
+     "text": "Latency not measured",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Text",
-     "text": "Latency {latency}",
+     "text": "Measure the delay of your input and output",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Text",
-     "text": "Measure latency",
+     "text": "Latency {latency}",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Text",
-     "text": "Audio input",
+     "text": "Measure latency",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Text",
-     "text": "Default input",
+     "text": "Audio input",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Text",
-     "text": "Input {number}",
+     "text": "Default input",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Text",
-     "text": "On time within",
+     "text": "Input {number}",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Text",
-     "text": "Take score",
+     "text": "On time within",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Text",
-     "text": "Close",
+     "text": "Take score",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Text",
-     "text": "On time",
+     "text": "Close",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Text",
-     "text": "{hit} of {count} · {percent} %",
+     "text": "On time",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Text",
-     "text": "Early",
+     "text": "{hit} of {count} · {percent} %",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Text",
-     "text": "Late",
+     "text": "Early",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Text",
-     "text": "Missed",
+     "text": "Late",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Text",
-     "text": "Average",
+     "text": "Missed",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Text",
-     "text": "Spread",
+     "text": "Average",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Text",
-     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
+     "text": "Spread",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Text",
-     "text": "How far the notes were from the original, in milliseconds",
+     "text": "On time within ±{tolerance} ms; early or late beyond it; missed: no note within 80 ms.",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Text",
-     "text": "Every note of the take, from its start to its end",
+     "text": "How far the notes were from the original, in milliseconds",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Text",
-     "text": "Earlier takes: {list}",
+     "text": "Every note of the take, from its start to its end",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Text",
-     "text": "Latency",
+     "text": "Earlier takes: {list}",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Text",
-     "text": "Last click, close up",
+     "text": "Latency",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Text",
-     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
+     "text": "Last click, close up",
      "index": 35
     },
     {
      "id": "e36",
      "widget": "Text",
-     "text": "Measured before for this input and output",
+     "text": "Hold one earcup against the pickup of your instrument (or the microphone), then press Start. Clicks play one at a time; the recorded ones move into line with the played ones.",
      "index": 36
     },
     {
      "id": "e37",
      "widget": "Text",
-     "text": "Not measured yet",
+     "text": "Measured before for this input and output",
      "index": 37
     },
     {
      "id": "e38",
      "widget": "Text",
-     "text": "Start",
+     "text": "Not measured yet",
      "index": 38
     },
     {
      "id": "e39",
      "widget": "Text",
-     "text": "Start again",
+     "text": "Start",
      "index": 39
     },
     {
      "id": "e40",
      "widget": "Text",
-     "text": "Stable",
+     "text": "Start again",
      "index": 40
     },
     {
      "id": "e41",
      "widget": "Text",
-     "text": "{count} clicks · spread {spread} · saved for this input and output",
+     "text": "Stable",
      "index": 41
     },
     {
      "id": "e42",
      "widget": "Text",
-     "text": "No click heard",
+     "text": "{count} clicks · spread {spread} · saved for this input and output",
      "index": 42
     },
     {
      "id": "e43",
      "widget": "Text",
-     "text": "Not stable",
+     "text": "No click heard",
      "index": 43
     },
     {
      "id": "e44",
      "widget": "Text",
-     "text": "Hold the earcup closer to the pickup or turn the volume up.",
+     "text": "Not stable",
      "index": 44
     },
     {
      "id": "e45",
      "widget": "Text",
-     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
+     "text": "Hold the earcup closer to the pickup or turn the volume up.",
      "index": 45
     },
     {
      "id": "e46",
      "widget": "Text",
-     "text": "Click 1",
+     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
      "index": 46
     },
     {
      "id": "e47",
      "widget": "Text",
-     "text": "Click {count} · spread {spread}",
+     "text": "Click 1",
      "index": 47
     },
     {
      "id": "e48",
      "widget": "Text",
-     "text": "Stopped",
+     "text": "Click {count} · spread {spread}",
      "index": 48
     },
     {
      "id": "e49",
      "widget": "Text",
-     "text": "Not saved",
+     "text": "Stopped",
      "index": 49
     },
     {
      "id": "e50",
      "widget": "Text",
-     "text": "Waiting for the first click",
+     "text": "Not saved",
      "index": 50
     },
     {
      "id": "e51",
      "widget": "Text",
-     "text": "Stop",
+     "text": "Waiting for the first click",
      "index": 51
     },
     {
      "id": "e52",
      "widget": "Text",
-     "text": "Played",
+     "text": "Stop",
      "index": 52
     },
     {
      "id": "e53",
      "widget": "Text",
-     "text": "Recorded, moved back {latency}",
+     "text": "Played",
      "index": 53
     },
     {
      "id": "e54",
      "widget": "Text",
-     "text": "Recorded · off by {latency}",
+     "text": "Recorded, moved back {latency}",
      "index": 54
     },
     {
      "id": "e55",
      "widget": "Text",
-     "text": "Recorded",
+     "text": "Recorded · off by {latency}",
      "index": 55
+    },
+    {
+     "id": "e56",
+     "widget": "Text",
+     "text": "Recorded",
+     "index": 56
     }
    ]
   },

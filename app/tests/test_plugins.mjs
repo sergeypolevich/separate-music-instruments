@@ -158,12 +158,30 @@ function plucks(times, rate = 8000, seconds = 3) {
   return samples;
 }
 
-test("practice score: note starts are found within a few ms, also a repeated note while the last one rings", () => {
+test("practice score: note starts are found within a few ms, also a repeated note while the last one rings", async () => {
   const times = [0.2, 0.5, 0.62, 1.0, 1.5, 2.25];
-  const found = onsets(plucks(times), 8000);
+  const found = await onsets(plucks(times), 8000);
   assert.equal(found.length, times.length);
-  found.forEach((time, i) => assert.ok(Math.abs(time - times[i]) < 0.006, `${time} vs ${times[i]}`));
-  assert.deepEqual(onsets(new Float32Array(8000), 8000), []);  // silence
+  const shift = found.reduce((sum, time, i) => sum + time - times[i], 0) / times.length;  // the detection's own bias
+  found.forEach((time, i) => assert.ok(Math.abs(time - shift - times[i]) < 0.003, `${time} vs ${times[i]}`));
+  assert.ok(Math.abs(shift) < 0.02);
+  assert.deepEqual(await onsets(new Float32Array(8000), 8000), []);  // silence
+});
+
+test("practice score: the stem through a pickup (filtered, quieter, noisier) gives the same note starts", async () => {
+  const rate = 8000, times = [0.2, 0.45, 0.62, 1.0, 1.3, 1.5, 1.9, 2.25, 2.6];
+  const original = plucks(times, rate), take = new Float32Array(original.length);
+  let low = 0, lastLow = 0, high = 0;
+  for (let i = 0; i < original.length; i++) {  // a low-pass and a high-pass, -30 dB, and hiss
+    low += 0.3 * (original[i] - low);
+    high = 0.95 * (high + low - lastLow);
+    lastLow = low;
+    take[i] = 0.03 * high + ((i * 104729) % 17 - 8) / 400000;
+  }
+  const [a, b] = [await onsets(original, rate), await onsets(take, rate)];
+  assert.equal(a.length, times.length);
+  const offsets = match(a, b);
+  assert.ok(offsets.every((offset) => offset !== null && Math.abs(offset) < 0.004), JSON.stringify(offsets));
 });
 
 test("practice score: each original note takes the nearest played note within 80 ms; counts by the tolerance", () => {
@@ -174,16 +192,19 @@ test("practice score: each original note takes the nearest played note within 80
   assert.equal(Math.round(match([1], [1.07, 0.95])[0] * 1000), -50);  // the closer of two
 });
 
-test("practice score: a take recorded in pieces is scored only where it was recorded", () => {
+test("practice score: a take recorded in pieces is scored only where it was recorded", async () => {
   const rate = 8000, samples = plucks([0.3, 0.8, 1.3, 1.8], rate, 2);
   const runs = [];
   for (let i = 0; i < samples.length; i += 1000) addToRuns(runs, 10 + i / rate, 10 + (i + 1000) / rate, samples.subarray(i, i + 1000));
   addToRuns(runs, 30, 30.125, new Float32Array(1000));  // after a seek: a run of its own
   assert.equal(runs.length, 2);
-  const { played, covered } = takeNotes(runs, [10.3, 10.8, 11.3, 11.8, 12.5, 30.05, 31]);
-  assert.deepEqual(covered, [10.3, 10.8, 11.3, 11.8]);  // 12.5 and 31 were not recorded; 30.05 is at a run's edge
+  // the original: the same notes from song second 10, one more at 12.5 and two at 30.05 and 31, not recorded
+  const reference = { samples: plucks([10.3, 10.8, 11.3, 11.8, 12.5, 30.05, 31], rate, 32), sampleRate: rate };
+  const { played, covered } = await takeNotes(runs, reference);
+  assert.equal(covered.length, 4);
+  covered.forEach((time, i) => assert.ok(Math.abs(time - [10.3, 10.8, 11.3, 11.8][i]) < 0.02, String(time)));
   assert.equal(played.length, 4);
-  match(covered, played).forEach((offset) => assert.ok(Math.abs(offset) < 0.006));
+  match(covered, played).forEach((offset) => assert.ok(Math.abs(offset) < 0.003));
 });
 
 test("practice takes: a run is stored as 16-bit mono WAV and read back", () => {
