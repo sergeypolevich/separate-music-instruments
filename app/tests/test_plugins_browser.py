@@ -492,14 +492,8 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             page.locator(".practice-lane").wait_for()
             assert page.locator(".practice-target").nth(2).get_attribute("aria-pressed") == "true"
             page.locator('a[data-screen="settings"]').click()
-            page.locator('[data-setting="tolerance"]').evaluate("(el) => { el.value = '20'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            page.wait_for_function("document.querySelector('[data-setting=\"tolerance\"]').closest('label').querySelector('output').textContent === '±20 ms'")
-            for _ in range(50):
-                if state["installed"]["practice"].get("settings", {}).get("tolerance") == 20:
-                    break
-                page.wait_for_timeout(100)
-            assert state["installed"]["practice"]["settings"] == {"input": "", "tolerance": 20, "latency": {}}
             assert page.locator('[data-setting="input"] option').count() >= 1
+            assert page.locator('[data-setting="tolerance"]').count() == 0  # the score's tolerance, left out
             assert errors == []
             browser.close()
     finally:
@@ -657,7 +651,7 @@ def test_practice_logs_why_the_input_did_not_start(tmp_path):
 
 
 def _plucks_wav() -> bytes:
-    """5 s at 16 kHz: a plucked 110 Hz note every half second from 0.25 s, so the stem has notes to score against."""
+    """5 s at 16 kHz: a plucked 110 Hz note every half second from 0.25 s."""
     rate, frames = 16_000, bytearray()
     for i in range(rate * 5):
         since = (i / rate - 0.25) % 0.5
@@ -674,9 +668,10 @@ def _plucks_wav() -> bytes:
 
 
 @pytest.mark.browser
-def test_practice_scores_a_take_against_the_stem(tmp_path):
+def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
     """Version 24: the song itself comes back through the loop as the "playing"; after the tuner has measured the
-    loop, a recorded take is on time, the score panel says so, and the score is kept for the project."""
+    loop, a recorded take is kept as WAV files, comes back with the project and plays along. No score panel: the
+    take's score is left out of this release (its note detection is not reliable yet)."""
     sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
     state = {"installed": {"practice": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
              "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
@@ -705,54 +700,8 @@ def test_practice_scores_a_take_against_the_stem(tmp_path):
             page.keyboard.press("Space")
             page.wait_for_function("activeTransport.currentTime > 4.4", timeout=15000)
             page.keyboard.press("Space")
-            score = page.locator(".practice-score")
-            score.wait_for(timeout=15000)
-            value = score.locator('[data-tile="on-time"] .practice-value').text_content()
-            hit, _, rest = value.partition(" of ")
-            count, percent = rest.split(" · ")
-            assert int(count) >= 6 and int(hit) >= int(count) - 1, value  # the song against itself: on time
-            assert score.locator('[data-tile="missed"] .practice-value').text_content() in ("0", "1")
-            assert score.locator(".practice-histogram rect").count() >= 2 and score.locator(".practice-strip rect").count() == int(count)
-            # The song's 120 BPM: the offsets also as note values, a beat being 1/4 (1/32 = 62.5 ms, 1/64, 1/128)
-            labels = score.locator(".practice-histogram [data-tick]").evaluate_all("nodes => nodes.map(node => node.textContent)")
-            assert labels == ["0", "−1/32", "+1/32", "−1/64", "+1/64", "−1/128", "+1/128"], labels
-            assert "+63 ms" in score.locator(".practice-histogram").text_content()
-            assert "1/128 at 120 BPM" in score.locator(".practice-legend").text_content()
-            assert score.locator('[data-tile="spread"] .practice-note').text_content().endswith(" note")
-            # Two tabs: against the stem (open) and every note played against the song's 1/8 grid, up to ±1/16.
-            tabs = score.locator(".practice-tab")
-            assert tabs.all_text_contents() == ["Against the bass", "Grid 1/8"]
-            assert tabs.first.get_attribute("aria-selected") == "true"
-            tabs.nth(1).click()
-            assert tabs.nth(1).get_attribute("aria-selected") == "true"
-            assert score.locator('[data-tile="missed"]').count() == 0 and score.locator(".practice-key").first.text_content() == "On the grid"
-            assert "1/8 of the song's beat grid (120 BPM)" in score.locator(".practice-legend").text_content()
-            grid_ticks = score.locator(".practice-histogram [data-tick]").all_text_contents()
-            assert grid_ticks[:3] == ["0", "−1/16", "+1/16"] and "+125 ms" in score.locator(".practice-histogram").text_content()
-            assert int(score.locator('[data-tile="on-time"] .practice-value').text_content().partition(" of ")[2].split(" ")[0]) >= 4
-            tabs.first.click()
-            assert score.locator('[data-tile="missed"]').count() == 1
-            # The tolerance moves right there, with why it is ±15 ms; the score is drawn again and the setting kept.
-            assert "20 ms" in score.locator(".practice-why").text_content()
-            assert score.locator(".practice-tolerance output").text_content() == "±15 ms · 1/128"
-            band = score.locator(".practice-band").bounding_box()["width"]
-            score.locator('.practice-tolerance [data-setting="tolerance"]').fill("40")
-            assert score.locator(".practice-tolerance output").text_content() == "±40 ms · 1/64"
-            assert "±40 ms" in score.locator(".practice-legend").text_content()
-            assert score.locator(".practice-band").bounding_box()["width"] > band * 2.5
-            for _ in range(50):
-                if state["installed"]["practice"].get("settings", {}).get("tolerance") == 40:
-                    break
-                page.wait_for_timeout(100)
-            assert state["installed"]["practice"]["settings"]["tolerance"] == 40
-            for _ in range(50):
-                if state["data"]["practice"].get("scores"):
-                    break
-                page.wait_for_timeout(100)
-            (kept,) = state["data"]["practice"]["scores"]
-            assert kept["stem"] == "bass" and kept["notes"] == int(count) and kept["tolerance"] == 15
-            score.locator('[data-action="close"]').click()
-            page.locator(".practice-score").wait_for(state="detached")
+            page.wait_for_timeout(1500)  # the score, when it was there, opened within a second of the stop
+            assert page.locator(".practice-score").count() == 0 and "scores" not in state["data"]["practice"]
             # The take is kept as WAV files and comes back with the project: drawn again, and it can be played along.
             for _ in range(50):
                 if state["data"]["practice"].get("takes"):

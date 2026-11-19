@@ -40,7 +40,7 @@ The store card lists them, and `ctx` has the matching functions only when the ma
 | `playback` | Changes what is played | `ctx.range()`, `ctx.setRange(range)`, `ctx.dropLoop()` |
 | `analysis` | Runs an analysis on this computer | `ctx.beats()`, `ctx.analyze(kind, onProgress)`, `ctx.analysisState(kind)` |
 | `tone` | Plays its own sound | `ctx.audioContext`, to make a sound of its own (the tuner's tone) and play it straight to the speakers, not into the stems' mix |
-| `input` | Records from your audio input | `ctx.audioContext`, `ctx.precise()`, `ctx.songTimeAt(contextTime)`, `ctx.stemAudio(index)` (version 24, the practice plugin) |
+| `input` | Records from your audio input | `ctx.audioContext`, `ctx.precise()`, `ctx.songTimeAt(contextTime)` |
 
 No plugin code runs on the computer itself. Heavy work is a service of the app that a plugin asks for. Today that
 means the beats and chord detection. A new kind of analysis is added to the app (`audio_stems/analysis.py` and its
@@ -101,7 +101,6 @@ With `input`: the plugin opens the input itself (`getUserMedia`, the browser ask
 `precise()` makes the stems play from their decoded audio on that context's clock (as they are at 100 %, through the
 stretch engine at other speeds) until the plugin stops, and resolves `true` when ready; then `songTimeAt(time)` gives the
 song second heard at an AudioContext time (`null` while paused, before the last seek or while the stems stream).
-`stemAudio(index)` resolves `{samples, sampleRate}`: the stem as one channel from song time 0.
 
 A manifest's `"storage_mb"` (version 24, at most 1000) gives the plugin files of its own per project: `ctx.files.list()`
 resolves `{files: [{name, bytes}], limit_bytes}`, `load(name)` an ArrayBuffer, `save(name, body)` stores (refused over the

@@ -2096,18 +2096,6 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
         },
         songTimeAt: (time) => transport.songTimeAt(time),
-        // A stem as one channel from song time 0, decoded again on request: the engine's copies are not kept twice.
-        stemAudio: async (index) => {
-          const response = await fetch(tracks[index].currentSrc || tracks[index].src);
-          const buffer = await audioContext.decodeAudioData(await response.arrayBuffer());
-          const first = Math.min(buffer.length, Math.round(transport.startOffset * buffer.sampleRate));
-          const samples = new Float32Array(buffer.length - first);
-          for (let channel = 0; channel < buffer.numberOfChannels; channel++) {
-            const data = buffer.getChannelData(channel);
-            for (let i = 0; i < samples.length; i++) samples[i] += data[first + i] / buffer.numberOfChannels;
-          }
-          return { samples, sampleRate: buffer.sampleRate };
-        },
         current: () => setupId === playbackSetupId,
       });
     }
@@ -2828,7 +2816,6 @@ function pluginContext(id, permissions, host) {
         return host.precise();
       },
       songTimeAt: (time) => host.songTimeAt(time),
-      stemAudio: (index) => host.stemAudio(index),
     });
   }
   if (permissions.includes("analysis")) {

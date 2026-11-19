@@ -51,36 +51,3 @@
 .practice-pill[data-state="bad"] { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger-text); }
 .practice-detail { color: var(--muted); font-size: 12px; }
 .practice-tune-lanes, .practice-close-up { display: block; width: 100%; height: 150px; border-radius: 10px; border: 1px solid var(--line); background: var(--waveform-bg); }
-/* The take's score. */
-.practice-tabs { display: flex; flex-wrap: wrap; gap: 4px; }
-.practice-tabs[hidden] { display: none; }
-.practice-tab { padding: 6px 12px; border: 1px solid var(--line); border-radius: 8px; background: transparent; color: var(--text-soft); font: 600 13px 'DM Sans', sans-serif; cursor: pointer; }
-.practice-tab[aria-selected="true"] { border-color: transparent; background: var(--accent); color: var(--accent-ink); }
-.practice-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; }
-.practice-tile { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-soft); }
-.practice-tile.main { grid-column: span 2; }
-.practice-key { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-.practice-value { font: 700 20px Manrope, sans-serif; font-variant-numeric: tabular-nums; }
-.practice-tile.main .practice-value { font-size: 26px; }
-.practice-note { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
-.practice-histogram .practice-ms { font-size: 10px; opacity: .8; }
-.practice-swatch { width: 10px; height: 10px; border-radius: 3px; }
-.practice-swatch[data-kind="on-time"], .practice-bar-on-time { background: var(--ok); fill: var(--ok); }
-.practice-swatch[data-kind="early"], .practice-bar-early { background: var(--accent); fill: var(--accent); }
-.practice-swatch[data-kind="late"], .practice-bar-late { background: var(--warn); fill: var(--warn); }
-.practice-swatch[data-kind="missed"], .practice-bar-missed { background: var(--danger); fill: var(--danger); }
-.practice-legend, .practice-history { margin: 0; color: var(--muted); font-size: 12px; }
-.practice-tolerance { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; }
-.practice-tolerance input { flex: 1 1 160px; max-width: 260px; }
-.practice-tolerance output { font-variant-numeric: tabular-nums; }
-.practice-why { margin: 0; color: var(--muted); font-size: 12px; }
-.practice-histogram, .practice-strip { display: block; width: 100%; height: auto; }
-.practice-histogram text, .practice-strip text { fill: var(--muted); font: 11px 'DM Sans', sans-serif; }
-.practice-band { fill: color-mix(in srgb, var(--ok) 12%, transparent); }
-.practice-tick { stroke: var(--line); }
-.practice-zero { stroke: var(--text-soft); }
-@media (max-width: 520px) {
-  .practice-tile.main .practice-value { font-size: 22px; }
-  .practice-histogram text, .practice-strip text { font-size: 26px; }
-  .practice-histogram .practice-ms { font-size: 20px; }
-}

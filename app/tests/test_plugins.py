@@ -18,7 +18,7 @@ def test_the_store_lists_the_plugins_with_valid_manifests():
     found = plugins.catalog(WEB)
     assert list(found) == ["zoom", "beat-grid", "trim", "eq", "chords", "tuner", "practice"]
     assert found["eq"]["permissions"] == ["sound"] and found["trim"]["permissions"] == ["playback"]
-    assert found["tuner"]["permissions"] == ["tone"] and found["practice"]["permissions"] == ["input", "analysis"]
+    assert found["tuner"]["permissions"] == ["tone"] and found["practice"]["permissions"] == ["input"]
     assert found["zoom"]["permissions"] == []
     assert found["practice"]["storage_mb"] == 100 and "storage_mb" not in found["eq"]
 

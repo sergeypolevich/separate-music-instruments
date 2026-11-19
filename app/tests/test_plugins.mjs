@@ -8,8 +8,7 @@ import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { readmeHtml } from "../web/readme.mjs";
-import { beatAt, gridOffsets, match, noteTicks, noteValue, onsets, summary } from "../web/plugins/practice/score.mjs";
-import { addToRuns, blockTimes, columnPeaks, samplesOf, takeNotes, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
+import { addToRuns, blockTimes, columnPeaks, samplesOf, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
 import { readBands, defaultBands, flat, xOfFrequency, frequencyOfX, yOfGain, gainOfY } from "../web/plugins/eq/plugin.mjs";
 import { applyEdits, visibleLabels, LABEL_SPACE } from "../web/plugins/chords/plugin.mjs";
 import { TUNINGS, frequency, choice } from "../web/plugins/tuner/plugin.mjs";
@@ -116,9 +115,9 @@ test("practice: an input block raises the peaks of the song buckets it was heard
   assert.equal(peaks[3], 0);
 });
 
-test("practice: settings fall back to the default input and a ±15 ms tolerance; a latency per input and output", () => {
-  assert.deepEqual(practiceChoice({}), { input: "", tolerance: 15, latency: {} });
-  assert.equal(practiceChoice({ tolerance: 90 }).tolerance, 40);
+test("practice: settings fall back to the default input; a latency per input and output", () => {
+  assert.deepEqual(practiceChoice({}), { input: "", latency: {} });
+  assert.deepEqual(practiceChoice({ tolerance: 90 }), { input: "", latency: {} });  // the score's, left out
   assert.equal(latencyKey("", ""), "default>default");
   assert.equal(latencyKey("usb-1", "g7"), "usb-1>g7");
 });
@@ -148,64 +147,11 @@ test("practice tuner: the estimate is the median; it stops when 5 agree within 0
   assert.ok(settle([0.03, 0.04], 16).done);
 });
 
-// Plucked notes (110 Hz, decaying) at the given seconds, over a little noise.
-function plucks(times, rate = 8000, seconds = 3) {
-  const samples = new Float32Array(rate * seconds).map((_, i) => ((i * 7919) % 13 - 6) / 6000);
-  for (const at of times) {
-    for (let i = Math.round(at * rate), n = 0; i < samples.length && n < rate * 0.4; i++, n++) {
-      samples[i] += 0.5 * Math.exp(-n / (rate * 0.1)) * Math.sin((2 * Math.PI * 110 * n) / rate);
-    }
-  }
-  return samples;
-}
-
-test("practice score: note starts are found within a few ms, also a repeated note while the last one rings", async () => {
-  const times = [0.2, 0.5, 0.62, 1.0, 1.5, 2.25];
-  const found = await onsets(plucks(times), 8000);
-  assert.equal(found.length, times.length);
-  const shift = found.reduce((sum, time, i) => sum + time - times[i], 0) / times.length;  // the detection's own bias
-  found.forEach((time, i) => assert.ok(Math.abs(time - shift - times[i]) < 0.003, `${time} vs ${times[i]}`));
-  assert.ok(Math.abs(shift) < 0.02);
-  assert.deepEqual(await onsets(new Float32Array(8000), 8000), []);  // silence
-});
-
-test("practice score: the stem through a pickup (filtered, quieter, noisier) gives the same note starts", async () => {
-  const rate = 8000, times = [0.2, 0.45, 0.62, 1.0, 1.3, 1.5, 1.9, 2.25, 2.6];
-  const original = plucks(times, rate), take = new Float32Array(original.length);
-  let low = 0, lastLow = 0, high = 0;
-  for (let i = 0; i < original.length; i++) {  // a low-pass and a high-pass, -30 dB, and hiss
-    low += 0.3 * (original[i] - low);
-    high = 0.95 * (high + low - lastLow);
-    lastLow = low;
-    take[i] = 0.03 * high + ((i * 104729) % 17 - 8) / 400000;
-  }
-  const [a, b] = [await onsets(original, rate), await onsets(take, rate)];
-  assert.equal(a.length, times.length);
-  const offsets = match(a, b);
-  assert.ok(offsets.every((offset) => offset !== null && Math.abs(offset) < 0.004), JSON.stringify(offsets));
-});
-
-test("practice score: each original note takes the nearest played note within 80 ms; counts by the tolerance", () => {
-  const offsets = match([1, 2, 3, 4, 5], [0.99, 2.03, 2.05, 3.5, 5.0, 5.06]);
-  assert.deepEqual(offsets.map((v) => (v === null ? null : Math.round(v * 1000))), [-10, 30, null, null, 0]);
-  const result = summary(offsets, 0.015);
-  assert.deepEqual({ ...result, mean: Math.round(result.mean * 1000) }, { notes: 5, onTime: 2, early: 0, late: 1, missed: 2, mean: 7, spread: result.spread });
-  assert.equal(Math.round(match([1], [1.07, 0.95])[0] * 1000), -50);  // the closer of two
-});
-
-test("practice score: a take recorded in pieces is scored only where it was recorded", async () => {
-  const rate = 8000, samples = plucks([0.3, 0.8, 1.3, 1.8], rate, 2);
+test("practice takes: blocks that follow on make one run; after a seek a run of its own", () => {
   const runs = [];
-  for (let i = 0; i < samples.length; i += 1000) addToRuns(runs, 10 + i / rate, 10 + (i + 1000) / rate, samples.subarray(i, i + 1000));
-  addToRuns(runs, 30, 30.125, new Float32Array(1000));  // after a seek: a run of its own
-  assert.equal(runs.length, 2);
-  // the original: the same notes from song second 10, one more at 12.5 and two at 30.05 and 31, not recorded
-  const reference = { samples: plucks([10.3, 10.8, 11.3, 11.8, 12.5, 30.05, 31], rate, 32), sampleRate: rate };
-  const { played, covered } = await takeNotes(runs, reference);
-  assert.equal(covered.length, 4);
-  covered.forEach((time, i) => assert.ok(Math.abs(time - [10.3, 10.8, 11.3, 11.8][i]) < 0.02, String(time)));
-  assert.equal(played.length, 4);
-  match(covered, played).forEach((offset) => assert.ok(Math.abs(offset) < 0.003));
+  for (let i = 0; i < 4; i++) addToRuns(runs, 10 + i * 0.125, 10.125 + i * 0.125, new Float32Array(1000));
+  addToRuns(runs, 30, 30.125, new Float32Array(1000));
+  assert.deepEqual(runs.map((run) => [run.from, run.to, samplesOf(run).length]), [[10, 10.5, 4000], [30, 30.125, 1000]]);
 });
 
 test("practice takes: a run is stored as 16-bit mono WAV and read back", () => {
@@ -255,24 +201,6 @@ test("practice: one column a screen pixel, the loudest millisecond under it, at 
   assert.equal(zoomed[999], -1);
 });
 
-test("practice score tells offsets as note values, a beat being a quarter", () => {
-  assert.equal(beatAt({ bpm: 120, tempo: [[0, 120], [30, 60]] }, 10), 0.5);
-  assert.equal(beatAt({ bpm: 120, tempo: [[0, 120], [30, 60]] }, 40), 1);
-  assert.equal(beatAt({ bpm: 100, tempo: [] }, 5), 0.6);
-  assert.equal(beatAt({ bpm: null, tempo: [] }, 5), null);
-  assert.equal(beatAt(null, 5), null);
-  assert.equal(noteValue(0.125, 0.5), "1/16");  // 120 BPM: a sixteenth is 125 ms
-  assert.equal(noteValue(-0.031, 0.5), "1/64");
-  assert.equal(noteValue(0.015, 0.5), "1/128");
-  assert.equal(noteValue(0.001, 0.5), null);  // under 1/256
-  assert.equal(noteValue(0, 0.5), null);
-  assert.equal(noteValue(0.02, null), null);
-  assert.deepEqual(noteTicks(0.5).map((tick) => tick.label), ["1/32", "1/64", "1/128"]);
-  assert.deepEqual(noteTicks(1).map((tick) => tick.label), ["1/64", "1/128", "1/256"]);  // 60 BPM
-  const fast = noteTicks(60 / 180);  // a 1/16 at 180 BPM is 83 ms: past the 70 ms the histogram shows
-  assert.deepEqual(fast.map((tick) => tick.label), ["1/32", "1/64"]);
-});
-
 test("a plugin's README: headings, paragraphs, lists, bold and code; HTML stays text", () => {
   const html = readmeHtml("# Name\r\n\nOne line\nand its next.\n\n## How\n\n1. **Press** it\n2. `?dev_mode`\n- a <b>tag</b> & \"quote\"\nAfter.");
   assert.equal(html, "<h2>Name</h2><p>One line and its next.</p><h3>How</h3><ol><li><strong>Press</strong> it</li>"
@@ -280,11 +208,3 @@ test("a plugin's README: headings, paragraphs, lists, bold and code; HTML stays 
   assert.equal(readmeHtml("<script>alert(1)</script>"), "<p>&lt;script&gt;alert(1)&lt;/script&gt;</p>");
 });
 
-test("practice grid: each note played against the nearest 1/8 of the beats, never farther than 1/16", () => {
-  const beats = [1, 1.5, 2, 2.6];  // the last beat longer: its eighths split it in two
-  const { times, offsets } = gridOffsets([0.5, 1.01, 1.24, 1.26, 1.98, 2.31, 2.7], beats);
-  assert.deepEqual(times, [1.01, 1.24, 1.26, 1.98, 2.31]);  // 0.5 is before the first beat, 2.7 after the last
-  const close = (a, b) => a.forEach((value, i) => assert.ok(Math.abs(value - b[i]) < 1e-9, `${value} vs ${b[i]}`));
-  close(offsets, [0.01, -0.01, 0.01, -0.02, 0.01]);  // 1.24 is early for 1.25; 2.31 late for 2.3
-  assert.deepEqual(gridOffsets([1, 2], []), { times: [], offsets: [] });
-});

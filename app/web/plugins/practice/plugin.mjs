@@ -5,13 +5,10 @@
 // song second heard then (ctx.songTimeAt); the input is placed earlier by the measured latency (the latency tuner).
 
 export const PEAK = 0.001;  // the take's peaks: one a millisecond of song, drawn one column a screen pixel
-const TOLERANCE = { min: 5, max: 40, fallback: 15 };  // ms
 
 export function choice(settings = {}) {
-  const tolerance = Number(settings.tolerance);
   return {
     input: typeof settings.input === "string" ? settings.input : "",
-    tolerance: Number.isFinite(tolerance) ? Math.min(TOLERANCE.max, Math.max(TOLERANCE.min, tolerance)) : TOLERANCE.fallback,
     latency: settings.latency && typeof settings.latency === "object" ? settings.latency : {},
   };
 }
@@ -87,26 +84,11 @@ export function wavSamples(bytes) {
   return samples;
 }
 
-// The note starts of the take (song seconds) and of the original over the same stretch, each run on its own (the
-// detection's thresholds follow the part heard), the original's 0.1 s in from the edges, where a note may be cut.
-// `reference` is the stem from song time 0: {samples, sampleRate}.
-export async function takeNotes(runs, reference) {
-  const played = [], covered = [], rate = reference.sampleRate;
-  for (const run of runs) {
-    const samples = samplesOf(run);
-    played.push(...(await onsets(samples, samples.length / (run.to - run.from))).map((time) => run.from + time));
-    const first = Math.max(0, Math.round(run.from * rate)), part = reference.samples.subarray(first, Math.round(run.to * rate));
-    covered.push(...(await onsets(part, rate)).map((time) => first / rate + time).filter((time) => time >= run.from + 0.1 && time <= run.to - 0.1));
-  }
-  return { played: played.sort((a, b) => a - b), covered };
-}
-
 export function latencyKey(input, output) {
   return `${input || "default"}>${output || "default"}`;
 }
 
 import { openTuner } from "./tuner.mjs";
-import { beatAt, gridOffsets, match, onsets, showScore } from "./score.mjs";
 
 const TARGET = '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>';
 const ICONS = {
@@ -222,9 +204,6 @@ export async function project(ctx) {
   let capture = null;  // the recording's input: {key, close()}
   let measuredKey = null;  // the input and output of the last recording or measurement
   let runs = [];  // the take being recorded: [{from, to, chunks}]
-  let reference = null;  // the chosen stem's audio from song time 0 (a promise), decoded once
-  let analysis = null;  // the song's beats and tempo (a promise), asked for once a stem is chosen
-  const scores = Array.isArray(data.scores) ? data.scores : [];
   const takes = Array.isArray(data.takes) ? data.takes : [];  // saved: [{stem, at, runs: [{file, from, to}]}]
   let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
   let shownRuns = null;  // the runs whose peaks the lane shows
@@ -252,7 +231,6 @@ export async function project(ctx) {
 
   async function choose(index) {
     stem = index;
-    reference = null;
     runs = [];
     lastRuns = [];
     stopPlayer();
@@ -267,7 +245,6 @@ export async function project(ctx) {
     }
     takeMax = 0.05;
     shownRuns = null;
-    analysis = analysis || Promise.resolve(ctx.beats ? ctx.beats() : null).catch(() => null);  // for the score's note values
     loadLastTake(index);
   }
 
@@ -378,9 +355,6 @@ export async function project(ctx) {
         ctx.log("recording_not_started", { precise: Boolean(precise), current: Boolean(ctx.current) }, "warning");
         return;
       }
-      const index = stem;
-      reference = reference || ctx.stemAudio(index);
-      reference.catch(() => { if (stem === index) reference = null; });
       const opened = await openInput(onBlock, "recording");
       if (!ctx.current || record.getAttribute("aria-pressed") !== "true") {
         opened.close();
@@ -408,9 +382,10 @@ export async function project(ctx) {
     finishTake();
   }
 
-  // A take ends when the song stops or recording is turned off: its score, kept with the last 20.
-  async function finishTake() {
-    const recorded = runs, chosen = stem, tolerance = settings.tolerance / 1000;
+  // A take ends when the song stops or recording is turned off: kept to hear again and saved. The score of a take
+  // (practice-score branch) is left out until its note detection is reliable.
+  function finishTake() {
+    const recorded = runs, chosen = stem;
     runs = [];
     if (chosen >= 0) ctx.log("take_ended", { stem: ctx.stems[chosen].name, runs: recorded.length,
       seconds: Math.round(recorded.reduce((sum, run) => sum + run.to - run.from, 0) * 100) / 100, peak: Math.round(takeMax * 1000) / 1000 });
@@ -419,38 +394,6 @@ export async function project(ctx) {
     shownRuns = lastRuns;
     listen.disabled = false;
     saveTake(lastRuns, ctx.stems[chosen].name);
-    if (!reference) return;
-    let notes;
-    const scoring = ctx.t("Scoring…"), started = performance.now();
-    if (!status.textContent) status.textContent = scoring;  // about 1 s for 20 s of take
-    try {
-      notes = await takeNotes(recorded, await reference);
-    } catch (error) {
-      ctx.log("score_failed", { message: String((error && error.message) || error) }, "warning");
-      return;  // the stem could not be decoded: no score, the recording still showed
-    } finally {
-      if (status.textContent === scoring) status.textContent = "";
-    }
-    ctx.log("score_notes", { ms: Math.round(performance.now() - started), original_notes: notes.covered.length, played_notes: notes.played.length });
-    if (!ctx.current || notes.covered.length < 4) {  // too short to say anything
-      ctx.log("score_skipped", { original_notes: notes.covered.length, played_notes: notes.played.length });
-      return;
-    }
-    const offsets = match(notes.covered, notes.played);
-    const history = scores.slice(-5), from = recorded[0].from, to = recorded[recorded.length - 1].to;
-    const beats = await Promise.race([analysis, new Promise((resolve) => setTimeout(resolve, 3000))]);  // no wait on a slow analysis
-    const grid = beats && Array.isArray(beats.beats) ? gridOffsets(notes.played, beats.beats) : null;
-    const result = showScore(ctx, { reference: notes.covered, offsets, tolerance, history, from, to, beat: beatAt(beats, (from + to) / 2),
-      grid, stemName: ctx.stems[chosen].name,
-      limits: TOLERANCE, onTolerance: (value) => {  // the same setting as in Settings → Plugins → Practice
-        settings.tolerance = value;
-        ctx.saveSettings({ ...settings });
-      } });
-    scores.push({ at: new Date().toISOString(), stem: ctx.stems[chosen].name, tolerance: settings.tolerance,
-      ...Object.fromEntries(Object.entries(result).map(([key, value]) => [key, Math.round(value * 10000) / 10000])) });
-    data.scores = scores.slice(-20);
-    ctx.log("score", scores.at(-1));
-    ctx.saveData(data);
   }
   let wasPlaying = false;
 
@@ -621,21 +564,5 @@ export function settings(panel, api) {
     api.save(value);
   });
 
-  const tolerance = document.createElement("label");
-  tolerance.className = "plugin-setting";
-  const toleranceName = document.createElement("span");
-  toleranceName.textContent = api.t("On time within");
-  const toleranceValue = document.createElement("output");
-  const slider = Object.assign(document.createElement("input"), { type: "range", min: TOLERANCE.min, max: TOLERANCE.max, step: 1, value: value.tolerance });
-  slider.dataset.setting = "tolerance";
-  slider.setAttribute("aria-label", api.t("On time within"));
-  const showTolerance = () => { toleranceValue.textContent = `±${value.tolerance} ms`; };
-  slider.addEventListener("input", () => {
-    value.tolerance = Number(slider.value);
-    showTolerance();
-    api.save(value);
-  });
-  showTolerance();
-  tolerance.append(toleranceName, toleranceValue, slider);
-  panel.append(inputLabel, tolerance);
+  panel.append(inputLabel);
 }
