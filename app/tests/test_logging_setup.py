@@ -84,3 +84,22 @@ def test_json_log_file_rotates_using_configured_size(tmp_path):
 
     assert log_path.exists()
     assert (tmp_path / "app.jsonl.1").exists()
+
+
+def test_page_events_and_requests_go_to_the_json_log_but_not_the_console(tmp_path, capsys):
+    log_path = tmp_path / "app.jsonl"
+    settings = Settings.load(environ={"AUDIO_STEMS_LOG_FILE": str(log_path)}, dotenv_path=tmp_path / "missing.env")
+    logger = configure_logging(settings, logger_name="test_audio_stems_console")
+    try:
+        logger.getChild("client").info("ui_click", extra={"event": "ui_click"})
+        logger.info("POST /api/v1/x 200", extra={"event": "http_request"})
+        logger.info("Worker started", extra={"event": "worker_started"})
+        events = [json.loads(line)["event"] for line in log_path.read_text(encoding="utf-8").splitlines()]
+    finally:
+        for handler in logger.handlers[:]:
+            handler.close()
+            logger.removeHandler(handler)
+    console = "".join(capsys.readouterr())
+    assert events == ["ui_click", "http_request", "worker_started"]
+    assert "Worker started" in console
+    assert "ui_click" not in console and "POST /api/v1/x" not in console

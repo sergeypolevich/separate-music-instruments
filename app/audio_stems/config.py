@@ -254,6 +254,8 @@ def configure_logging(settings: Settings, *, logger_name: str = "audio_stems") -
 
     console = logging.StreamHandler()
     console.setFormatter(UtcConsoleFormatter("%(asctime)sZ %(levelname)s %(message)s", "%Y-%m-%dT%H:%M:%S"))
+    # The page's events and each request go to the JSON log only: the console window stays for the server's own news.
+    console.addFilter(lambda record: record.name != f"{logger_name}.client" and getattr(record, "event", None) != "http_request")
     logger.addHandler(console)
 
     log_path: Path = settings.log_file
