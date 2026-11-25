@@ -110,6 +110,7 @@ class Settings:
     model_device: str
     api_port: int
     api_host: str
+    github_stats: bool = False  # the developer's computer: GitHub's download and traffic numbers daily
 
     @classmethod
     def load(
@@ -171,6 +172,7 @@ class Settings:
             model_device=model_device,
             api_port=_port(value("API_PORT", "8000")),
             api_host=_host(value("API_HOST", "127.0.0.1")),
+            github_stats=value("GITHUB_STATS", "0") == "1",
         )
 
 

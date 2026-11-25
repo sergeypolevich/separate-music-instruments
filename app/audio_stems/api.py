@@ -1105,6 +1105,9 @@ def main() -> None:
     database_path = settings.database_url.removeprefix("sqlite:///")
     repository = SqliteMetadataStore(Path(database_path))
     configure_logging(settings)
+    if settings.github_stats:
+        from .analytics import collect_github_stats_in_background
+        collect_github_stats_in_background(settings.analytics_file)
     app = create_app(repository=repository, settings=settings)
 
     class Server(uvicorn.Server):

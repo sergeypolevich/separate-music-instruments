@@ -98,3 +98,26 @@ SELECT json_extract(separation_options_json, '$.model_name') AS model, json_extr
        round(avg(separation_seconds / nullif(audio_seconds, 0)), 2) AS per_song_minute
 FROM app.jobs WHERE status = 'completed' GROUP BY 1, 2;
 ```
+
+## GitHub statistics (the repository owner's computer)
+
+With `AUDIO_STEMS_GITHUB_STATS=1` in `app/.env` the app collects the repository's numbers once a day when it starts,
+with the token of the GitHub CLI (`gh auth token`; without the CLI or a login nothing is collected). GitHub keeps
+views and clones for 14 days, so starting the app once a fortnight loses nothing.
+
+- `github_downloads (date, release, asset, download_count)`: each release file's running total on that day (the
+  launcher archives; since version 25 the in-app update downloads them too).
+- `github_traffic (date, kind, count, uniques)`: `views` of the repository's pages and `clones`, per day.
+- `github_referrers (date, referrer, count, uniques)`: where visitors came from, GitHub's 14-day totals as of `date`.
+
+```sql
+-- Downloads per release as of the last collection, and how many came in the last 7 days
+SELECT release, sum(download_count) AS total,
+       sum(download_count) - coalesce((SELECT sum(o.download_count) FROM github_downloads o WHERE o.release = d.release
+         AND o.date = (SELECT max(date) FROM github_downloads WHERE date <= strftime('%Y%m%d', 'now', '-7 days'))), 0) AS last_7_days
+FROM github_downloads d WHERE date = (SELECT max(date) FROM github_downloads) GROUP BY 1 ORDER BY 1 DESC;
+
+-- Views and clones per week
+SELECT strftime('%Y-%W', substr(date, 1, 4) || '-' || substr(date, 5, 2) || '-' || substr(date, 7, 2)) AS week, kind,
+       sum(count), sum(uniques) FROM github_traffic GROUP BY 1, 2 ORDER BY 1 DESC;
+```
