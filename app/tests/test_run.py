@@ -1,22 +1,31 @@
+from io import StringIO
 from pathlib import Path
+import sys
 
 import pytest
 
 import run
 
 
+@pytest.fixture(autouse=True)
+def _steps(monkeypatch):
+    """The steps a launch shows, without retitling the test's own console window."""
+    shown = []
+    monkeypatch.setattr(run, "step", lambda number, text: shown.append(number))
+    return shown
+
+
 def test_installs_requirements_when_runtime_module_is_missing(monkeypatch, tmp_path):
     calls = []
     monkeypatch.setattr(run, "INSTALLED_MARKER", tmp_path / "requirements.installed")
     monkeypatch.setattr(run, "missing_runtime_modules", lambda: ["demucs"])
-    monkeypatch.setattr(run.subprocess, "run", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(run, "run_showing_progress", lambda *args, **kwargs: calls.append((args, kwargs)))
 
     run.install_runtime_dependencies()
 
     assert len(calls) == 1
     args, kwargs = calls[0]
-    assert args[0] == [run.sys.executable, "-m", "pip", "install", "--require-hashes", "-r", str(run.REQUIREMENTS)]
-    assert kwargs["check"] is True
+    assert args[0] == [run.sys.executable, "-m", "pip", "install", "--disable-pip-version-check", "--require-hashes", "-r", str(run.REQUIREMENTS)]
     assert kwargs["cwd"] == run.ROOT
 
 
@@ -27,7 +36,7 @@ def test_does_not_run_pip_when_runtime_modules_are_installed(monkeypatch):
     def unexpected_pip(*_args, **_kwargs):
         raise AssertionError("pip should not run when dependencies are present")
 
-    monkeypatch.setattr(run.subprocess, "run", unexpected_pip)
+    monkeypatch.setattr(run, "run_showing_progress", unexpected_pip)
     run.install_runtime_dependencies()
 
 
@@ -40,7 +49,7 @@ def test_changed_requirements_are_installed_and_recorded_for_the_fast_path(monke
     monkeypatch.setattr(run, "REQUIREMENTS", requirements)
     monkeypatch.setattr(run, "INSTALLED_MARKER", marker)
     monkeypatch.setattr(run, "missing_runtime_modules", lambda: [])
-    monkeypatch.setattr(run.subprocess, "run", lambda *args, **kwargs: calls.append(args))
+    monkeypatch.setattr(run, "run_showing_progress", lambda *args, **kwargs: calls.append(args))
 
     assert not run.requirements_installed()
     run.install_runtime_dependencies()
@@ -89,7 +98,7 @@ def test_launcher_rejects_unknown_arguments(monkeypatch):
 
 
 @pytest.mark.parametrize("arguments", [["--app"], []], ids=["app-flag", "no-arguments"])
-def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, arguments):
+def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, arguments, _steps):
     calls = []
     monkeypatch.setattr(run, "in_project_venv", lambda: True)
     monkeypatch.setattr(run, "install_runtime_dependencies", lambda: None)
@@ -99,14 +108,14 @@ def test_app_mode_launches_supervisor_after_dependency_check(monkeypatch, argume
     )
 
     assert run.main(arguments) == 0
-    assert calls[0][0] == [run.sys.executable, *run.DESKTOP]
+    assert calls[0][0] == [run.sys.executable, *run.DESKTOP] and _steps == [4]
 
 
 def test_launcher_usage_includes_app_mode():
     assert "--app" in run.USAGE
 
 
-def test_outside_the_venv_it_creates_the_project_venv_and_reruns_itself(monkeypatch, tmp_path):
+def test_outside_the_venv_it_creates_the_project_venv_and_reruns_itself(monkeypatch, tmp_path, _steps):
     calls = []
     monkeypatch.setattr(run, "in_project_venv", lambda: False)
     monkeypatch.setattr(run, "VENV_DIR", tmp_path / ".venv")
@@ -117,7 +126,7 @@ def test_outside_the_venv_it_creates_the_project_venv_and_reruns_itself(monkeypa
     venv_python = run.venv_python()
     assert calls[0][0] == [run.sys.executable, "-m", "venv", str(tmp_path / ".venv")]
     assert calls[1][0] == [str(venv_python), str(Path(run.__file__).resolve()), "--app"]
-    assert calls[1][1]["cwd"] == run.ROOT
+    assert calls[1][1]["cwd"] == run.ROOT and _steps == [2]
 
 
 def test_project_paths_are_next_to_the_launcher():
@@ -150,3 +159,32 @@ def test_lock_files_pin_every_direct_requirement_and_hash_every_package(lock):
     assert direct <= {entry.split()[0] for entry in entries}  # regenerate the lock files after changing requirements.txt
     for entry in entries:
         assert "==" in entry.split()[0] and "--hash=sha256:" in entry, entry
+
+
+# A stand-in for pip: a download in raw progress, a quiet second (unpacking), a last line, then its exit code.
+_FAKE_PIP = """
+import time
+print("Collecting torch==2.14.1", flush=True)
+for done in (0, 600_000, 60_000_000, 124_000_000, 124_000_000):
+    print(f"Progress {done} of 124000000", flush=True)
+time.sleep(SLEEP)
+print("Successfully installed torch-2.14.1", flush=True)
+raise SystemExit(CODE)
+"""
+
+
+def test_pip_shows_its_lines_one_updating_download_line_and_a_line_when_it_is_quiet():
+    out = StringIO()
+    script = _FAKE_PIP.replace("SLEEP", "1.2").replace("CODE", "0")
+    run.run_showing_progress([sys.executable, "-c", script], cwd=run.ROOT, out=out, quiet=0.4)
+    text = out.getvalue()
+    assert text.startswith("Collecting torch==2.14.1\n")
+    assert "\r  0 / 124 MB\r  60 / 124 MB\r  124 / 124 MB\n" in text  # one line, the same MB shown once
+    assert "  still working... 0:0" in text and text.endswith("Successfully installed torch-2.14.1\n")
+
+
+def test_a_failed_pip_raises_with_its_code():
+    script = _FAKE_PIP.replace("SLEEP", "0").replace("CODE", "3")
+    with pytest.raises(run.subprocess.CalledProcessError) as failed:
+        run.run_showing_progress([sys.executable, "-c", script], cwd=run.ROOT, out=StringIO(), quiet=5)
+    assert failed.value.returncode == 3

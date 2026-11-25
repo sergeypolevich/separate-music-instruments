@@ -2,6 +2,13 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $pythonExe = $null
 
+Write-Host 'Setting up Audio Stems (the first start, or after an update changed its libraries).'
+Write-Host 'It downloads Python 3.12 if it is missing (26 MB) and about 350 MB of libraries (about 1.5 GB on disk):'
+Write-Host '5 to 15 minutes, depending on the connection. Each step is shown here; nothing has stopped while it says it works.'
+Write-Host ''
+Write-Host '[1/4] Python 3.12'
+$Host.UI.RawUI.WindowTitle = 'Audio Stems - step 1 of 4: Python 3.12'
+
 function Test-Python312($candidate) {
     if (-not $candidate) { return $false }
     try {
@@ -26,7 +33,7 @@ if (-not $pythonExe) {
 }
 
 if (-not (Test-Python312 $pythonExe)) {
-    Write-Host 'Python 3.12 is missing. Downloading the official Python 3.12.10 installer...'
+    Write-Host 'Python 3.12 is missing. Downloading the official Python 3.12.10 installer (26 MB)...'
     $installerUrl = 'https://www.python.org/ftp/python/3.12.10/python-3.12.10-amd64.exe'
     $installer = Join-Path $env:TEMP 'audio-stems-python-3.12.10-amd64.exe'
     try {
@@ -36,7 +43,13 @@ if (-not (Test-Python312 $pythonExe)) {
             throw 'The downloaded installer does not have a valid Python Software Foundation signature.'
         }
         $arguments = '/quiet InstallAllUsers=0 PrependPath=0 Include_launcher=1 Include_pip=1 Include_test=0 Include_doc=0 Include_tcltk=1 TargetDir="' + $installDir + '"'
-        $process = Start-Process -FilePath $installer -ArgumentList $arguments -Wait -PassThru
+        Write-Host 'Installing Python for this user (no window, about 1-3 minutes)...'
+        $process = Start-Process -FilePath $installer -ArgumentList $arguments -PassThru
+        $null = $process.Handle  # kept, so the exit code can be read after the wait
+        $started = Get-Date
+        while (-not $process.WaitForExit(10000)) {
+            Write-Host ('  still installing Python... {0:m\:ss}' -f ((Get-Date) - $started))
+        }
         if ($process.ExitCode -ne 0) { throw "Python installation failed with exit code $($process.ExitCode)." }
         if (-not (Test-Python312 $pythonExe)) { throw 'Python installer finished, but Python 3.12 could not be verified.' }
     } finally {
@@ -67,7 +80,7 @@ if (-not (Test-Path -LiteralPath $shortcutMarker)) {
     }
 }
 
-Write-Host 'Starting Audio Stems. First startup may download the application dependencies and Demucs runtime.'
+Write-Host "  Python: $pythonExe"
 Push-Location $projectRoot
 try {
     & $pythonExe (Join-Path $projectRoot 'run.py') --app

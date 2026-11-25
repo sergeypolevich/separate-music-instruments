@@ -22,6 +22,12 @@ find_python() {
   return 1
 }
 
+echo "Setting up Audio Stems (the first start, or after an update changed its libraries)."
+echo "It installs Python 3.12 if it is missing (about 40 MB) and downloads about 330 MB of libraries (about 1.5 GB on"
+echo "disk): 5 to 15 minutes, depending on the connection. Each step is shown here; nothing has stopped while it works."
+echo
+echo "[1/4] Python 3.12"
+[ -t 1 ] && printf '\033]0;%s\007' "Audio Stems - step 1 of 4: Python 3.12"
 PYTHON="$(find_python || true)"
 if [ -z "$PYTHON" ]; then
   echo "Python 3.12 is missing. Installing it for this user with uv $UV_VERSION..."
@@ -41,6 +47,6 @@ if [ -z "$PYTHON" ]; then
   PYTHON="$("$UV_DIR/uv" python find 3.12)"
 fi
 
-echo "Starting Audio Stems. The first start downloads the application dependencies and models."
+echo "  Python: $PYTHON"
 cd "$APP"
 exec "$PYTHON" run.py --app
