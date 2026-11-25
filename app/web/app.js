@@ -1118,6 +1118,7 @@ function renderProject(project) {
   markClippedTitle();
   detailError.textContent = tServer(project.job.error_summary || "");
   detailError.hidden = !project.job.error_summary;
+  sendReportButton.hidden = project.job.status !== "failed" || !project.job.error_summary || reportedProjects.has(project.project_id);
   deleteProjectButton.dataset.projectId = project.project_id;
   selectedProjectBytes = { disk: project.disk_bytes || 0, shared: project.shared_bytes || 0 };
   detailSize.textContent = formatBytes(selectedProjectBytes.disk + selectedProjectBytes.shared);
@@ -2374,10 +2375,11 @@ function formatBytes(bytes) {
 // The app's own confirmation (not window.confirm): resolves true when the action's button is pressed, false on
 // «Cancel» or Esc. With run, the dialog stays open while it works and shows its error.
 let confirmPending = null;
-function askConfirm({ title, text, action, danger = true, run = null }) {
+function askConfirm({ title, text, action, cancel = t("Cancel"), danger = true, run = null }) {
   confirmPending?.resolve(false);
   document.querySelector("#confirm-title").textContent = title;
   document.querySelector("#confirm-description").textContent = text;
+  document.querySelector("#confirm-cancel").textContent = cancel;
   confirmButton.textContent = action;
   confirmButton.className = danger ? "danger-action" : "primary-button";
   confirmError.hidden = true;
@@ -3197,8 +3199,52 @@ document.addEventListener("click", (event) => {
 });
 renderLanguageMenu();
 
+// Reports to the author (PRIVACY.md): the dialog shows exactly what is sent; nothing goes without Send.
+const sendReportButton = document.querySelector("#send-report");
+const reportedProjects = new Set();
+
+function reportText(report) {
+  const system = { windows: "Windows", macos: "macOS" }[report.platform] || report.platform;
+  const parts = [t("Only this is sent: version {version}, {system}.", { version: report.version, system })];
+  if (report.stage) parts.push(t("Stage: {stage}.", { stage: report.stage }));
+  if (report.message) parts.push(t("Error: {message}", { message: report.message }));
+  parts.push(t("No name and no ID; the IP address is not kept."));
+  return parts.join("\n");
+}
+
+sendReportButton.addEventListener("click", async () => {
+  const projectId = selectedProjectId;
+  let report;
+  try {
+    report = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/report`);
+  } catch (error) {
+    detailError.textContent = error.message;
+    return;
+  }
+  const sent = await askConfirm({
+    title: t("Send a report to the author?"), text: reportText(report), action: t("Send"), danger: false,
+    run: () => requestJson("/api/v1/reports", { method: "POST", body: JSON.stringify({ kind: "error_report", project_id: projectId }) }),
+  });
+  if (sent) {
+    reportedProjects.add(projectId);
+    sendReportButton.hidden = true;
+  }
+});
+
+async function askAboutInstall() {
+  const question = await requestJson("/api/v1/reports/install").catch(() => null);
+  if (!question?.ask || confirmDialog.open) return;
+  const answer = (send) => requestJson("/api/v1/reports", { method: "POST", body: JSON.stringify({ kind: "install_ok", send }) });
+  const sent = await askConfirm({
+    title: t("Audio Stems is installed"), text: `${t("Tell the author it works?")}\n${reportText(question.report)}`,
+    action: t("Send"), cancel: t("No, thanks"), danger: false, run: () => answer(true),
+  });
+  if (!sent) answer(false).catch(() => {});
+}
+
 loadPlugins();
 loadProjects();
 loadModels();
 refreshQueue();
+askAboutInstall();
 if (location.hash === "#settings") openSettings();

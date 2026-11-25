@@ -1,0 +1,18 @@
+// The report receiver. Deploy: npx wrangler deploy (from this folder). The database was created with
+// `npx wrangler d1 create audio-stems-reports --jurisdiction eu` and its table with
+// `npx wrangler d1 execute audio-stems-reports --remote --file schema.sql`.
+{
+  "name": "audio-stems-reports",
+  "main": "worker.js",
+  "compatibility_date": "2026-11-01",
+  "workers_dev": true,
+  // No request logs: Cloudflare would keep the sender's IP address in them.
+  "observability": { "enabled": false },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "audio-stems-reports",
+      "database_id": "83bf4082-106b-47be-b8bd-ff4774f0614c"
+    }
+  ]
+}

@@ -189,6 +189,7 @@ h1, h2, h3, p { margin-top: 0; }
 .icon-button { width: 34px; min-width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: transparent; color: var(--muted); font-size: 18px; }
 .icon-button:hover { border-color: var(--line-strong); color: var(--accent); }
 .detail-error { margin: 8px 0 0; padding: 9px 11px; border: 1px solid color-mix(in srgb, var(--danger) 30%, transparent); border-radius: 8px; background: color-mix(in srgb, var(--danger) 8%, transparent); color: var(--danger-text); font-size: 12px; }
+.project-detail > .send-report { justify-self: start; margin-top: 6px; }
 .playback-panel { display: grid; grid-template-columns: subgrid; row-gap: 8px; margin-top: 12px; }
 .playback-panel > * { grid-column: 1 / -1; }
 .playback-message, .playback-error { margin: 0; color: var(--muted); font-size: 11px; }
@@ -390,7 +391,9 @@ button[aria-busy="true"] { cursor: progress; }
 .confirm-dialog::backdrop { background: var(--overlay); backdrop-filter: blur(5px); }
 .confirm-card { padding: 22px; }
 .confirm-card h2 { margin: 0; font: 650 19px Manrope, sans-serif; }
-.confirm-card > p:not(.detail-error) { margin: 8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.confirm-card > p:not(.detail-error) { margin: 8px 0 16px; color: var(--muted); font-size: 12px; line-height: 1.5; white-space: pre-line; }
+.settings-note { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.settings-note + .settings-note { margin-top: 8px; }
 .confirm-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .confirm-actions button { min-height: 36px; }
 

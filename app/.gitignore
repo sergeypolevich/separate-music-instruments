@@ -54,3 +54,6 @@ soft-checks/
 
 # Local notes that never go to GitHub (e.g. the old Russian texts for comparison)
 /tmp/
+
+# Wrangler cache (Cloudflare account details)
+.wrangler/

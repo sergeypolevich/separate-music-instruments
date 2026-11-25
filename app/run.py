@@ -1,6 +1,7 @@
 """Set up the local runtime environment and launch the app, API, or worker."""
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 import re
@@ -45,6 +46,7 @@ def run_showing_progress(command: list[str], *, cwd: Path, out=None, quiet=QUIET
     out = out or sys.stdout
     started = last = time.monotonic()
     lock, done, shown = threading.Lock(), threading.Event(), {"open": False, "mb": None}
+    tail: list[str] = []  # pip's last lines: the error, for a report the user may send
 
     def say(text: str, *, same_line: bool = False) -> None:
         nonlocal last
@@ -76,6 +78,7 @@ def run_showing_progress(command: list[str], *, cwd: Path, out=None, quiet=QUIET
                     say(f"  {done_mb} / {total_mb} MB", same_line=True)
             elif line:
                 say(line)
+                tail[:] = [*tail[-7:], line]
     finally:
         code = process.wait()
         done.set()
@@ -83,7 +86,7 @@ def run_showing_progress(command: list[str], *, cwd: Path, out=None, quiet=QUIET
     if shown["open"]:
         out.write("\n")
     if code:
-        raise subprocess.CalledProcessError(code, command)
+        raise subprocess.CalledProcessError(code, command, output="\n".join(tail))
 
 
 def venv_python() -> Path:
@@ -130,6 +133,27 @@ def install_runtime_dependencies() -> None:
     print(f"Libraries installed in {elapsed // 60}:{elapsed % 60:02d}.")
 
 
+def offer_report(stage: str, text: str, *, ask=input, interactive=None) -> None:
+    """After a failed setup: shows the report and sends it only on «y» (nothing without a console to ask in)."""
+    if not (sys.stdin.isatty() if interactive is None else interactive):
+        return
+    from audio_stems import analytics  # standard library only: works before the libraries are installed
+
+    payload = analytics.report("install_failed", stage, analytics.clean_text(text))
+    print("\nYou can send this error report to the author (no name, no ID; the IP address is not kept):")
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    try:
+        if ask("Send it? [y/N] ").strip().lower() not in ("y", "yes"):
+            return
+    except EOFError:
+        return
+    try:
+        analytics.send_report(payload)
+        print("Sent. Thank you.")
+    except OSError as exc:
+        print(f"The report was not sent: {exc}")
+
+
 def main(argv: list[str] | None = None) -> int:
     arguments = sys.argv[1:] if argv is None else argv
     if arguments not in ([], ["--worker"], ["--api"], ["--app"]):
@@ -149,6 +173,7 @@ def main(argv: list[str] | None = None) -> int:
         install_runtime_dependencies()
     except subprocess.CalledProcessError as exc:
         print(f"Dependency installation failed (exit code {exc.returncode}); application was not started.")
+        offer_report("libraries", exc.output or "")
         return exc.returncode or 1
 
     if arguments in ([], ["--app"]):

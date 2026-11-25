@@ -11,7 +11,7 @@ from pathlib import Path, PureWindowsPath
 import subprocess
 import sys
 import time
-from typing import Annotated, Callable
+from typing import Annotated, Callable, Literal
 from urllib.parse import unquote
 from uuid import UUID
 
@@ -34,7 +34,7 @@ from audio_stems.models import (
     disk_full_error,
     is_disk_full,
 )
-from audio_stems import i18n, plugins
+from audio_stems import analytics, i18n, plugins
 from audio_stems.chords import ALGORITHM as CHORDS_ALGORITHM
 from audio_stems.beats import ALGORITHM as BEATS_ALGORITHM
 from audio_stems.separator import BEST_MODEL, StemSeparator
@@ -142,6 +142,13 @@ class ClientLog(BaseModel):
     events: list[ClientEvent] = Field(max_length=100)
 
 
+class ReportRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    kind: Literal["install_ok", "error_report"]
+    project_id: UUID | None = None
+    send: StrictBool = True
+
+
 class UpdateApplyRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
     tag_name: Annotated[str, Field(min_length=1, max_length=64)]
@@ -227,6 +234,7 @@ def create_app(
     updater: Updater | None = None,
     start_analysis: Callable[[], None] | None = None,
     exit_process: Callable[[int], None] = os._exit,
+    send_report: Callable[[dict[str, str]], None] = analytics.send_report,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
@@ -621,6 +629,46 @@ def create_app(
     @app.get("/api/v1/projects/{project_id}/upgrade")
     def get_upgrade(project_id: UUID) -> dict[str, object]:
         return upgrade_state(*project_and_job(project_id))
+
+    def error_report(project_id: UUID) -> dict[str, str]:
+        """A failed project's stage and error summary, without its title, link or file names."""
+        project, job = project_and_job(project_id)
+        if job.status is not JobStatus.FAILED:
+            raise HTTPException(status_code=409, detail={"code": "not_failed", "message": "This project has not failed"})
+        stage = re.sub(r"[^a-z_]", "", (job.current_stage or "").lower())[:40]
+        hidden = tuple(word for word in (job.input_value, project.title, project.name, project.source_id) if word)
+        return analytics.report("error_report", stage, analytics.clean_text(job.error_summary or "", hidden))
+
+    @app.get("/api/v1/reports/install")
+    def install_question() -> dict[str, object]:
+        """Asked once: tell the author the installation worked (nothing is sent without Send)."""
+        return {"ask": not analytics.answered(settings.analytics_file, "install_ok"),
+                "report": analytics.report("install_ok")}
+
+    @app.get("/api/v1/projects/{project_id}/report")
+    def preview_error_report(project_id: UUID) -> dict[str, str]:
+        return error_report(project_id)
+
+    @app.post("/api/v1/reports", status_code=204)
+    def post_report(request: ReportRequest) -> Response:
+        if request.kind == "install_ok":
+            payload = analytics.report("install_ok")
+        elif request.project_id is None:
+            raise HTTPException(status_code=422, detail={"code": "invalid_request", "message": "The project is missing"})
+        else:
+            payload = error_report(request.project_id)
+        if request.send:
+            try:
+                send_report(payload)
+            except OSError as exc:
+                logger.warning("Report not sent: %s", type(exc).__name__,
+                               extra={"event": "report_failed", "kind": request.kind, "error_type": type(exc).__name__})
+                raise HTTPException(status_code=502, detail={
+                    "code": "report_not_sent", "message": "The report could not be sent: check the internet connection"})
+            logger.info("Report sent", extra={"event": "report_sent", "kind": request.kind})
+        if request.kind == "install_ok":
+            analytics.record_answer(settings.analytics_file, "install_ok", "sent" if request.send else "declined")
+        return Response(status_code=204)
 
     @app.post("/api/v1/projects/{project_id}/upgrade")
     def request_upgrade(project_id: UUID) -> JSONResponse:
@@ -1106,8 +1154,8 @@ def main() -> None:
     repository = SqliteMetadataStore(Path(database_path))
     configure_logging(settings)
     if settings.github_stats:
-        from .analytics import collect_github_stats_in_background
-        collect_github_stats_in_background(settings.analytics_file)
+        from .analytics import collect_owner_stats_in_background
+        collect_owner_stats_in_background(settings.analytics_file)
     app = create_app(repository=repository, settings=settings)
 
     class Server(uvicorn.Server):

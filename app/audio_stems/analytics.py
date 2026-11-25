@@ -1,11 +1,15 @@
 """Usage analytics in `~/Audio Stems/analytics.db`: what was pressed, on which screen, and what failed, one row an
-event, for SQL (after GA4's BigQuery export). Nothing here leaves the computer. See docs/ANALYTICS.md."""
+event, for SQL (after GA4's BigQuery export). Nothing here leaves the computer; a report leaves it only when the user
+presses Send (send_report, see PRIVACY.md). See docs/ANALYTICS.md."""
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import getpass
 import json
 import logging
 from pathlib import Path
+import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -46,6 +50,11 @@ CREATE TABLE IF NOT EXISTS github_traffic (date TEXT NOT NULL, kind TEXT NOT NUL
   uniques INTEGER NOT NULL, PRIMARY KEY (date, kind));
 CREATE TABLE IF NOT EXISTS github_referrers (date TEXT NOT NULL, referrer TEXT NOT NULL, count INTEGER NOT NULL,
   uniques INTEGER NOT NULL, PRIMARY KEY (date, referrer));
+-- Reports people chose to send, pulled from the receiver (AUDIO_STEMS_GITHUB_STATS=1, the author's computer).
+CREATE TABLE IF NOT EXISTS reports (id INTEGER PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL,
+  version TEXT NOT NULL, platform TEXT NOT NULL, stage TEXT NOT NULL, message TEXT NOT NULL);
+-- Questions the app asks once (install_ok: sent | declined).
+CREATE TABLE IF NOT EXISTS answers (question TEXT PRIMARY KEY, answer TEXT NOT NULL, answered_at TEXT NOT NULL);
 """
 
 # Server events worth counting besides every warning and error (those go in too, with their message).
@@ -53,6 +62,13 @@ SERVER_EVENTS = {"batch_created", "worker_started", "audio_download_reused", "jo
 _VERSION_FILE = Path(__file__).resolve().parents[1] / "VERSION"
 _PLATFORM = {"win32": "windows", "darwin": "macos"}.get(sys.platform, sys.platform)
 _MESSAGE_CHARS = 500
+# The receiver (app/receiver, Cloudflare Worker + D1 in the EU); run.py keeps its own copy of this address.
+REPORT_URL = "https://audio-stems-reports.sergey-polevich.workers.dev/v1/report"
+_RECEIVER = Path(__file__).resolve().parents[1] / "receiver"
+
+
+def app_version() -> str:
+    return _VERSION_FILE.read_text(encoding="utf-8").strip() if _VERSION_FILE.is_file() else ""
 
 
 def connect(path: Path) -> sqlite3.Connection:
@@ -79,8 +95,7 @@ class AnalyticsHandler(logging.Handler):
         super().__init__()
         self.db = connect(path)
         self.install_id = self.db.execute("SELECT install_id FROM install").fetchone()[0]
-        version = _VERSION_FILE.read_text(encoding="utf-8").strip() if _VERSION_FILE.is_file() else None
-        self.fixed = (self.install_id, version, _PLATFORM)
+        self.fixed = (self.install_id, app_version() or None, _PLATFORM)
 
     def emit(self, record: logging.LogRecord) -> None:
         page = record.name.endswith(".client")
@@ -169,5 +184,78 @@ def collect_github_stats_now(path: Path, *, run=subprocess.run, open_url=urlopen
                        extra={"event": "github_stats_failed", "error_type": type(exc).__name__})
 
 
-def collect_github_stats_in_background(path: Path) -> None:
-    threading.Thread(target=collect_github_stats_now, args=(path,), name="github-stats", daemon=True).start()
+def clean_text(text: str, also: tuple[str, ...] = ()) -> str:
+    """Error text for a report: the home folder becomes ~, the user's name and `also` (a title, a link) are left out,
+    secrets are redacted, at most 500 characters."""
+    home = str(Path.home())
+    text = re.sub("|".join(re.escape(h) for h in {home, home.replace("\\", "/")}), "~", text, flags=re.I)
+    words = [word for word in (*also, getpass.getuser()) if word and len(word) >= 3]
+    for word in sorted(words, key=len, reverse=True):
+        text = re.sub(re.escape(word), "…", text, flags=re.I)
+    return _redact(text)[:_MESSAGE_CHARS]
+
+
+def report(kind: str, stage: str = "", message: str = "") -> dict[str, str]:
+    """Exactly what is sent: no name, no identifier; the receiver keeps the day, not the time or the IP address."""
+    return {"kind": kind, "version": app_version(), "platform": _PLATFORM, "stage": stage, "message": message}
+
+
+def send_report(payload: dict[str, str], *, open_url=urlopen) -> None:
+    """Posts one report; raises OSError (URLError, HTTPError) when it was not accepted."""
+    request = Request(REPORT_URL, data=json.dumps(payload).encode("utf-8"), method="POST",
+                      headers={"Content-Type": "application/json", "User-Agent": "Audio-Stems"})
+    with open_url(request, timeout=15):
+        pass
+
+
+def answered(path: Path, question: str) -> bool:
+    db = connect(path)
+    try:
+        return db.execute("SELECT 1 FROM answers WHERE question = ?", (question,)).fetchone() is not None
+    finally:
+        db.close()
+
+
+def record_answer(path: Path, question: str, answer: str) -> None:
+    db = connect(path)
+    try:
+        db.execute("INSERT OR REPLACE INTO answers VALUES (?, ?, ?)",
+                   (question, answer, datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    finally:
+        db.close()
+
+
+def pull_reports_now(path: Path, *, run=subprocess.run, which=shutil.which) -> int:
+    """The receiver's new rows into `reports` with the author's `wrangler login`; without npx nothing happens."""
+    npx = which("npx")
+    if not npx:
+        return 0
+    try:
+        db = connect(path)
+        try:
+            last = int(db.execute("SELECT coalesce(max(id), 0) FROM reports").fetchone()[0])
+            done = run([npx, "--yes", "wrangler", "d1", "execute", "audio-stems-reports", "--remote", "--json",
+                        "--command", f"SELECT * FROM reports WHERE id > {last} ORDER BY id"],
+                       cwd=_RECEIVER, capture_output=True, text=True, encoding="utf-8", timeout=180)
+            if done.returncode:
+                raise RuntimeError(f"wrangler exited with {done.returncode}")
+            rows = json.loads(done.stdout[done.stdout.index("["):])[0]["results"]
+            db.executemany("INSERT OR IGNORE INTO reports VALUES (:id, :day, :kind, :version, :platform, :stage, :message)",
+                           rows)
+        finally:
+            db.close()
+    except Exception as exc:  # not logged in, offline: tried again at the next start
+        logger.warning("Reports not pulled: %s", type(exc).__name__,
+                       extra={"event": "reports_pull_failed", "error_type": type(exc).__name__})
+        return 0
+    if rows:
+        logger.info("Reports pulled", extra={"event": "reports_pulled", "count": len(rows)})
+    return len(rows)
+
+
+def collect_owner_stats_in_background(path: Path) -> None:
+    """GitHub's numbers and the receiver's reports, for the author (AUDIO_STEMS_GITHUB_STATS=1)."""
+    def collect() -> None:
+        collect_github_stats_now(path)
+        pull_reports_now(path)
+    threading.Thread(target=collect, name="owner-stats", daemon=True).start()

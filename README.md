@@ -71,7 +71,8 @@ so on, so you can use them in any other program.
 
 ## What it connects to
 
-Everything runs on your computer; the app sends nothing about you or your music anywhere and has no analytics.
+Everything runs on your computer. What you do in the app is counted only there, in `Audio Stems/analytics.db`;
+nothing about you or your music is sent anywhere unless you press Send on a report (see [PRIVACY.md](PRIVACY.md)).
 It connects only to:
 
 - **YouTube** (youtube.com and its media servers): when you search for a song or paste a link;
@@ -80,7 +81,9 @@ It connects only to:
 - **Hugging Face** (huggingface.co), **GitHub** (the releases that audio-separator uses) and
   **cloud.cp.jku.at**: once, to download a separation model or the beat model the first time you use it;
 - **GitHub** (api.github.com, github.com, release-assets.githubusercontent.com): to check for a new version of Audio Stems, and to download it
-  when you choose to install it.
+  when you choose to install it;
+- **audio-stems-reports.sergey-polevich.workers.dev** (Cloudflare, EU): only when you press Send on a report — once
+  after the installation, when the setup fails, or on a failed project.
 
 ## Please note
 

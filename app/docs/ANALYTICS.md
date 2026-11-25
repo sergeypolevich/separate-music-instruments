@@ -121,3 +121,16 @@ FROM github_downloads d WHERE date = (SELECT max(date) FROM github_downloads) GR
 SELECT strftime('%Y-%W', substr(date, 1, 4) || '-' || substr(date, 5, 2) || '-' || substr(date, 7, 2)) AS week, kind,
        sum(count), sum(uniques) FROM github_traffic GROUP BY 1, 2 ORDER BY 1 DESC;
 ```
+
+## Reports (sent only on the user's click, see PRIVACY.md)
+
+- `answers (question, answer, answered_at)`: questions asked once on this computer; `install_ok` is `sent` or
+  `declined`.
+- `reports (id, day, kind, version, platform, stage, message)`: on the author's computer only, the reports people
+  chose to send (`install_ok`, `install_failed`, `error_report`), pulled from the receiver (`app/receiver/`) at each
+  start with the author's `wrangler login` (`AUDIO_STEMS_GITHUB_STATS=1`).
+
+```sql
+-- Installations reported working, and errors by stage, per version
+SELECT version, platform, kind, stage, count(*) FROM reports GROUP BY 1, 2, 3, 4 ORDER BY 1 DESC, 5 DESC;
+```

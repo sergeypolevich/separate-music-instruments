@@ -120,9 +120,15 @@
     },
     {
      "id": "e1",
+     "widget": "button",
+     "text": "Send report",
+     "index": 1
+    },
+    {
+     "id": "e2",
      "widget": "button[aria-label]",
      "text": "Delete project",
-     "index": 1
+     "index": 2
     }
    ]
   },
@@ -341,6 +347,24 @@
      "widget": "p",
      "text": "Updates are checked only when you ask.",
      "index": 20
+    },
+    {
+     "id": "e21",
+     "widget": "h2",
+     "text": "Privacy",
+     "index": 21
+    },
+    {
+     "id": "e22",
+     "widget": "p",
+     "text": "Nothing is sent without your click. What you do in the app is counted only on this computer, in the Audio Stems folder.",
+     "index": 22
+    },
+    {
+     "id": "e23",
+     "widget": "p",
+     "text": "A report goes to the author only when you press Send: once after the installation (the version and the system), when the setup fails, and with Send report on a failed project (its stage and error, without the song's name, link or files). Reports are kept in the EU; the IP address is not kept.",
+     "index": 23
     }
    ]
   },
@@ -1412,6 +1436,17 @@
    ]
   },
   {
+   "block": "askConfirm",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Cancel",
+     "index": 0
+    }
+   ]
+  },
+  {
    "block": "PERMISSION_LABELS",
    "elements": [
     {
@@ -1591,6 +1626,76 @@
      "widget": "Text",
      "text": "The request failed",
      "index": 0
+    }
+   ]
+  },
+  {
+   "block": "reportText",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Only this is sent: version {version}, {system}.",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Stage: {stage}.",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Error: {message}",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "No name and no ID; the IP address is not kept.",
+     "index": 3
+    },
+    {
+     "id": "e4",
+     "widget": "Text",
+     "text": "Send a report to the author?",
+     "index": 4
+    },
+    {
+     "id": "e5",
+     "widget": "Text",
+     "text": "Send",
+     "index": 5
+    }
+   ]
+  },
+  {
+   "block": "askAboutInstall",
+   "elements": [
+    {
+     "id": "e0",
+     "widget": "Text",
+     "text": "Audio Stems is installed",
+     "index": 0
+    },
+    {
+     "id": "e1",
+     "widget": "Text",
+     "text": "Tell the author it works?",
+     "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Send",
+     "index": 2
+    },
+    {
+     "id": "e3",
+     "widget": "Text",
+     "text": "No, thanks",
+     "index": 3
     }
    ]
   },
@@ -2282,128 +2387,146 @@
     {
      "id": "e12",
      "widget": "Message",
-     "text": "The project is already separated with the best model",
+     "text": "This project has not failed",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Message",
-     "text": "Improving needs the source audio of a finished project",
+     "text": "The project is missing",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Message",
-     "text": "No quality improvement is running",
+     "text": "The report could not be sent: check the internet connection",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Message",
-     "text": "Confirm the cleanup first",
+     "text": "The project is already separated with the best model",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Message",
-     "text": "Wait until the separation ends, then clean up",
+     "text": "Improving needs the source audio of a finished project",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Message",
-     "text": "Confirm the update before continuing",
+     "text": "No quality improvement is running",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Message",
-     "text": "The update could not be installed",
+     "text": "Confirm the cleanup first",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Message",
-     "text": "Batch exceeds the configured item limit",
+     "text": "Wait until the separation ends, then clean up",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Message",
-     "text": "File name is required",
+     "text": "Confirm the update before continuing",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Message",
-     "text": "The file is larger than {limit} MB",
+     "text": "The update could not be installed",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Message",
-     "text": "This does not look like an audio file that can be separated",
+     "text": "Batch exceeds the configured item limit",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Message",
-     "text": "Upload could not be saved",
+     "text": "File name is required",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Message",
-     "text": "Batch not found",
+     "text": "The file is larger than {limit} MB",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Message",
-     "text": "The project list has changed",
+     "text": "This does not look like an audio file that can be separated",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Message",
-     "text": "This project cannot be deleted while its batch is active",
+     "text": "Upload could not be saved",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Message",
-     "text": "Project files could not all be removed; retry delete to continue cleanup",
+     "text": "Batch not found",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Message",
-     "text": "Job not found",
+     "text": "The project list has changed",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Message",
-     "text": "The job has already finished",
+     "text": "This project cannot be deleted while its batch is active",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Message",
-     "text": "Asset not found",
+     "text": "Project files could not all be removed; retry delete to continue cleanup",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Message",
-     "text": "Waveform data is available for WAV and FLAC assets",
+     "text": "Job not found",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Message",
-     "text": "Asset file is not available",
+     "text": "The job has already finished",
      "index": 32
+    },
+    {
+     "id": "e33",
+     "widget": "Message",
+     "text": "Asset not found",
+     "index": 33
+    },
+    {
+     "id": "e34",
+     "widget": "Message",
+     "text": "Waveform data is available for WAV and FLAC assets",
+     "index": 34
+    },
+    {
+     "id": "e35",
+     "widget": "Message",
+     "text": "Asset file is not available",
+     "index": 35
     }
    ]
   },

@@ -69,6 +69,7 @@
               <span id="detail-time" class="detail-time"></span>
             </div>
             <p id="detail-error" class="detail-error" role="alert" hidden></p>
+            <button id="send-report" class="quiet-button send-report" type="button" hidden>Send report</button>
             <section id="playback-panel" class="playback-panel" aria-label="Synchronized playback" hidden></section>
             <span id="detail-size" class="detail-size"></span>
             <button id="delete-project" class="delete-button" type="button" aria-label="Delete project" title="Delete project"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
@@ -160,6 +161,13 @@
           </div>
           <p id="updates-message" class="empty-state" role="status" aria-live="polite">Updates are checked only when you ask.</p>
           <div id="release-list" class="release-list"></div>
+        </section>
+        <section class="settings-card" aria-labelledby="privacy-title">
+          <div class="section-heading">
+            <h2 id="privacy-title">Privacy</h2>
+          </div>
+          <p class="settings-note">Nothing is sent without your click. What you do in the app is counted only on this computer, in the Audio Stems folder.</p>
+          <p class="settings-note">A report goes to the author only when you press Send: once after the installation (the version and the system), when the setup fails, and with Send report on a failed project (its stage and error, without the song's name, link or files). Reports are kept in the EU; the IP address is not kept.</p>
         </section>
       </section>
     </div>

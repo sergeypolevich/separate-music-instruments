@@ -187,4 +187,4 @@ def test_a_failed_pip_raises_with_its_code():
     script = _FAKE_PIP.replace("SLEEP", "0").replace("CODE", "3")
     with pytest.raises(run.subprocess.CalledProcessError) as failed:
         run.run_showing_progress([sys.executable, "-c", script], cwd=run.ROOT, out=StringIO(), quiet=5)
-    assert failed.value.returncode == 3
+    assert failed.value.returncode == 3 and failed.value.output.endswith("Successfully installed torch-2.14.1")
