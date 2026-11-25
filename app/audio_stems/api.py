@@ -130,6 +130,10 @@ class ClientEvent(BaseModel):
     level: Annotated[str, Field(pattern=r"^(info|warning|error)$")] = "info"
     at: Annotated[str, Field(max_length=40)] = ""
     session: Annotated[str, Field(max_length=40)] = ""
+    screen: Annotated[str, Field(pattern=r"^[a-z0-9-]{0,40}$")] = ""
+    device: Annotated[str, Field(pattern=r"^(desktop|phone|)$")] = ""
+    plugin: Annotated[str, Field(pattern=r"^([a-z0-9][a-z0-9-]{0,39})?$")] = ""
+    project: Annotated[str, Field(max_length=40)] | None = None
     details: dict = Field(default_factory=dict)
 
 
@@ -287,14 +291,16 @@ def create_app(
 
     @app.post("/api/v1/client-log", status_code=status.HTTP_204_NO_CONTENT)
     def client_log(body: ClientLog) -> Response:
-        """What the page did (buttons pressed, plugins' steps, its errors), into the same log as the server's."""
+        """What the page did (buttons pressed, plugins' steps, its errors): analytics.db, and the JSON log for its
+        warnings and errors (configure_logging)."""
         for item in body.events:
             details = item.details
             if len(json.dumps(details, ensure_ascii=False)) > _CLIENT_DETAILS_CHARS:
                 details = {"truncated": json.dumps(details, ensure_ascii=False)[:_CLIENT_DETAILS_CHARS]}
             getattr(client_logger, item.level)(item.event, extra={
                 "event": item.event, "ClientID": _OWNER_ID, "client_time": item.at, "session": item.session,
-                "details": details})
+                "screen": item.screen, "device": item.device, "plugin": item.plugin,
+                "project_id": str(item.project) if item.project else None, "details": details})
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.exception_handler(RequestValidationError)

@@ -645,6 +645,8 @@ def test_practice_logs_why_the_input_did_not_start(tmp_path):
             clicks = [item for item in state["log"] if item["event"] == "ui_click"]
             assert [item["details"]["control"] for item in clicks][-1] == "practice-record" and clicks[-1]["session"]
             assert clicks[0]["details"]["text"] == "Song. Done"  # the project tab, by what it says
+            assert clicks[-1]["screen"] == "project" and clicks[-1]["device"] == "desktop" and clicks[-1]["project"]
+            assert _logged(page, state, "practice_recording_failed")["plugin"] == "practice"
             browser.close()
     finally:
         server.shutdown()

@@ -98,6 +98,7 @@ class Settings:
     database_url: str
     log_level: str
     log_file: Path
+    analytics_file: Path
     log_max_bytes: int
     log_backup_count: int
     retry_count: int
@@ -141,6 +142,7 @@ class Settings:
             raise ValueError("AUDIO_STEMS_RETRY_DELAYS cannot contain negative values")
 
 
+        log_file = Path(value("LOG_FILE", str(Path.home() / "Audio Stems" / "logs" / "app.jsonl"))).expanduser()
         database_url = value("DATABASE_URL", default_database)
         if not database_url.startswith(("sqlite:///", "postgresql://", "postgresql+")):
             raise ValueError("AUDIO_STEMS_DATABASE_URL must use sqlite or PostgreSQL")
@@ -155,7 +157,9 @@ class Settings:
             temp_root=temp_root,
             database_url=database_url,
             log_level=log_level,
-            log_file=Path(value("LOG_FILE", str(Path.home() / "Audio Stems" / "logs" / "app.jsonl"))).expanduser(),
+            log_file=log_file,
+            # Next to the logs folder by default (~/Audio Stems/analytics.db): a test that moves the log moves it too.
+            analytics_file=Path(value("ANALYTICS_FILE", str(log_file.parent.parent / "analytics.db"))).expanduser(),
             log_max_bytes=_positive_int("AUDIO_STEMS_LOG_MAX_BYTES", value("LOG_MAX_BYTES", str(10 * 1024 * 1024))),
             log_backup_count=_positive_int("AUDIO_STEMS_LOG_BACKUP_COUNT", value("LOG_BACKUP_COUNT", "5"), allow_zero=True),
             retry_count=_positive_int("AUDIO_STEMS_RETRY_COUNT", value("RETRY_COUNT", "3")),
@@ -267,7 +271,12 @@ def configure_logging(settings: Settings, *, logger_name: str = "audio_stems") -
         encoding="utf-8",
     )
     json_handler.setFormatter(JsonLineFormatter())
+    # The page's clicks, keys and setting changes go to analytics.db only; its warnings and errors also come here.
+    json_handler.addFilter(lambda record: record.name != f"{logger_name}.client" or record.levelno >= logging.WARNING)
     logger.addHandler(json_handler)
+
+    from .analytics import AnalyticsHandler  # here: analytics imports this module's redaction
+    logger.addHandler(AnalyticsHandler(settings.analytics_file))
     return logger
 
 

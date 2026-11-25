@@ -5,7 +5,7 @@ from audio_stems.config import configure_logging
 
 def test_json_log_has_stable_fields_and_redacts_credentials(tmp_path, capsys):
     settings = Settings.load(
-        environ={"AUDIO_STEMS_LOG_FILE": str(tmp_path / "app.jsonl")},
+        environ={"AUDIO_STEMS_LOG_FILE": str(tmp_path / "logs" / "app.jsonl")},
         dotenv_path=tmp_path / "missing.env",
     )
     logger = configure_logging(settings, logger_name="test_audio_stems")
@@ -19,7 +19,7 @@ def test_json_log_has_stable_fields_and_redacts_credentials(tmp_path, capsys):
             },
         )
 
-        record = json.loads((tmp_path / "app.jsonl").read_text(encoding="utf-8"))
+        record = json.loads((tmp_path / "logs" / "app.jsonl").read_text(encoding="utf-8"))
     finally:
         for handler in logger.handlers[:]:
             handler.close()
@@ -41,7 +41,7 @@ def test_json_log_has_stable_fields_and_redacts_credentials(tmp_path, capsys):
 
 
 def test_json_log_includes_exception_details(tmp_path):
-    log_path = tmp_path / "app.jsonl"
+    log_path = tmp_path / "logs" / "app.jsonl"
     settings = Settings.load(
         environ={"AUDIO_STEMS_LOG_FILE": str(log_path)},
         dotenv_path=tmp_path / "missing.env",
@@ -64,7 +64,7 @@ def test_json_log_includes_exception_details(tmp_path):
 
 
 def test_json_log_file_rotates_using_configured_size(tmp_path):
-    log_path = tmp_path / "app.jsonl"
+    log_path = tmp_path / "logs" / "app.jsonl"
     settings = Settings.load(
         environ={
             "AUDIO_STEMS_LOG_FILE": str(log_path),
@@ -83,15 +83,16 @@ def test_json_log_file_rotates_using_configured_size(tmp_path):
             logger.removeHandler(handler)
 
     assert log_path.exists()
-    assert (tmp_path / "app.jsonl.1").exists()
+    assert (tmp_path / "logs" / "app.jsonl.1").exists()
 
 
-def test_page_events_and_requests_go_to_the_json_log_but_not_the_console(tmp_path, capsys):
-    log_path = tmp_path / "app.jsonl"
+def test_page_clicks_go_to_analytics_only_and_requests_not_to_the_console(tmp_path, capsys):
+    log_path = tmp_path / "logs" / "app.jsonl"
     settings = Settings.load(environ={"AUDIO_STEMS_LOG_FILE": str(log_path)}, dotenv_path=tmp_path / "missing.env")
     logger = configure_logging(settings, logger_name="test_audio_stems_console")
     try:
         logger.getChild("client").info("ui_click", extra={"event": "ui_click"})
+        logger.getChild("client").error("ui_error", extra={"event": "ui_error"})
         logger.info("POST /api/v1/x 200", extra={"event": "http_request"})
         logger.info("Worker started", extra={"event": "worker_started"})
         events = [json.loads(line)["event"] for line in log_path.read_text(encoding="utf-8").splitlines()]
@@ -100,6 +101,6 @@ def test_page_events_and_requests_go_to_the_json_log_but_not_the_console(tmp_pat
             handler.close()
             logger.removeHandler(handler)
     console = "".join(capsys.readouterr())
-    assert events == ["ui_click", "http_request", "worker_started"]
+    assert events == ["ui_error", "http_request", "worker_started"]  # the click: analytics.db only
     assert "Worker started" in console
-    assert "ui_click" not in console and "POST /api/v1/x" not in console
+    assert "ui_click" not in console and "ui_error" not in console and "POST /api/v1/x" not in console

@@ -176,14 +176,25 @@ function setIcon(button, name) {
   button.innerHTML = iconSvg(name);
 }
 
-// The page's log: what was pressed, what it asked of the server and how that went, its errors and the plugins'
-// steps go to the server's log (logs/app.jsonl), a batch a second and the rest when the page closes.
+// The page's log: what was pressed, on which screen, what it asked of the server and how that went, its errors and
+// the plugins' steps go to analytics.db (warnings and errors also to logs/app.jsonl), a batch a second and the rest
+// when the page closes.
 const logSession = Math.random().toString(36).slice(2, 10);
 const logQueue = [];
 let logTimer = 0;
-function logEvent(event, details = {}, level = "info") {
+// The topmost open window by its id (settings, store, confirm…), else the project or the list of projects.
+function currentScreen() {
+  const dialog = [...document.querySelectorAll("dialog[open]")].pop();
+  if (dialog) return (dialog.id || dialog.className.split(" ")[0] || "dialog").replace(/-dialog$/, "").toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 40);
+  const overlay = [...document.querySelectorAll(".search-overlay:not([hidden])")].pop();
+  if (overlay) return overlay.id.replace(/-overlay$/, "");
+  return selectedProjectId ? "project" : "projects";
+}
+function logEvent(event, details = {}, level = "info", plugin = "") {
   if (logQueue.length >= 500) return;  // the server is gone: keep the first ones
-  logQueue.push({ event, level, at: new Date().toISOString(), session: logSession, details });
+  logQueue.push({ event, level, at: new Date().toISOString(), session: logSession, screen: currentScreen(),
+    device: matchMedia("(max-width: 600px), (pointer: coarse)").matches ? "phone" : "desktop",
+    plugin, project: selectedProjectId || null, details });
   if (!logTimer) logTimer = window.setTimeout(flushLog, 1000);
 }
 function flushLog(closing = false) {
@@ -216,13 +227,13 @@ function controlName(element) {
 }
 document.addEventListener("click", (event) => {
   const element = event.target.closest && event.target.closest("button, a, summary, [role=button], [role=tab], [role=option], [role=menuitem]");
-  if (element) logEvent("ui_click", { ...controlName(element), project: selectedProjectId || null });
+  if (element) logEvent("ui_click", controlName(element));
 }, true);
 document.addEventListener("keydown", (event) => {  // shortcuts: the key, never what is typed into a field
   const target = event.target;
   if (event.repeat || ["Shift", "Control", "Alt", "Meta"].includes(event.key)) return;
   if (target.closest && target.closest("input, textarea, select, [contenteditable=true]") && !event.ctrlKey && !event.metaKey && event.key !== "Escape") return;
-  logEvent("ui_key", { code: event.code, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey, project: selectedProjectId || null });
+  logEvent("ui_key", { code: event.code, ctrl: event.ctrlKey || event.metaKey, shift: event.shiftKey });
 }, true);
 document.addEventListener("change", (event) => {
   const element = event.target;
@@ -2763,7 +2774,7 @@ function pluginContext(id, permissions, host) {
       undo.push(() => element.remove());
       return element;
     },
-    log: (event, details = {}, level = "info") => logEvent(`${id}_${event}`.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 64), details, level),
+    log: (event, details = {}, level = "info") => logEvent(`${id}_${event}`.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 64), details, level, id),
     detailedWaveforms: () => host.detailedWaveforms(),
     levels: (index) => host.levels(index),
     get settings() { return (pluginList.find((item) => item.id === id) || {}).settings || {}; },
@@ -2888,7 +2899,7 @@ async function pluginFailed(id, error) {
   const plugin = pluginList.find((item) => item.id === id);
   if (!plugin || !plugin.enabled) return;  // already turned off (one error may come from several calls)
   console.error(`Plugin ${id} failed`, error);
-  logEvent("plugin_failed", { plugin: id, message: String((error && error.message) || error || ""), stack: String((error && error.stack) || "").slice(0, 2000) }, "error");
+  logEvent("plugin_failed", { message: String((error && error.message) || error || ""), stack: String((error && error.stack) || "").slice(0, 2000) }, "error", id);
   const message = String((error && error.message) || error || "").slice(0, 500) || "Unknown error";
   plugin.enabled = false;
   plugin.error = message;
