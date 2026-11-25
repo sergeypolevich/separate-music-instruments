@@ -78,7 +78,7 @@
   и библиотеки;
 - **Hugging Face** (huggingface.co), **GitHub** (релизы, которыми пользуется audio-separator) и
   **cloud.cp.jku.at** — один раз, чтобы скачать модель разделения или модель долей при первом использовании;
-- **GitHub** (api.github.com, codeload.github.com) — чтобы проверить, вышла ли новая версия Audio Stems, и скачать её,
+- **GitHub** (api.github.com, github.com, release-assets.githubusercontent.com) — чтобы проверить, вышла ли новая версия Audio Stems, и скачать её,
   когда вы решите обновиться.
 
 ## Важно

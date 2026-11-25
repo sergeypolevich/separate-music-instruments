@@ -82,7 +82,7 @@ Verbindungen gibt es nur zu:
   Bibliotheken zu installieren;
 - **Hugging Face** (huggingface.co), **GitHub** (die Releases, die audio-separator nutzt) und
   **cloud.cp.jku.at**: einmal, um ein Trennmodell oder das Beat-Modell bei der ersten Nutzung herunterzuladen;
-- **GitHub** (api.github.com, codeload.github.com): um nach einer neuen Version von Audio Stems zu suchen und sie
+- **GitHub** (api.github.com, github.com, release-assets.githubusercontent.com): um nach einer neuen Version von Audio Stems zu suchen und sie
   herunterzuladen, wenn Sie sie installieren möchten.
 
 ## Bitte beachten

@@ -4,6 +4,7 @@ import io
 import json
 import os
 import subprocess
+from urllib.error import HTTPError
 import zipfile
 
 import httpx
@@ -54,22 +55,30 @@ def release(tag="v2.1.0", *, prerelease=False):
 
 
 def release_zip(version="18", extra=()):
-    """What GitHub's zipball looks like: one top folder with the repository inside."""
+    """What a release archive looks like: one top folder with the app inside (macOS's also has __MACOSX/)."""
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        top = "sergeypolevich-separate-music-instruments-abc1234/"
+        top = "Audio Stems/"
         archive.writestr(top + "Start Windows.bat", "@echo new")
         archive.writestr(top + "app/VERSION", f"{version}\n")
         archive.writestr(top + "app/audio_stems/__init__.py", "")
         archive.writestr(top + "app/audio_stems/api.py", "# new api")
+        archive.writestr("__MACOSX/Audio Stems/._Start MacOS.command", "resource fork")
         for name, data in extra:
             archive.writestr(name, data)
     return buffer.getvalue()
 
 
-def github(releases, archive=b"", archive_url="https://codeload.github.com/x/zip/refs/tags/v18"):
+ASSET_HOST = "https://release-assets.githubusercontent.com/github-production-release-asset/1/abc?sig=x"
+
+
+def github(releases, archive=b"", archive_url=ASSET_HOST, asked=None):
     def open_url(request, timeout):
-        if "/zipball/" in request.full_url:
+        if "/releases/download/" in request.full_url:
+            if asked is not None:
+                asked.append(request.full_url)
+            if archive is None:
+                raise HTTPError(request.full_url, 404, "Not Found", {}, None)
             return FakeResponse(archive, archive_url)
         return FakeResponse(releases)
     return open_url
@@ -115,7 +124,7 @@ def test_a_point_release_counts_between_its_neighbours_and_installs_from_its_arc
     root, staging = tmp_path / "Audio Stems", tmp_path / "update"
     (root / "app").mkdir(parents=True)
     open_url = github([release("v18"), release("v18.1"), release("v17")], release_zip("18.1"),
-                      "https://codeload.github.com/x/zip/refs/tags/v18.1")
+                      ASSET_HOST)
     found = Updater(root, staging, open_url=open_url, version=lambda: "18").check()
     assert [r.tag_name for r in found["releases"]] == ["v18.1"] and found["current"] == "18"
     assert Updater(root, staging, open_url=open_url, version=lambda: "18.1").check()["releases"] == []
@@ -144,8 +153,8 @@ def test_a_zip_copy_downloads_the_release_and_the_launcher_installs_it_on_the_ne
     (root / "app" / ".venv" / "python.exe").write_text("the environment")
     (root / "app" / ".env").write_text("AUDIO_STEMS_API_HOST=0.0.0.0")
     (root / "Start Windows.bat").write_text("@echo old")
-    archive = release_zip(extra=[("sergeypolevich-separate-music-instruments-abc1234/Start MacOS.command", "#!/bin/sh"),
-                                 ("sergeypolevich-separate-music-instruments-abc1234/AGENTS.md", "developers")])
+    archive = release_zip(extra=[("Audio Stems/Start MacOS.command", "#!/bin/sh"),
+                                 ("Audio Stems/AGENTS.md", "developers")])
     updater = Updater(root, staging, open_url=github([release("v18")], archive), version=lambda: "17")
 
     assert updater.apply("v18") == "staged"
@@ -164,7 +173,7 @@ def test_a_zip_copy_downloads_the_release_and_the_launcher_installs_it_on_the_ne
 def test_the_mac_launcher_stays_executable_after_an_update(tmp_path):
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        top = "sergeypolevich-separate-music-instruments-abc1234/"
+        top = "Audio Stems/"
         launcher = zipfile.ZipInfo(top + "Start MacOS.command")
         launcher.external_attr = 0o100755 << 16  # how git archive stores an executable
         archive.writestr(launcher, "#!/bin/sh")
@@ -176,10 +185,10 @@ def test_the_mac_launcher_stays_executable_after_an_update(tmp_path):
 def test_a_bad_release_archive_is_refused_and_leaves_nothing_to_install(tmp_path):
     staging = tmp_path / "update"
     cases = [
-        (release_zip(extra=[("top/../../evil.txt", "x")]), "https://codeload.github.com/z", "could not be unpacked|unsafe"),
-        (release_zip(version="20"), "https://codeload.github.com/z", "another version"),
+        (release_zip(extra=[("top/../../evil.txt", "x")]), ASSET_HOST, "could not be unpacked|unsafe"),
+        (release_zip(version="20"), ASSET_HOST, "another version"),
         (release_zip(), "https://evil.example/z", "unexpected address"),
-        (b"not a zip", "https://codeload.github.com/z", "could not be unpacked"),
+        (b"not a zip", ASSET_HOST, "could not be unpacked"),
     ]
     for archive, url, message in cases:
         updater = Updater(tmp_path, staging, open_url=github([release("v18")], archive, url), version=lambda: "17")
@@ -187,6 +196,29 @@ def test_a_bad_release_archive_is_refused_and_leaves_nothing_to_install(tmp_path
             updater.apply("v18")
         assert not (staging / "ready").exists()
     assert not (tmp_path / "evil.txt").exists()
+
+
+def test_a_zip_copy_downloads_its_systems_release_file_without_the_mac_resource_forks(tmp_path, monkeypatch):
+    from audio_stems import updates
+
+    assert updates.release_archive("win32") == "Audio-Stems-Windows.zip" and updates.release_archive("linux") == "Audio-Stems-Windows.zip"
+    assert updates.release_archive("darwin") == "Audio-Stems-macOS.zip"
+    monkeypatch.setattr(updates, "release_archive", lambda: "Audio-Stems-macOS.zip")
+    root, staging, asked = tmp_path / "Audio Stems", tmp_path / "update", []
+    (root / "app").mkdir(parents=True)
+    (root / "Start MacOS.command").write_text("#!/bin/sh old")
+    updater = Updater(root, staging, open_url=github([release("v18")], release_zip(), asked=asked), version=lambda: "17")
+    assert updater.apply("v18") == "staged"
+    assert asked == ["https://github.com/sergeypolevich/separate-music-instruments/releases/download/v18/Audio-Stems-macOS.zip"]
+    assert apply_staged_update(root, staging) == "v18"
+    assert not (root / "Audio Stems").exists() and not (root / "__MACOSX").exists()
+
+
+def test_a_release_without_its_archive_yet_is_a_clear_refusal(tmp_path):
+    updater = Updater(tmp_path, tmp_path / "update", open_url=github([release("v18")], None), version=lambda: "17")
+    with pytest.raises(UpdateError, match="no archive for this system"):
+        updater.apply("v18")
+    assert not (tmp_path / "update" / "ready").exists()
 
 
 def test_unpacking_refuses_paths_that_leave_the_target(tmp_path):

@@ -1,6 +1,7 @@
 """Updates from the project's GitHub releases: what is new, and installing the latest one.
 
-A copy downloaded as a ZIP gets the release's archive, unpacked into the data folder and copied over the app by
+A copy downloaded as a ZIP gets the release's archive for its system (the file users download, so updates count
+in its download_count), unpacked into the data folder and copied over the app by
 the launcher on its next start (running code is not replaced). A git clone fast-forwards to the release's tag."""
 from __future__ import annotations
 
@@ -11,7 +12,9 @@ from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
+import sys
 from typing import Callable
+from urllib.error import HTTPError
 from urllib.parse import quote, urlparse
 from urllib.request import Request, urlopen
 import zipfile
@@ -20,8 +23,9 @@ import zipfile
 _REPOSITORY = "sergeypolevich/separate-music-instruments"
 _RELEASES_URL = f"https://api.github.com/repos/{_REPOSITORY}/releases?per_page=10"
 _RELEASE_PAGE_PREFIX = f"https://github.com/{_REPOSITORY}/releases/tag/"
-_ARCHIVE_URL = f"https://api.github.com/repos/{_REPOSITORY}/zipball/"
-_ARCHIVE_HOSTS = {"api.github.com", "codeload.github.com"}  # GitHub answers the zipball URL with a redirect there
+_ARCHIVE_URL = f"https://github.com/{_REPOSITORY}/releases/download/"
+# GitHub answers a release file's URL with a redirect to its file store
+_ARCHIVE_HOSTS = {"github.com", "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
 _MAX_RESPONSE_BYTES = 2 * 1024 * 1024
 _MAX_ARCHIVE_BYTES = 200 * 1024 * 1024
 _MAX_NOTES_LENGTH = 20_000
@@ -36,6 +40,11 @@ RESUME_MARKER = "resume-after-update"  # in the data folder: the next worker req
 def current_version() -> str:
     """This copy's version (app/VERSION, the number of the release it was made for: "18" or "18.1")."""
     return VERSION_FILE.read_text(encoding="utf-8").strip()
+
+
+def release_archive(platform: str = sys.platform) -> str:
+    """The release file for this system: the macOS one has its launcher, the Windows one (also Linux) its."""
+    return "Audio-Stems-macOS.zip" if platform == "darwin" else "Audio-Stems-Windows.zip"
 
 
 def release_number(tag: str) -> tuple[int, ...] | None:
@@ -153,12 +162,17 @@ class Updater:
             raise UpdateError("This copy has commits the release does not: update it by hand") from exc
 
     def _stage(self, tag: str) -> None:
-        request = Request(_ARCHIVE_URL + quote(tag, safe=""), headers={"User-Agent": "Audio-Stems-Updater"})
-        with self.open_url(request, timeout=60) as response:
-            final = response.geturl() if hasattr(response, "geturl") else request.full_url
-            if urlparse(final).scheme != "https" or urlparse(final).hostname not in _ARCHIVE_HOSTS:
-                raise UpdateError("The release archive came from an unexpected address")
-            payload = response.read(_MAX_ARCHIVE_BYTES + 1)
+        request = Request(f"{_ARCHIVE_URL}{quote(tag, safe='')}/{release_archive()}", headers={"User-Agent": "Audio-Stems-Updater"})
+        try:
+            with self.open_url(request, timeout=60) as response:
+                final = response.geturl() if hasattr(response, "geturl") else request.full_url
+                if urlparse(final).scheme != "https" or urlparse(final).hostname not in _ARCHIVE_HOSTS:
+                    raise UpdateError("The release archive came from an unexpected address")
+                payload = response.read(_MAX_ARCHIVE_BYTES + 1)
+        except HTTPError as exc:
+            if exc.code == 404:
+                raise UpdateError("This release has no archive for this system yet: try again in a few minutes") from exc
+            raise
         if len(payload) > _MAX_ARCHIVE_BYTES:
             raise UpdateError("The release archive is too large")
         target = self.staging / tag
@@ -177,13 +191,14 @@ class Updater:
 
 
 def unpack_release(payload: bytes, target: Path) -> None:
-    """GitHub's archive holds one top folder; its content goes to target. Paths that would leave it are refused."""
+    """A release archive holds one top folder ("Audio Stems/"); its content goes to target. Paths that would leave it
+    are refused; macOS's resource forks (`__MACOSX/`, the launcher's icon) are left out."""
     with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-        names = [name for name in archive.namelist() if not name.endswith("/")]
+        names = [name for name in archive.namelist() if not name.endswith("/") and not name.startswith("__MACOSX/")]
         if not names:
             raise UpdateError("The release archive is empty")
         for name in names:
-            parts = PurePosixPath(name).parts[1:]  # without GitHub's "<owner>-<repo>-<commit>/"
+            parts = PurePosixPath(name).parts[1:]  # without the top folder
             if not parts or any(part in ("..", "") or ":" in part for part in parts) or PurePosixPath(name).is_absolute():
                 raise UpdateError("The release archive has an unsafe path")
             destination = target.joinpath(*parts)

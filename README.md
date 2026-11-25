@@ -79,7 +79,7 @@ It connects only to:
   the libraries;
 - **Hugging Face** (huggingface.co), **GitHub** (the releases that audio-separator uses) and
   **cloud.cp.jku.at**: once, to download a separation model or the beat model the first time you use it;
-- **GitHub** (api.github.com, codeload.github.com): to check for a new version of Audio Stems, and to download it
+- **GitHub** (api.github.com, github.com, release-assets.githubusercontent.com): to check for a new version of Audio Stems, and to download it
   when you choose to install it.
 
 ## Please note
