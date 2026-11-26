@@ -16,7 +16,8 @@ import numpy as np
 import pytest
 import soundfile
 
-from tests.test_e2e_live import EXPECTED_STEMS, ROOT, _free_local_port, _launch_visible_browser, _wait_for_health
+from tests.test_e2e_live import (EXPECTED_STEMS, ROOT, _decline_install_question, _free_local_port,
+                                 _launch_visible_browser, _wait_for_health)
 
 
 pytestmark = pytest.mark.e2e
@@ -69,6 +70,7 @@ def test_live_upload_of_your_own_file_is_separated_and_plays(tmp_path):
                 page_errors = []
                 page.on("pageerror", lambda error: page_errors.append(str(error)))
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
+                _decline_install_question(page)
 
                 page.locator("#search-trigger").click()
                 page.locator("#file-input").set_input_files(str(song))

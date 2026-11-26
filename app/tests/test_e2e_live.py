@@ -64,6 +64,14 @@ def _launch_visible_browser(playwright):
     raise AssertionError("Install Microsoft Edge or Chrome: " + " | ".join(failures))
 
 
+def _decline_install_question(page) -> None:
+    """A fresh data folder asks once whether to tell the author the install works: a test says no (sends nothing)."""
+    page.locator("#confirm-dialog").wait_for(state="visible", timeout=30_000)
+    assert page.locator("#confirm-title").text_content() == "Audio Stems is installed"
+    page.locator("#confirm-cancel").click()
+    page.locator("#confirm-dialog").wait_for(state="hidden")
+
+
 def test_live_full_desktop_browser_flow(tmp_path):
     if os.getenv("RUN_LIVE_E2E") != "1":
         pytest.skip("Set RUN_LIVE_E2E=1 to run the full YouTube + Demucs browser test")
@@ -127,6 +135,7 @@ def test_live_full_desktop_browser_flow(tmp_path):
                 )
                 # The app polls its API, so the page may never become network-idle.
                 page.goto(base_url, wait_until="domcontentloaded", timeout=60_000)
+                _decline_install_question(page)
 
                 assert page.locator('link[href="app.css"]').count() == 1
                 assert page.locator('script[src="app.js"]').count() == 1
