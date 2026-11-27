@@ -754,6 +754,37 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             page.keyboard.press("Space")
             page.wait_for_function("activeTransport.currentTime > 2")
             page.keyboard.press("Space")
+            # Version 26: the latency set by hand in 1 ms steps is saved at once and moves the take with it.
+            measured = state["installed"]["practice"]["settings"]["lastLatency"]
+            starts = [run["from"] for run in state["data"]["practice"]["takes"][0]["runs"]]
+            page.locator('[data-action="practice-latency"]').click()
+            field = page.locator(".practice-dialog .practice-ms")
+            assert float(field.input_value()) == round(measured * 1000, 1)
+            for _ in range(3):
+                page.locator('.practice-dialog [data-action="latency-up"]').click()
+            page.locator('.practice-dialog [data-action="latency-down"]').click()
+            page.wait_for_function(f"Math.abs(Number(document.querySelector('.practice-ms').value) - {round(measured * 1000, 1) + 2}) < 1e-6")
+            assert "Set by hand" in page.locator(".practice-dialog .practice-detail").text_content()
+            for _ in range(50):
+                settings = state["installed"]["practice"]["settings"]
+                if abs(settings["lastLatency"] - measured - 0.002) < 1e-4:
+                    break
+                page.wait_for_timeout(100)
+            assert abs(settings["lastLatency"] - measured - 0.002) < 1e-4 and settings["latency"]
+            assert all(abs(value - settings["lastLatency"]) < 1e-9 for value in settings["latency"].values())
+            take = state["data"]["practice"]["takes"][0]
+            assert all(abs(run["from"] - (start - 0.002)) < 1e-4 for run, start in zip(take["runs"], starts))
+            assert abs(take["latency"] - settings["lastLatency"]) < 1e-9
+            field.fill("40")
+            field.press("Enter")
+            page.wait_for_function("document.querySelector('.practice-big').textContent === '40.0 ms'")
+            for _ in range(50):
+                if abs(state["installed"]["practice"]["settings"]["lastLatency"] - 0.04) < 1e-9:
+                    break
+                page.wait_for_timeout(100)
+            assert state["installed"]["practice"]["settings"]["lastLatency"] == 0.04
+            page.locator('.practice-dialog [data-action="close"]').click()
+            assert page.locator('[data-action="practice-latency"]').text_content() in ("40 ms", "40.0 ms")
             assert errors == []
             browser.close()
     finally:

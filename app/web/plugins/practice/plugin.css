@@ -50,4 +50,7 @@
 .practice-pill[data-state="ok"] { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .practice-pill[data-state="bad"] { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger-text); }
 .practice-detail { color: var(--muted); font-size: 12px; }
+.practice-adjust { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; }
+.practice-adjust > span:first-child { margin-right: 6px; color: var(--muted); }
+.practice-ms { width: 7ch; font: inherit; font-variant-numeric: tabular-nums; text-align: right; }
 .practice-tune-lanes, .practice-close-up { display: block; width: 100%; height: 150px; border-radius: 10px; border: 1px solid var(--line); background: var(--waveform-bg); }

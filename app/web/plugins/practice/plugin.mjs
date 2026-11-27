@@ -221,6 +221,7 @@ export async function project(ctx) {
   const takes = Array.isArray(data.takes) ? data.takes : [];  // saved: [{stem, at, runs: [{file, from, to}]}]
   let lastRuns = [];  // the last take of the chosen stem, to hear again: [{from, to, samples}]
   let shownRuns = null;  // the runs whose peaks the lane shows
+  let takeLatency = 0, recordedLatency = 0;  // the latency the shown take was placed with; the recording's
   let player = null;  // the last take playing along: {at, song, speed, sources}
 
   const buttons = ctx.stems.map((item, index) => {
@@ -270,6 +271,7 @@ export async function project(ctx) {
       for (const run of last.runs) loaded.push({ from: run.from, to: run.to, samples: wavSamples(await ctx.files.load(run.file)) });
       if (!ctx.current || stem !== index || lastRuns.length) return;  // another stem, or a newer take recorded meanwhile
       lastRuns = loaded;
+      takeLatency = Number.isFinite(last.latency) ? last.latency : settings.lastLatency || 0;  // before version 26: the last one
       listen.disabled = false;
     } catch (error) {
       ctx.log("take_load_failed", { message: String((error && error.message) || error) }, "warning");  // a file removed by hand
@@ -374,6 +376,7 @@ export async function project(ctx) {
         return;
       }
       capture = opened;
+      recordedLatency = latency();
       if (take) take.fill(-1);  // a new take starts on an empty lane; the last one stays saved, to hear again
       takeMax = 0.05;
       shownRuns = lastRuns;
@@ -404,6 +407,7 @@ export async function project(ctx) {
       seconds: Math.round(recorded.reduce((sum, run) => sum + run.to - run.from, 0) * 100) / 100, peak: Math.round(takeMax * 1000) / 1000 });
     if (!recorded.length || chosen < 0) return;
     lastRuns = recorded.map((run) => ({ from: run.from, to: run.to, samples: samplesOf(run) }));
+    takeLatency = recordedLatency;
     shownRuns = lastRuns;
     listen.disabled = false;
     saveTake(lastRuns, ctx.stems[chosen].name);
@@ -428,7 +432,7 @@ export async function project(ctx) {
         }
       }
       for (const file of files) await ctx.files.save(file.name, file.bytes);
-      takes.push({ stem: stemName, at: new Date(stamp).toISOString(), runs: saved.map((run, k) => ({ file: files[k].name, from: run.from, to: run.to })) });
+      takes.push({ stem: stemName, at: new Date(stamp).toISOString(), latency: recordedLatency, runs: saved.map((run, k) => ({ file: files[k].name, from: run.from, to: run.to })) });
       data.takes = takes;
       await ctx.saveData(data);
       ctx.log("take_saved", { files: files.length, bytes: size, kept: takes.length });
@@ -474,6 +478,22 @@ export async function project(ctx) {
     if (on) await ctx.precise();
   });
 
+  // Another latency moves the take shown: what was placed `lag` earlier goes where the new value puts it, also on disk.
+  // shortcut: exact for a take recorded at 100 % speed (slower, it moves by the change in song seconds at that speed).
+  function moveTake(value) {
+    const delta = takeLatency - value;
+    takeLatency = value;
+    if (!delta || !lastRuns.length || stem < 0) return;
+    lastRuns = lastRuns.map((run) => ({ ...run, from: run.from + delta, to: run.to + delta }));
+    if (take) take.fill(-1);  // the next frame adds the moved runs' peaks
+    stopPlayer();
+    const saved = takes.filter((item) => item.stem === ctx.stems[stem].name).at(-1);
+    if (!saved) return;
+    saved.runs.forEach((run) => { run.from += delta; run.to += delta; });
+    saved.latency = value;
+    ctx.saveData(data);
+  }
+
   function showStatus() {
     if (!capture) return;
     status.textContent = latencyOf(settings, capture.key) === null ? ctx.t("Latency not measured") : "";
@@ -500,11 +520,13 @@ export async function project(ctx) {
       openInput: (onBlock) => openInput(onBlock, "tuner"),
       engineState,
       known: measuredKey ? latencyOf(settings, measuredKey) : null,
+      key: measuredKey || latencyKey("", ""),
       save: (key, seconds) => {
         const value = Math.round(seconds * 100000) / 100000;
         settings.latency = { ...settings.latency, [key]: value };
         settings.lastLatency = value;
         ctx.saveSettings({ ...settings });
+        moveTake(value);
         showLatency();
       },
     });

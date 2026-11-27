@@ -69,8 +69,9 @@ const SETUP = `<svg class="practice-setup" viewBox="0 0 640 250" role="img">
   <g class="practice-setup-number"><circle cx="508" cy="34" r="13"/><text x="508" y="39" text-anchor="middle">3</text></g>
 </svg>`;
 
-// The dialog. openInput(onBlock) starts the input (blocks of {frame, samples}); save(key, seconds) stores a result.
-export function openTuner(ctx, { openInput, save, known, engineState = () => ({}) }) {
+// The dialog. openInput(onBlock) starts the input (blocks of {frame, samples}); save(key, seconds) stores a result,
+// measured or set by hand (1 ms steps) for `key`, the input and output in use.
+export function openTuner(ctx, { openInput, save, known, key, engineState = () => ({}) }) {
   const t = ctx.t;
   const audio = ctx.audioContext;
   const dialog = ctx.add(document.body, document.createElement("dialog"));
@@ -81,6 +82,7 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
     <div class="practice-how">${SETUP}<ol class="practice-steps"><li></li><li></li><li></li></ol></div>
     <div class="practice-row"><button type="button" class="primary-button" data-action="measure"></button><div class="practice-dots"></div></div>
     <div class="practice-result" aria-live="polite"><span class="practice-big"></span><span class="practice-pill" hidden></span><span class="practice-detail"></span></div>
+    <div class="practice-adjust"><span></span><button type="button" class="quiet-button" data-action="latency-down">−1</button><input type="number" class="practice-ms" min="0" max="1000" step="1"><span>ms</span><button type="button" class="quiet-button" data-action="latency-up">+1</button></div>
     <canvas class="practice-tune-lanes" aria-hidden="true"></canvas>
     <h3></h3>
     <canvas class="practice-close-up" aria-hidden="true"></canvas>
@@ -104,10 +106,16 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
   const dots = $(".practice-dots"), big = $(".practice-big"), pill = $(".practice-pill"), detail = $(".practice-detail");
 
   let run = null;  // {capture, clicks: [{at, latency|null|undefined}], blocks: [{frame, samples}], key}
-  let shift = known || 0, frame = 0;
+  let shift = known || 0, frame = 0, manual = null;  // manual: the seconds set by hand since the last Start
   big.textContent = known ? ms(known, ctx.formatDecimal) : "—";
   detail.textContent = known ? t("Measured before for this input and output") : t("Not measured yet");
   button.textContent = t("Start");
+
+  const field = $(".practice-ms");
+  $(".practice-adjust span").textContent = t("Adjust by hand");
+  field.setAttribute("aria-label", t("Latency in ms"));
+  const showField = (seconds) => { field.value = seconds || seconds === 0 ? String(Math.round(seconds * 10000) / 10) : ""; };
+  showField(known);
 
   const log = ctx.log || (() => {});  // every step to logs/app.jsonl (events practice_tuner_*)
   const round = (seconds) => (seconds === null || seconds === undefined ? null : Math.round(seconds * 100000) / 100);  // ms, 2 decimals
@@ -148,6 +156,7 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
     state.stable ? "info" : "warning");
     if (state.stable) {
       save(run.key, state.estimate);
+      showField(state.estimate);
       pill.textContent = t("Stable");
       pill.dataset.state = "ok";
       detail.textContent = t("{count} clicks · spread {spread} · saved for this input and output", { count: clicks.length, spread: ms(state.spread, ctx.formatDecimal) });
@@ -200,7 +209,7 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
       const rate = audio.sampleRate, keep = (now - 4) * rate;  // the last 4 s of input are enough to draw and search
       while (run.blocks.length && run.blocks[0].frame + run.blocks[0].samples.length < keep) run.blocks.shift();
     }
-    const estimate = run && found().length ? median(found()) : known;
+    const estimate = manual ?? (run && found().length ? median(found()) : known);
     if (estimate) shift += (estimate - shift) * 0.15;
     draw();
   }
@@ -217,6 +226,7 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
     big.textContent = "—";
     detail.textContent = t("Waiting for the first click");
     shift = 0;
+    manual = null;
     const blocks = [];
     log("tuner_start_pressed", { engine: engineState(audio) });
     try {
@@ -336,6 +346,25 @@ export function openTuner(ctx, { openInput, save, known, engineState = () => ({}
     full.set(part.subarray(0, full.length));
     return full;
   }
+
+  // By hand: each change is saved at once (and moves the take on the lane); a measurement running stops.
+  function setByHand(milliseconds) {
+    if (!Number.isFinite(milliseconds)) return showField(manual ?? known);
+    if (run && !run.done) finish({ stable: false, silent: false, stopped: true });
+    const seconds = Math.min(1000, Math.max(0, Math.round(milliseconds * 10) / 10)) / 1000;
+    manual = known = seconds;
+    pill.hidden = true;
+    big.textContent = ms(seconds, ctx.formatDecimal);
+    detail.textContent = t("Set by hand · saved for this input and output");
+    showField(seconds);
+    log("tuner_set_by_hand", { latency_ms: round(seconds) });
+    save(run ? run.key : key, seconds);
+    return undefined;
+  }
+  const typed = () => (field.value === "" ? NaN : Number(field.value));
+  ctx.on($('[data-action="latency-down"]'), "click", () => setByHand((typed() || 0) - 1));
+  ctx.on($('[data-action="latency-up"]'), "click", () => setByHand((typed() || 0) + 1));
+  ctx.on(field, "change", () => setByHand(typed()));
 
   ctx.on(button, "click", start);
   ctx.on(close, "click", () => dialog.close());
