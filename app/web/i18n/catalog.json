@@ -1713,6 +1713,12 @@
      "widget": "Description",
      "text": "Lines on the song's beats over the waveforms: bar starts strong, the other beats pale. Zoom in to see every beat.",
      "index": 1
+    },
+    {
+     "id": "e2",
+     "widget": "Text",
+     "text": "Bar line brightness",
+     "index": 2
     }
    ]
   },
@@ -1912,248 +1918,308 @@
     {
      "id": "e7",
      "widget": "Text",
-     "text": "Practice with {stem}",
+     "text": "Save the song with your take as one FLAC file",
      "index": 7
     },
     {
      "id": "e8",
      "widget": "Text",
-     "text": "Preparing…",
+     "text": "Mix to FLAC",
      "index": 8
     },
     {
      "id": "e9",
      "widget": "Text",
-     "text": "The browser did not allow the audio input",
+     "text": "Save your take as a FLAC file, from the start of the song",
      "index": 9
     },
     {
      "id": "e10",
      "widget": "Text",
-     "text": "The audio input did not start: {error}",
+     "text": "Save the take",
      "index": 10
     },
     {
      "id": "e11",
      "widget": "Text",
-     "text": "The take could not be saved",
+     "text": "Practice with {stem}",
      "index": 11
     },
     {
      "id": "e12",
      "widget": "Text",
-     "text": "Latency not measured",
+     "text": "Preparing…",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Text",
-     "text": "Measure the delay of your input and output",
+     "text": "The browser did not allow the audio input",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Text",
-     "text": "Latency {latency}",
+     "text": "The audio input did not start: {error}",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Text",
-     "text": "Measure latency",
+     "text": "The take could not be saved",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Text",
-     "text": "Audio input",
+     "text": "Latency not measured",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Text",
-     "text": "Default input",
+     "text": "Measure the delay of your input and output",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Text",
-     "text": "Input {number}",
+     "text": "Latency {latency}",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Text",
-     "text": "Latency",
+     "text": "Measure latency",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Text",
-     "text": "Last click, close up",
+     "text": "Saving…",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Text",
-     "text": "The time from a sound in the headphones to its coming back through your input. Measured once, it puts what you play where you played it.",
+     "text": "Saved in Music/Exports: {name}",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Text",
-     "text": "One earcup held on the guitar's pickup; the guitar and the headphones plugged into the sound card; then Start",
+     "text": "Not saved: {error}",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Text",
-     "text": "Sound card",
+     "text": "Audio input",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Text",
-     "text": "Start",
+     "text": "Default input",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Text",
-     "text": "Plug in as you play: the instrument (or microphone) into the input chosen in Settings → Plugins → Practice, wired headphones into the output. Wireless headphones cannot be measured.",
+     "text": "Input {number}",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Text",
-     "text": "Hold one earcup against the pickup (for an acoustic instrument or a voice, against the microphone), the song's volume as you play.",
+     "text": "Latency",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Text",
-     "text": "Press Start and keep still: clicks play one at a time and the recorded ones move into line with the played ones. «Stable» keeps the result for this input and output; measure again after changing either.",
+     "text": "Last click, close up",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Text",
-     "text": "Close",
+     "text": "The time from a sound in the headphones to its coming back through your input. Measured once, it puts what you play where you played it.",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Text",
-     "text": "Measured before for this input and output",
+     "text": "One earcup held on the guitar's pickup; the guitar and the headphones plugged into the sound card; then Start",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Text",
-     "text": "Not measured yet",
+     "text": "Sound card",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Text",
-     "text": "Start again",
+     "text": "Start",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Text",
-     "text": "Stable",
+     "text": "Plug in as you play: the instrument (or microphone) into the input chosen in Settings → Plugins → Practice, wired headphones into the output. Wireless headphones cannot be measured.",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Text",
-     "text": "{count} clicks · spread {spread} · saved for this input and output",
+     "text": "Hold one earcup against the pickup (for an acoustic instrument or a voice, against the microphone), the song's volume as you play.",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Text",
-     "text": "No click heard",
+     "text": "Press Start and keep still: clicks play one at a time and the recorded ones move into line with the played ones. «Stable» keeps the result for this input and output; measure again after changing either.",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Text",
-     "text": "Not stable",
+     "text": "Close",
      "index": 35
     },
     {
      "id": "e36",
      "widget": "Text",
-     "text": "Hold the earcup closer to the pickup or turn the volume up.",
+     "text": "Measured before for this input and output",
      "index": 36
     },
     {
      "id": "e37",
      "widget": "Text",
-     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
+     "text": "Not measured yet",
      "index": 37
     },
     {
      "id": "e38",
      "widget": "Text",
-     "text": "Click 1",
+     "text": "Adjust by hand",
      "index": 38
     },
     {
      "id": "e39",
      "widget": "Text",
-     "text": "Click {count} · spread {spread}",
+     "text": "Latency in ms",
      "index": 39
     },
     {
      "id": "e40",
      "widget": "Text",
-     "text": "Stopped",
+     "text": "Start again",
      "index": 40
     },
     {
      "id": "e41",
      "widget": "Text",
-     "text": "Not saved",
+     "text": "Stable",
      "index": 41
     },
     {
      "id": "e42",
      "widget": "Text",
-     "text": "Waiting for the first click",
+     "text": "{count} clicks · spread {spread} · saved for this input and output",
      "index": 42
     },
     {
      "id": "e43",
      "widget": "Text",
-     "text": "Stop",
+     "text": "No click heard",
      "index": 43
     },
     {
      "id": "e44",
      "widget": "Text",
-     "text": "Played",
+     "text": "Not stable",
      "index": 44
     },
     {
      "id": "e45",
      "widget": "Text",
-     "text": "Recorded, moved back {latency}",
+     "text": "Hold the earcup closer to the pickup or turn the volume up.",
      "index": 45
     },
     {
      "id": "e46",
      "widget": "Text",
-     "text": "Recorded · off by {latency}",
+     "text": "The clicks came back at different times; wireless headphones cannot be measured. Not saved.",
      "index": 46
     },
     {
      "id": "e47",
      "widget": "Text",
-     "text": "Recorded",
+     "text": "Click 1",
      "index": 47
+    },
+    {
+     "id": "e48",
+     "widget": "Text",
+     "text": "Click {count} · spread {spread}",
+     "index": 48
+    },
+    {
+     "id": "e49",
+     "widget": "Text",
+     "text": "Stopped",
+     "index": 49
+    },
+    {
+     "id": "e50",
+     "widget": "Text",
+     "text": "Not saved",
+     "index": 50
+    },
+    {
+     "id": "e51",
+     "widget": "Text",
+     "text": "Waiting for the first click",
+     "index": 51
+    },
+    {
+     "id": "e52",
+     "widget": "Text",
+     "text": "Stop",
+     "index": 52
+    },
+    {
+     "id": "e53",
+     "widget": "Text",
+     "text": "Played",
+     "index": 53
+    },
+    {
+     "id": "e54",
+     "widget": "Text",
+     "text": "Recorded, moved back {latency}",
+     "index": 54
+    },
+    {
+     "id": "e55",
+     "widget": "Text",
+     "text": "Recorded · off by {latency}",
+     "index": 55
+    },
+    {
+     "id": "e56",
+     "widget": "Text",
+     "text": "Recorded",
+     "index": 56
+    },
+    {
+     "id": "e57",
+     "widget": "Text",
+     "text": "Set by hand · saved for this input and output",
+     "index": 57
     }
    ]
   },
@@ -2387,146 +2453,152 @@
     {
      "id": "e12",
      "widget": "Message",
-     "text": "This project has not failed",
+     "text": "The file is larger than {limit} MB",
      "index": 12
     },
     {
      "id": "e13",
      "widget": "Message",
-     "text": "The project is missing",
+     "text": "The export is not a WAV file",
      "index": 13
     },
     {
      "id": "e14",
      "widget": "Message",
-     "text": "The report could not be sent: check the internet connection",
+     "text": "This project has not failed",
      "index": 14
     },
     {
      "id": "e15",
      "widget": "Message",
-     "text": "The project is already separated with the best model",
+     "text": "The project is missing",
      "index": 15
     },
     {
      "id": "e16",
      "widget": "Message",
-     "text": "Improving needs the source audio of a finished project",
+     "text": "The report could not be sent: check the internet connection",
      "index": 16
     },
     {
      "id": "e17",
      "widget": "Message",
-     "text": "No quality improvement is running",
+     "text": "The project is already separated with the best model",
      "index": 17
     },
     {
      "id": "e18",
      "widget": "Message",
-     "text": "Confirm the cleanup first",
+     "text": "Improving needs the source audio of a finished project",
      "index": 18
     },
     {
      "id": "e19",
      "widget": "Message",
-     "text": "Wait until the separation ends, then clean up",
+     "text": "No quality improvement is running",
      "index": 19
     },
     {
      "id": "e20",
      "widget": "Message",
-     "text": "Confirm the update before continuing",
+     "text": "Confirm the cleanup first",
      "index": 20
     },
     {
      "id": "e21",
      "widget": "Message",
-     "text": "The update could not be installed",
+     "text": "Wait until the separation ends, then clean up",
      "index": 21
     },
     {
      "id": "e22",
      "widget": "Message",
-     "text": "Batch exceeds the configured item limit",
+     "text": "Confirm the update before continuing",
      "index": 22
     },
     {
      "id": "e23",
      "widget": "Message",
-     "text": "File name is required",
+     "text": "The update could not be installed",
      "index": 23
     },
     {
      "id": "e24",
      "widget": "Message",
-     "text": "The file is larger than {limit} MB",
+     "text": "Batch exceeds the configured item limit",
      "index": 24
     },
     {
      "id": "e25",
      "widget": "Message",
-     "text": "This does not look like an audio file that can be separated",
+     "text": "File name is required",
      "index": 25
     },
     {
      "id": "e26",
      "widget": "Message",
-     "text": "Upload could not be saved",
+     "text": "This does not look like an audio file that can be separated",
      "index": 26
     },
     {
      "id": "e27",
      "widget": "Message",
-     "text": "Batch not found",
+     "text": "Upload could not be saved",
      "index": 27
     },
     {
      "id": "e28",
      "widget": "Message",
-     "text": "The project list has changed",
+     "text": "Batch not found",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Message",
-     "text": "This project cannot be deleted while its batch is active",
+     "text": "The project list has changed",
      "index": 29
     },
     {
      "id": "e30",
      "widget": "Message",
-     "text": "Project files could not all be removed; retry delete to continue cleanup",
+     "text": "This project cannot be deleted while its batch is active",
      "index": 30
     },
     {
      "id": "e31",
      "widget": "Message",
-     "text": "Job not found",
+     "text": "Project files could not all be removed; retry delete to continue cleanup",
      "index": 31
     },
     {
      "id": "e32",
      "widget": "Message",
-     "text": "The job has already finished",
+     "text": "Job not found",
      "index": 32
     },
     {
      "id": "e33",
      "widget": "Message",
-     "text": "Asset not found",
+     "text": "The job has already finished",
      "index": 33
     },
     {
      "id": "e34",
      "widget": "Message",
-     "text": "Waveform data is available for WAV and FLAC assets",
+     "text": "Asset not found",
      "index": 34
     },
     {
      "id": "e35",
      "widget": "Message",
-     "text": "Asset file is not available",
+     "text": "Waveform data is available for WAV and FLAC assets",
      "index": 35
+    },
+    {
+     "id": "e36",
+     "widget": "Message",
+     "text": "Asset file is not available",
+     "index": 36
     }
    ]
   },
@@ -3018,14 +3090,32 @@
     {
      "id": "e28",
      "widget": "Message",
-     "text": "Storage key points to a directory",
+     "text": "Invalid export kind",
      "index": 28
     },
     {
      "id": "e29",
      "widget": "Message",
-     "text": "Media asset could not be deleted",
+     "text": "The export is not a WAV file",
      "index": 29
+    },
+    {
+     "id": "e30",
+     "widget": "Message",
+     "text": "The export could not be saved",
+     "index": 30
+    },
+    {
+     "id": "e31",
+     "widget": "Message",
+     "text": "Storage key points to a directory",
+     "index": 31
+    },
+    {
+     "id": "e32",
+     "widget": "Message",
+     "text": "Media asset could not be deleted",
+     "index": 32
     }
    ]
   },

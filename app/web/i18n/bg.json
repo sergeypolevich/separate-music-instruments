@@ -422,5 +422,19 @@
 "Video search failed": "Търсенето на видеото не успя",
 "Video has no audio-only stream": "Видеото няма само аудио поток",
 "Downloaded audio failed container validation": "Изтегленият аудио не успя проверка на контейнера",
-"Video audio download failed": "Свалянето на аудио от видеото не успя"
+"Video audio download failed": "Свалянето на аудио от видеото не успя",
+"Adjust by hand": "Ръчна настройка",
+"Bar line brightness": "Яркост на тактовите линии",
+"Invalid export kind": "Невалиден вид експорт",
+"Latency in ms": "Закъснение в ms",
+"Mix to FLAC": "Микс във FLAC",
+"Not saved: {error}": "Не е запазено: {error}",
+"Save the song with your take as one FLAC file": "Запазване на песента заедно с вашия запис в един FLAC файл",
+"Save the take": "Запазване на записа",
+"Save your take as a FLAC file, from the start of the song": "Запазване на вашия запис във FLAC файл от началото на песента",
+"Saved in Music/Exports: {name}": "Запазено в Music/Exports: {name}",
+"Saving…": "Запазване…",
+"Set by hand · saved for this input and output": "Зададено ръчно · запазено за този вход и изход",
+"The export could not be saved": "Експортът не можа да бъде запазен",
+"The export is not a WAV file": "Експортът не е WAV файл"
 }

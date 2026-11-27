@@ -40,7 +40,7 @@ The store card lists them, and `ctx` has the matching functions only when the ma
 | `playback` | Changes what is played | `ctx.range()`, `ctx.setRange(range)`, `ctx.dropLoop()` |
 | `analysis` | Runs an analysis on this computer | `ctx.beats()`, `ctx.analyze(kind, onProgress)`, `ctx.analysisState(kind)` |
 | `tone` | Plays its own sound | `ctx.audioContext`, to make a sound of its own (the tuner's tone) and play it straight to the speakers, not into the stems' mix |
-| `input` | Records from your audio input | `ctx.audioContext`, `ctx.precise()`, `ctx.songTimeAt(contextTime)` |
+| `input` | Records from your audio input | `ctx.audioContext`, `ctx.precise()`, `ctx.songTimeAt(contextTime)`, `ctx.exportMix(options)` |
 
 No plugin code runs on the computer itself. Heavy work is a service of the app that a plugin asks for. Today that
 means the beats and chord detection. A new kind of analysis is added to the app (`audio_stems/analysis.py` and its
@@ -95,12 +95,19 @@ should be caught by the plugin and shown on its own button.
 | `t(text, values)`, `tn(count, one, other, values)`, `formatDecimal(x)` | Translation, as in `app.js` |
 
 With `sound`: `setEffect(index, {input, output})` puts a chain of Web Audio nodes between the stem's volume and the
-master volume, and `setEffect(index, null)` takes it out. Use `ctx.audioContext` to make the nodes.
+master volume, and `setEffect(index, null)` takes it out. Use `ctx.audioContext` to make the nodes. A chain may also
+carry `build(context)` (version 26): it makes the same nodes, set as now, in another context and returns their
+`{input, output}`; an export (below) uses it, and a chain without it is left out of exports.
 
 With `input`: the plugin opens the input itself (`getUserMedia`, the browser asks the user) on `ctx.audioContext`.
 `precise()` makes the stems play from their decoded audio on that context's clock (as they are at 100 %, through the
 stretch engine at other speeds) until the plugin stops, and resolves `true` when ready; then `songTimeAt(time)` gives the
 song second heard at an AudioContext time (`null` while paused, before the last seek or while the stems stream).
+`exportMix({kind, track, parts})` (version 26) renders without playing, at 100 % speed from 0:00 to the song's end, and
+keeps the result as 16-bit FLAC in `Music/Exports/` (the folder opens with the file selected, on the computer running
+the app); it resolves the file's name. `parts` (`[{from, to, samples}]`, song seconds and a mono Float32Array) is the
+sound of the plugin's track `track`. `kind: "mix"`: every stem and that track as heard now (volumes, S/M, effects, the
+master); `kind: "take"`: that track alone through its volume and effect. A file that would clip is lowered as a whole.
 
 A manifest's `"storage_mb"` (version 24, at most 1000) gives the plugin files of its own per project: `ctx.files.list()`
 resolves `{files: [{name, bytes}], limit_bytes}`, `load(name)` an ArrayBuffer, `save(name, body)` stores (refused over the

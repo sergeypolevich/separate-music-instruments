@@ -430,5 +430,19 @@
 "Video search failed": "فشل البحث عن الفيديو",
 "Video has no audio-only stream": "الفيديو لا يحتوي على تدفق صوتي فقط",
 "Downloaded audio failed container validation": "فشل التحقق من حاوية الصوت المُحمّل",
-"Video audio download failed": "فشل تنزيل صوت الفيديو"
+"Video audio download failed": "فشل تنزيل صوت الفيديو",
+"Adjust by hand": "ضبط يدوي",
+"Bar line brightness": "سطوع خطوط المازورة",
+"Invalid export kind": "نوع تصدير غير صالح",
+"Latency in ms": "التأخير بالمللي ثانية",
+"Mix to FLAC": "مزج إلى FLAC",
+"Not saved: {error}": "لم يُحفظ: {error}",
+"Save the song with your take as one FLAC file": "حفظ الأغنية مع تسجيلك في ملف FLAC واحد",
+"Save the take": "حفظ التسجيل",
+"Save your take as a FLAC file, from the start of the song": "حفظ تسجيلك كملف FLAC من بداية الأغنية",
+"Saved in Music/Exports: {name}": "حُفظ في Music/Exports: {name}",
+"Saving…": "جارٍ الحفظ…",
+"Set by hand · saved for this input and output": "ضُبط يدويًا · حُفظ لهذا الدخل والخرج",
+"The export could not be saved": "تعذّر حفظ التصدير",
+"The export is not a WAV file": "التصدير ليس ملف WAV"
 }

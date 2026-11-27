@@ -424,5 +424,19 @@
 "Video search failed": "Pretraga videozapisa nije uspjela",
 "Video has no audio-only stream": "Video nema audio‑stream",
 "Downloaded audio failed container validation": "Preuzeti audio nije prošao provjeru kontejnera",
-"Video audio download failed": "Preuzimanje audio zapisa videa nije uspjelo"
+"Video audio download failed": "Preuzimanje audio zapisa videa nije uspjelo",
+"Adjust by hand": "Ručno podesi",
+"Bar line brightness": "Svjetlina linija taktova",
+"Invalid export kind": "Neispravna vrsta izvoza",
+"Latency in ms": "Kašnjenje u ms",
+"Mix to FLAC": "Miks u FLAC",
+"Not saved: {error}": "Nije spremljeno: {error}",
+"Save the song with your take as one FLAC file": "Spremi pjesmu zajedno s vašom snimkom u jednu FLAC datoteku",
+"Save the take": "Spremi snimku",
+"Save your take as a FLAC file, from the start of the song": "Spremi vašu snimku kao FLAC datoteku od početka pjesme",
+"Saved in Music/Exports: {name}": "Spremljeno u Music/Exports: {name}",
+"Saving…": "Spremanje…",
+"Set by hand · saved for this input and output": "Postavljeno ručno · spremljeno za ovaj ulaz i izlaz",
+"The export could not be saved": "Izvoz nije moguće spremiti",
+"The export is not a WAV file": "Izvoz nije WAV datoteka"
 }

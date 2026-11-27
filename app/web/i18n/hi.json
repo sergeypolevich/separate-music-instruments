@@ -422,5 +422,19 @@
 "Video search failed": "वीडियो खोज विफल",
 "Video has no audio-only stream": "वीडियो में ऑडियो‑केवल स्ट्रीम नहीं है",
 "Downloaded audio failed container validation": "डाउनलोड किया गया ऑडियो कंटेनर मान्यकरण में विफल",
-"Video audio download failed": "वीडियो ऑडियो डाउनलोड विफल"
+"Video audio download failed": "वीडियो ऑडियो डाउनलोड विफल",
+"Adjust by hand": "हाथ से समायोजित करें",
+"Bar line brightness": "बार लाइनों की चमक",
+"Invalid export kind": "अमान्य निर्यात प्रकार",
+"Latency in ms": "विलंब ms में",
+"Mix to FLAC": "FLAC में मिक्स",
+"Not saved: {error}": "सहेजा नहीं गया: {error}",
+"Save the song with your take as one FLAC file": "गाने को आपके टेक के साथ एक FLAC फ़ाइल में सहेजें",
+"Save the take": "टेक सहेजें",
+"Save your take as a FLAC file, from the start of the song": "अपने टेक को गाने की शुरुआत से FLAC फ़ाइल के रूप में सहेजें",
+"Saved in Music/Exports: {name}": "Music/Exports में सहेजा गया: {name}",
+"Saving…": "सहेजा जा रहा है…",
+"Set by hand · saved for this input and output": "हाथ से सेट किया गया · इस इनपुट और आउटपुट के लिए सहेजा गया",
+"The export could not be saved": "निर्यात सहेजा नहीं जा सका",
+"The export is not a WAV file": "निर्यात WAV फ़ाइल नहीं है"
 }

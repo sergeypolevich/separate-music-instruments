@@ -276,5 +276,19 @@
 "Video search failed": "Videosøk mislyktes",
 "Video has no audio-only stream": "Videoen har ingen lyd‑kun‑strøm",
 "Downloaded audio failed container validation": "Nedlastet lyd feilet ved containervalidering",
-"Video audio download failed": "Video‑lydnedlasting mislyktes"
+"Video audio download failed": "Video‑lydnedlasting mislyktes",
+"Adjust by hand": "Juster manuelt",
+"Bar line brightness": "Lysstyrke på taktstrekene",
+"Invalid export kind": "Ugyldig eksporttype",
+"Latency in ms": "Forsinkelse i ms",
+"Mix to FLAC": "Miks til FLAC",
+"Not saved: {error}": "Ikke lagret: {error}",
+"Save the song with your take as one FLAC file": "Lagre sangen med opptaket ditt som én FLAC-fil",
+"Save the take": "Lagre opptaket",
+"Save your take as a FLAC file, from the start of the song": "Lagre opptaket ditt som en FLAC-fil fra starten av sangen",
+"Saved in Music/Exports: {name}": "Lagret i Music/Exports: {name}",
+"Saving…": "Lagrer…",
+"Set by hand · saved for this input and output": "Satt manuelt · lagret for denne inngangen og utgangen",
+"The export could not be saved": "Eksporten kunne ikke lagres",
+"The export is not a WAV file": "Eksporten er ikke en WAV-fil"
 }

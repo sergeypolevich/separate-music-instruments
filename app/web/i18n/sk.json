@@ -280,5 +280,19 @@
 "Video search failed": "Vyhľadávanie videa zlyhalo",
 "Video has no audio-only stream": "Video nemá audio stream",
 "Downloaded audio failed container validation": "Stiahnutý audio neprešlo validáciou kontajnera",
-"Video audio download failed": "Stiahnutie audio z videa zlyhalo"
+"Video audio download failed": "Stiahnutie audio z videa zlyhalo",
+"Adjust by hand": "Upraviť ručne",
+"Bar line brightness": "Jas taktových čiar",
+"Invalid export kind": "Neplatný druh exportu",
+"Latency in ms": "Latencia v ms",
+"Mix to FLAC": "Mix do FLAC",
+"Not saved: {error}": "Neuložené: {error}",
+"Save the song with your take as one FLAC file": "Uložiť skladbu s vaším záznamom do jedného súboru FLAC",
+"Save the take": "Uložiť záznam",
+"Save your take as a FLAC file, from the start of the song": "Uložiť váš záznam ako súbor FLAC od začiatku skladby",
+"Saved in Music/Exports: {name}": "Uložené do Music/Exports: {name}",
+"Saving…": "Ukladá sa…",
+"Set by hand · saved for this input and output": "Nastavené ručne · uložené pre tento vstup a výstup",
+"The export could not be saved": "Export sa nepodarilo uložiť",
+"The export is not a WAV file": "Export nie je súbor WAV"
 }

@@ -739,7 +739,7 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
     loop, a recorded take is kept as WAV files, comes back with the project and plays along. No score panel: the
     take's score is left out of this release (its note detection is not reliable yet)."""
     sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
-    state = {"installed": {"practice": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
+    state = {"installed": {"practice": {"enabled": True}, "eq": {"enabled": True}}, "data": {"practice": {"stem": "bass"}}, "requests": [],
              "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
     server = _serve(ROOT / "web", state, _plucks_wav())
     base = f"http://127.0.0.1:{server.server_port}"
@@ -762,6 +762,7 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             page.locator('.practice-dialog [data-action="close"]').click()
             page.locator('[data-action="practice-record"]').click()
             page.wait_for_function("activeTransport.stretching")
+            page.evaluate("activeTransport.seek(1)")  # the take starts after 0:00: its export has silence before it
             page.evaluate("document.activeElement.blur()")
             page.keyboard.press("Space")
             page.wait_for_function("activeTransport.currentTime > 4.4", timeout=15000)
@@ -800,20 +801,40 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             save.click()
             page.wait_for_function("document.querySelector('.practice-status').textContent === 'Saved in Music/Exports: Song — take 1.flac'", timeout=30000)
+            # The take's EQ is in its export too (the chain's build): the low shelf moved over the take's 110 Hz and all
+            # the way down makes it much quieter.
+            page.locator('.plugin-track [data-control="eq"]').click()
+            graph = page.locator(".eq-graph")
+            graph.wait_for()
+            area = graph.bounding_box()
+            x, y = area["x"] + area["width"] * (math.log(50 / 20) / math.log(1000)), area["y"] + area["height"] / 2
+            page.mouse.move(x, y)
+            page.mouse.down()
+            page.mouse.move(area["x"] + area["width"] * (math.log(150 / 20) / math.log(1000)), area["y"] + area["height"] - 2, steps=6)
+            page.mouse.up()
+            page.keyboard.press("Escape")
+            save.click()
+            for _ in range(300):
+                if len(state["exports"]) == 2:
+                    break
+                page.wait_for_timeout(100)
+            assert len(state["exports"]) == 2
             you_gain.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             mix.click()
             page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('mix 1.flac')", timeout=30000)
-            (take_kind, take_wav), (mix_kind, mix_wav) = state["exports"]
+            (take_kind, take_wav), (_, eq_wav), (mix_kind, mix_wav) = state["exports"]
             assert (take_kind, mix_kind) == ("take", "mix")
             recorded = max(np.abs(np.frombuffer(state["files"][run["file"]][44:], "<i2")).max() for run in state["data"]["practice"]["takes"][0]["runs"])
-            first_run = state["data"]["practice"]["takes"][0]["runs"][0]["from"]
+            first_run = min(run["from"] for run in state["data"]["practice"]["takes"][0]["runs"])
             for body in (take_wav, mix_wav):
                 with wave.open(io.BytesIO(body)) as rendered:
                     assert (rendered.getnchannels(), rendered.getsampwidth(), rendered.getframerate()) == (2, 2, 44100)
                     assert abs(rendered.getnframes() / 44100 - 5) < 0.01  # the whole song
             take_audio = np.frombuffer(take_wav[44:], "<i2").reshape(-1, 2)
             assert np.abs(take_audio).max() == pytest.approx(recorded / 2, rel=0.1)  # as heard: at its 50 %
-            assert np.abs(take_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
+            assert first_run > 0.5 and np.abs(take_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
+            rms = lambda audio: float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
+            assert rms(np.frombuffer(eq_wav[44:], "<i2")) < 0.5 * rms(take_audio)
             mix_audio = np.frombuffer(mix_wav[44:], "<i2").reshape(-1, 2)
             assert np.abs(mix_audio[int(0.25 * 44100): int(0.4 * 44100)]).max() > 1000  # the stems' first pluck
             assert np.abs(mix_audio).max() <= 32767 * 0.999 + 1  # four stems and the take, lowered as a whole

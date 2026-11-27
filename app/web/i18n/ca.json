@@ -424,5 +424,19 @@
 "Video search failed": "Cerca de vídeo fallida",
 "Video has no audio-only stream": "El vídeo no té flux només d'àudio",
 "Downloaded audio failed container validation": "Validació del contenidor d'àudio descarregat fallida",
-"Video audio download failed": "Descàrrega d'àudio del vídeo fallida"
+"Video audio download failed": "Descàrrega d'àudio del vídeo fallida",
+"Adjust by hand": "Ajusta a mà",
+"Bar line brightness": "Brillantor de les línies de compàs",
+"Invalid export kind": "Tipus d'exportació no vàlid",
+"Latency in ms": "Latència en ms",
+"Mix to FLAC": "Mescla a FLAC",
+"Not saved: {error}": "No s'ha desat: {error}",
+"Save the song with your take as one FLAC file": "Desa la cançó amb la teva presa en un sol fitxer FLAC",
+"Save the take": "Desa la presa",
+"Save your take as a FLAC file, from the start of the song": "Desa la teva presa com a fitxer FLAC des de l'inici de la cançó",
+"Saved in Music/Exports: {name}": "Desat a Music/Exports: {name}",
+"Saving…": "S'està desant…",
+"Set by hand · saved for this input and output": "Fixada a mà · desada per a aquesta entrada i sortida",
+"The export could not be saved": "No s'ha pogut desar l'exportació",
+"The export is not a WAV file": "L'exportació no és un fitxer WAV"
 }

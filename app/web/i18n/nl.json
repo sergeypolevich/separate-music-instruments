@@ -276,5 +276,19 @@
 "Video search failed": "Video zoeken mislukt",
 "Video has no audio-only stream": "Video heeft geen audio‑only‑stream",
 "Downloaded audio failed container validation": "Gedownloade audio voldoet niet aan containervalidatie",
-"Video audio download failed": "Video‑audio download mislukt"
+"Video audio download failed": "Video‑audio download mislukt",
+"Adjust by hand": "Handmatig bijstellen",
+"Bar line brightness": "Helderheid van de maatstrepen",
+"Invalid export kind": "Ongeldig exporttype",
+"Latency in ms": "Latentie in ms",
+"Mix to FLAC": "Mix naar FLAC",
+"Not saved: {error}": "Niet opgeslagen: {error}",
+"Save the song with your take as one FLAC file": "Het nummer met je opname als één FLAC-bestand opslaan",
+"Save the take": "Opname opslaan",
+"Save your take as a FLAC file, from the start of the song": "Je opname als FLAC-bestand opslaan vanaf het begin van het nummer",
+"Saved in Music/Exports: {name}": "Opgeslagen in Music/Exports: {name}",
+"Saving…": "Opslaan…",
+"Set by hand · saved for this input and output": "Handmatig ingesteld · opgeslagen voor deze in- en uitgang",
+"The export could not be saved": "De export kon niet worden opgeslagen",
+"The export is not a WAV file": "De export is geen WAV-bestand"
 }

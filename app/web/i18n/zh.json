@@ -331,5 +331,19 @@
 "Video search failed": "视频搜索失败",
 "Video has no audio-only stream": "视频没有仅音频流",
 "Downloaded audio failed container validation": "下载的音频未通过容器验证",
-"Video audio download failed": "视频音频下载失败"
+"Video audio download failed": "视频音频下载失败",
+"Adjust by hand": "手动调整",
+"Bar line brightness": "小节线亮度",
+"Invalid export kind": "无效的导出类型",
+"Latency in ms": "延迟（毫秒）",
+"Mix to FLAC": "混音为 FLAC",
+"Not saved: {error}": "未保存：{error}",
+"Save the song with your take as one FLAC file": "将歌曲与你的录音一起保存为一个 FLAC 文件",
+"Save the take": "保存录音",
+"Save your take as a FLAC file, from the start of the song": "将你的录音从歌曲开头保存为 FLAC 文件",
+"Saved in Music/Exports: {name}": "已保存到 Music/Exports：{name}",
+"Saving…": "正在保存…",
+"Set by hand · saved for this input and output": "手动设置 · 已为此输入和输出保存",
+"The export could not be saved": "无法保存导出",
+"The export is not a WAV file": "导出的不是 WAV 文件"
 }

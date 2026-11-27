@@ -594,3 +594,20 @@ Agreed with the user on 2026-11-25 (plan `~/.claude/plans/version-25.md`): a sep
 
 **Not done:** the separation model's first download still shows no progress in the project.
 
+## Version 26 — practice exports and a calmer grid
+
+Agreed with the user on 2026-11-26/27 (plan `~/.claude/plans/version-26.md`).
+
+**Done, as built:**
+
+- **Latency remembered:** the practice plugin kept the latency under the output's group id, which the browser renews each session, so it was never found again. Now the key is the input's and the output's names; a pair never measured uses `lastLatency`, the last measured or set; the old group-id keys collapse into it.
+- **Latency by hand:** «Adjust by hand» in the latency dialog: −1 / +1 ms and a number field (0–1000 ms), saved at once; a new latency moves the shown take, also on disk (each take keeps the latency it was placed with).
+- **Take waveform:** columns 4 screen pixels wide instead of 1.
+- **Volumes 0–200 %:** every fader (stems, the take, master) with the 100 % mark in the middle; + / − 10 %, ↑ / ↓ 5 %.
+- **Beat grid:** bar lines 35 % opaque, the other beats 20 % (were 70 / 35); bar lines thin out from 48 px apart (was 12), so a whole long song shows none; Settings → Plugins → Beat grid sets the bar lines' brightness, the pale ones follow at 20/35.
+- **Exports:** «Mix to FLAC» and «Save the take» in the top right corner of the take's waveform, once there is a take (a fourth button over the name did not fit the column and made the row taller; agreed placement «in the You row» kept). The page renders in an OfflineAudioContext at 100 % speed over the whole song (stems, volumes, S/M, effects rebuilt through the chain's new `build(context)`, which the EQ offers, and the master; the take alone through its volume and EQ), lowers a file that would clip as a whole and posts a 16-bit WAV to `POST /api/v1/projects/{id}/exports?kind=mix|take`; the app keeps it as FLAC in `Music/Exports/` («<name> — mix.flac», «<name> — take N.flac», never overwritten) and opens the folder with the file selected (`explorer /select,`, `open -R`). Cleanup of unused files and the disk report leave `Exports/` alone; deleting a project does not touch it.
+- **Translations:** this version's 14 texts in all 24 languages (written directly, not through the service).
+
+**Checked:** the browser test exports the take at 50 % volume (half the level, silence before it), again with the take's EQ cutting its 110 Hz (much quieter), and the mix (the stems' first pluck, lowered under 0 dBFS).
+
+**Not done / not checked:** an export of a long song holds it in memory (~50 MB a 5-minute song, stereo float); the 9 languages cut short in version 25 still miss the texts of versions 23–25.

@@ -280,5 +280,19 @@
 "Video search failed": "Video paieška nepavyko",
 "Video has no audio-only stream": "Video neturi tik garso srauto",
 "Downloaded audio failed container validation": "Atsisiųsto garso konteinerio patikrinimas nepavyko",
-"Video audio download failed": "Video garso atsisiuntimas nepavyko"
+"Video audio download failed": "Video garso atsisiuntimas nepavyko",
+"Adjust by hand": "Koreguoti rankiniu būdu",
+"Bar line brightness": "Takto linijų ryškumas",
+"Invalid export kind": "Netinkamas eksporto tipas",
+"Latency in ms": "Vėlinimas ms",
+"Mix to FLAC": "Miksas į FLAC",
+"Not saved: {error}": "Neišsaugota: {error}",
+"Save the song with your take as one FLAC file": "Išsaugoti dainą su jūsų įrašu viename FLAC faile",
+"Save the take": "Išsaugoti įrašą",
+"Save your take as a FLAC file, from the start of the song": "Išsaugoti jūsų įrašą kaip FLAC failą nuo dainos pradžios",
+"Saved in Music/Exports: {name}": "Išsaugota Music/Exports: {name}",
+"Saving…": "Saugoma…",
+"Set by hand · saved for this input and output": "Nustatyta rankiniu būdu · išsaugota šiam įėjimui ir išėjimui",
+"The export could not be saved": "Eksporto nepavyko išsaugoti",
+"The export is not a WAV file": "Eksportas nėra WAV failas"
 }

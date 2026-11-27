@@ -290,7 +290,7 @@ def test_live_full_desktop_browser_flow(tmp_path):
                 solos.nth(0).click()
                 solos.nth(1).click()
                 page.wait_for_function(
-                    "Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => Number(audio.dataset.effectiveGain) === 1.5)"
+                    "Array.from(document.querySelectorAll('#playback-panel audio')).every(audio => Number(audio.dataset.effectiveGain) === 2)"
                 )
                 page.locator('[data-action="toggle"]').click()
                 try:

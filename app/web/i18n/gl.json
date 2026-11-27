@@ -422,5 +422,19 @@
 "Video search failed": "Fallo na busca de vídeo",
 "Video has no audio-only stream": "O vídeo non ten fluxo só de audio",
 "Downloaded audio failed container validation": "Fallou a validación do contedor do audio descargado",
-"Video audio download failed": "Fallou a descarga do audio do vídeo"
+"Video audio download failed": "Fallou a descarga do audio do vídeo",
+"Adjust by hand": "Axustar á man",
+"Bar line brightness": "Brillo das liñas de compás",
+"Invalid export kind": "Tipo de exportación non válido",
+"Latency in ms": "Latencia en ms",
+"Mix to FLAC": "Mestura a FLAC",
+"Not saved: {error}": "Non se gardou: {error}",
+"Save the song with your take as one FLAC file": "Gardar a canción coa túa toma nun só ficheiro FLAC",
+"Save the take": "Gardar a toma",
+"Save your take as a FLAC file, from the start of the song": "Gardar a túa toma como ficheiro FLAC desde o inicio da canción",
+"Saved in Music/Exports: {name}": "Gardado en Music/Exports: {name}",
+"Saving…": "Gardando…",
+"Set by hand · saved for this input and output": "Fixada á man · gardada para esta entrada e saída",
+"The export could not be saved": "Non se puido gardar a exportación",
+"The export is not a WAV file": "A exportación non é un ficheiro WAV"
 }

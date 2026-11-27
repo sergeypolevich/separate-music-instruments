@@ -52,6 +52,7 @@ Work one stage at a time. Preserve the working standalone script while adding te
 47. **Version 23 steadier tempo and bars, plugin settings, tuner.**
 48. **Version 24 practice plugin:** record yourself under a stem's waveform, a latency tuner, saved takes; the score was left out.
 49. **Version 25 analytics, reports and a clear install:** `~/Audio Stems/analytics.db` (GA4-like events, kept on the computer); the author's daily GitHub download and traffic counts; updates from the release archives (counted downloads); reports sent only on the user's click (after the install, a failed setup, a failed project) to a Cloudflare Worker with D1 in the EU, no IP kept; `PRIVACY.md`; setup with numbered steps, sizes and a line every 10 s. Plan: `~/.claude/plans/version-25.md`.
+50. **Version 26 practice exports and a calmer grid:** the latency remembered per input and output name and set by hand in 1 ms steps; the mix and the take saved as FLAC in `Music/Exports/`; volumes 0–200 %; a coarser take waveform; a paler beat grid that thins out sooner, its brightness in Settings. Plan: `~/.claude/plans/version-26.md`.
 27. **Version 9 project cleanup:** close test gaps and record coverage/performance baselines first; move everything except `Start.bat` (renamed), `README.md`, `AGENTS.md`, `CLAUDE.md` and `.claude/` into `app/`; remove single-implementation protocols, the unused idempotency key and Demucs parameters, placeholder settings and dead code — with identical UI and no performance regression.
 
 ## Stage gate

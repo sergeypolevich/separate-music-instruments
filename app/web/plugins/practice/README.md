@@ -9,6 +9,7 @@ Play your part along with the song and record yourself. Your waveform runs under
 3. Measure the latency once (see below).
 4. Press record, then ▶, and play. Pausing, or pressing record again, ends the take.
 5. The headphones button plays your last take along with the song.
+6. Once there is a take, two buttons sit in the top right corner of its waveform: **Mix to FLAC** saves the song with your take as you hear it now, **Save the take** saves your take alone from the start of the song. Both go to `Music/Exports` in the Audio Stems folder, and the folder opens with the file selected.
 
 Choose the audio input in Settings → Plugins → Practice.
 
@@ -20,7 +21,9 @@ The latency is the time from a sound in the headphones to its coming back throug
 2. Hold one earcup against the pickup of your instrument (or against the microphone), the volume as you play.
 3. Press the stopwatch button, then **Start**, and keep still. Clicks play one at a time; when the last ones agree, it says **Stable** and keeps the result for this input and output.
 
-Measure again after changing the input, the output or the headphones.
+Measure again after changing the input, the output or the headphones. The result is kept for this input and output by their names; for a pair never measured, the last result is used.
+
+To correct it, use **Adjust by hand** under the result: −1 / +1 ms or type the value. Each change is saved at once and moves your last take with it.
 
 ## Good to know
 

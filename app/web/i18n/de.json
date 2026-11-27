@@ -422,5 +422,19 @@
 "Video search failed": "Videosuche fehlgeschlagen",
 "Video has no audio-only stream": "Video hat keinen reinen Audiostream",
 "Downloaded audio failed container validation": "Heruntergeladene Audiodatei: Container-Validierung fehlgeschlagen",
-"Video audio download failed": "Audio-Download des Videos fehlgeschlagen"
+"Video audio download failed": "Audio-Download des Videos fehlgeschlagen",
+"Adjust by hand": "Von Hand anpassen",
+"Bar line brightness": "Helligkeit der Taktlinien",
+"Invalid export kind": "Ungültige Exportart",
+"Latency in ms": "Latenz in ms",
+"Mix to FLAC": "Mix als FLAC",
+"Not saved: {error}": "Nicht gespeichert: {error}",
+"Save the song with your take as one FLAC file": "Den Song mit deiner Aufnahme als eine FLAC-Datei speichern",
+"Save the take": "Aufnahme speichern",
+"Save your take as a FLAC file, from the start of the song": "Deine Aufnahme als FLAC-Datei ab Songbeginn speichern",
+"Saved in Music/Exports: {name}": "Gespeichert in Music/Exports: {name}",
+"Saving…": "Wird gespeichert…",
+"Set by hand · saved for this input and output": "Von Hand eingestellt · für diesen Ein- und Ausgang gespeichert",
+"The export could not be saved": "Der Export konnte nicht gespeichert werden",
+"The export is not a WAV file": "Der Export ist keine WAV-Datei"
 }

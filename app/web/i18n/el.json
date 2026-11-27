@@ -422,5 +422,19 @@
 "Video search failed": "Αποτυχία αναζήτησης βίντεο",
 "Video has no audio-only stream": "Το βίντεο δεν έχει ροή μόνο ήχου",
 "Downloaded audio failed container validation": "Αποτυχία επικύρωσης του κατεβασμένου ήχου",
-"Video audio download failed": "Αποτυχία λήψης ήχου βίντεο"
+"Video audio download failed": "Αποτυχία λήψης ήχου βίντεο",
+"Adjust by hand": "Χειροκίνητη ρύθμιση",
+"Bar line brightness": "Φωτεινότητα γραμμών μέτρου",
+"Invalid export kind": "Μη έγκυρος τύπος εξαγωγής",
+"Latency in ms": "Καθυστέρηση σε ms",
+"Mix to FLAC": "Μίξη σε FLAC",
+"Not saved: {error}": "Δεν αποθηκεύτηκε: {error}",
+"Save the song with your take as one FLAC file": "Αποθήκευση του τραγουδιού μαζί με τη λήψη σας σε ένα αρχείο FLAC",
+"Save the take": "Αποθήκευση λήψης",
+"Save your take as a FLAC file, from the start of the song": "Αποθήκευση της λήψης σας ως αρχείο FLAC από την αρχή του τραγουδιού",
+"Saved in Music/Exports: {name}": "Αποθηκεύτηκε στο Music/Exports: {name}",
+"Saving…": "Αποθήκευση…",
+"Set by hand · saved for this input and output": "Ορίστηκε χειροκίνητα · αποθηκεύτηκε για αυτή την είσοδο και έξοδο",
+"The export could not be saved": "Δεν ήταν δυνατή η αποθήκευση της εξαγωγής",
+"The export is not a WAV file": "Η εξαγωγή δεν είναι αρχείο WAV"
 }

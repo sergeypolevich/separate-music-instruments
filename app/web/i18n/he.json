@@ -424,5 +424,19 @@
 "Video search failed": "חיפוש הווידאו נכשל",
 "Video has no audio-only stream": "לוידאו אין זרם שמע בלבד",
 "Downloaded audio failed container validation": "אימות מכולת השמע שהורד נכשל",
-"Video audio download failed": "הורדת השמע של הווידאו נכשלה"
+"Video audio download failed": "הורדת השמע של הווידאו נכשלה",
+"Adjust by hand": "כוונון ידני",
+"Bar line brightness": "בהירות קווי התיבות",
+"Invalid export kind": "סוג ייצוא לא תקין",
+"Latency in ms": "השהיה במילישניות",
+"Mix to FLAC": "מיקס ל-FLAC",
+"Not saved: {error}": "לא נשמר: {error}",
+"Save the song with your take as one FLAC file": "שמירת השיר יחד עם ההקלטה שלך כקובץ FLAC אחד",
+"Save the take": "שמירת ההקלטה",
+"Save your take as a FLAC file, from the start of the song": "שמירת ההקלטה שלך כקובץ FLAC מתחילת השיר",
+"Saved in Music/Exports: {name}": "נשמר ב-Music/Exports: {name}",
+"Saving…": "שומר…",
+"Set by hand · saved for this input and output": "נקבע ידנית · נשמר עבור הכניסה והיציאה האלה",
+"The export could not be saved": "לא ניתן היה לשמור את הייצוא",
+"The export is not a WAV file": "הייצוא אינו קובץ WAV"
 }
