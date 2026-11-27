@@ -514,9 +514,9 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             page.evaluate("document.activeElement.blur()")
             page.keyboard.press("Space")
             page.wait_for_function(YOU_BARS + " > 50", timeout=15000)  # the fake input's beeps, drawn under the stem
-            # Version 26: drawn in columns 4 screen pixels wide, from a multiple of 4, a quarter of the detail.
+            # Version 26: drawn in columns 2 screen pixels wide, from an even pixel, half the detail.
             top = {int(x): y for x, y in page.evaluate(YOU_COLUMNS).items()}
-            assert len(top) > 8 and all(top.get(x - x % 4 + k) == y for x, y in top.items() for k in range(4)), sorted(top.items())[:40]
+            assert len(top) > 8 and all(top.get(x - x % 2 + k) == y for x, y in top.items() for k in range(2)), sorted(top.items())[:40]
             page.keyboard.press("Space")
             page.locator('[data-action="practice-record"]').click()
             assert page.locator('[data-action="practice-record"]').get_attribute("aria-pressed") == "false"

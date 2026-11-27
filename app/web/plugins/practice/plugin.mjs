@@ -5,7 +5,7 @@
 // song second heard then (ctx.songTimeAt); the input is placed earlier by the measured latency (the latency tuner).
 
 export const PEAK = 0.001;  // the take's peaks: one a millisecond of song
-export const COLUMN = 4;  // screen pixels a drawn column of the take (version 26: one a pixel was too busy)
+export const COLUMN = 2;  // screen pixels a drawn column of the take (version 26: one was too busy, four too coarse)
 
 // A latency per input and output name; lastLatency, the last measured or set, for a pair never measured.
 export function choice(settings = {}) {
