@@ -591,6 +591,35 @@ def test_practice_latency_tuner_measures_a_loopback(tmp_path):
         server.shutdown()
 
 
+@pytest.mark.browser
+def test_practice_latency_is_found_again_in_a_new_session(tmp_path):
+    """Version 26: the latency measured before is shown in a new session, though the browser gave the output's group
+    a new number (the keys of that number, before version 26, collapse into the last value)."""
+    sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
+    state = {"installed": {"practice": {"enabled": True, "settings": {"latency": {"default>9f3a": 0.1, "default>c1d2": 0.1096}}}},
+             "data": {"practice": {"stem": "bass"}}, "requests": [],
+             "chords": {"status": "none", "progress": 0, "error": None, "result": None}}
+    server = _serve(ROOT / "web", state)
+    base = f"http://127.0.0.1:{server.server_port}"
+    try:
+        with sync_playwright() as playwright:
+            browser, launch_error = _launch_browser(playwright, ("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream"))
+            if browser is None:
+                pytest.skip(f"No browser: {launch_error}")
+            page = browser.new_page(viewport={"width": 1365, "height": 900})
+            errors = []
+            page.on("pageerror", lambda error: errors.append(str(error)))
+            page.goto(base, wait_until="load")
+            page.locator(".project-tab").first.click()
+            latency = page.locator('[data-action="practice-latency"]')
+            page.wait_for_function("document.querySelector('[data-action=\"practice-latency\"]')?.textContent.endsWith(' ms')")
+            assert latency.text_content() == "109.6 ms" and latency.get_attribute("aria-label") == "Latency 109.6 ms"
+            assert errors == []
+            browser.close()
+    finally:
+        server.shutdown()
+
+
 def _logged(page, state, name):
     """The first page log event called `name`, once the page has sent it (a batch a second)."""
     for _ in range(60):

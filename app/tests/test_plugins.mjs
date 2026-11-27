@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/zoom/plugin.mjs";
 import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
-import { addPeaks, choice as practiceChoice, latencyKey } from "../web/plugins/practice/plugin.mjs";
+import { addPeaks, choice as practiceChoice, latencyKey, latencyOf } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
 import { readmeHtml } from "../web/readme.mjs";
 import { addToRuns, blockTimes, columnPeaks, samplesOf, wavBytes, wavSamples } from "../web/plugins/practice/plugin.mjs";
@@ -116,10 +116,21 @@ test("practice: an input block raises the peaks of the song buckets it was heard
 });
 
 test("practice: settings fall back to the default input; a latency per input and output", () => {
-  assert.deepEqual(practiceChoice({}), { input: "", latency: {} });
-  assert.deepEqual(practiceChoice({ tolerance: 90 }), { input: "", latency: {} });  // the score's, left out
+  assert.deepEqual(practiceChoice({}), { input: "", latency: {}, lastLatency: null });
+  assert.deepEqual(practiceChoice({ tolerance: 90 }), { input: "", latency: {}, lastLatency: null });  // the score's, left out
   assert.equal(latencyKey("", ""), "default>default");
-  assert.equal(latencyKey("usb-1", "g7"), "usb-1>g7");
+  assert.equal(latencyKey("Mic (USB)", "Speakers"), "Mic (USB)>Speakers");
+  // Version 26: a pair never measured uses the last value; a measured pair its own.
+  const now = practiceChoice({ latency: { "Mic>Phones": 0.012, "Mic>Speakers": 0.1 }, lastLatency: 0.1 });
+  assert.equal(latencyOf(now, "Mic>Phones"), 0.012);
+  assert.equal(latencyOf(now, "Mic>Bluetooth"), 0.1);
+  assert.equal(latencyOf(practiceChoice({}), "Mic>Phones"), null);
+});
+
+test("practice: the keys of the output's group number (before version 26) collapse into the last value", () => {
+  const old = practiceChoice({ input: "usb", latency: { "default>9f3a": 0.1, "default>c1d2": 0.1096 } });
+  assert.deepEqual(old, { input: "usb", latency: {}, lastLatency: 0.1096 });
+  assert.equal(latencyOf(old, "Mic>Speakers"), 0.1096);
 });
 
 test("practice tuner: a click is found where it rises out of the noise, nothing in noise alone", () => {

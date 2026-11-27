@@ -6,11 +6,21 @@
 
 export const PEAK = 0.001;  // the take's peaks: one a millisecond of song, drawn one column a screen pixel
 
+// A latency per input and output name; lastLatency, the last measured or set, for a pair never measured.
 export function choice(settings = {}) {
+  const latency = settings.latency && typeof settings.latency === "object" ? settings.latency : {};
+  const last = Number.isFinite(settings.lastLatency) ? settings.lastLatency : null;
+  const old = Object.values(latency).filter(Number.isFinite);
   return {
     input: typeof settings.input === "string" ? settings.input : "",
-    latency: settings.latency && typeof settings.latency === "object" ? settings.latency : {},
+    // before version 26 the keys held the output's group, a new number each session: only the last value is kept
+    latency: last === null ? {} : latency,
+    lastLatency: last === null && old.length ? old[old.length - 1] : last,
   };
+}
+
+export function latencyOf(settings, key) {
+  return Number.isFinite(settings.latency[key]) ? settings.latency[key] : settings.lastLatency;
 }
 
 // The song seconds a captured block covers: it was heard `lag` (the measured latency) before the AudioContext saw it.
@@ -47,7 +57,6 @@ export function addPeaks(peaks, bucket, from, to, samples) {
   }
 }
 
-// The input and output a latency belongs to: another interface or headphones need their own measurement.
 // Runs of input in song time: a block that follows the last one goes on its run, else (a seek) starts a new one.
 export function addToRuns(runs, from, to, samples) {
   const last = runs[runs.length - 1];
@@ -84,6 +93,7 @@ export function wavSamples(bytes) {
   return samples;
 }
 
+// The input and output a latency belongs to: another interface or headphones need their own measurement.
 export function latencyKey(input, output) {
   return `${input || "default"}>${output || "default"}`;
 }
@@ -145,14 +155,18 @@ function stylesheet(parent, add) {
   return add(parent, Object.assign(document.createElement("link"), { rel: "stylesheet", href: "plugins/practice/plugin.css" }));
 }
 
-// The default output's device group: the system's output may change (speakers, headphones), and with it the latency.
-async function outputGroup() {
+// The chosen input's and the system's output's names: the latency changes with them (speakers, headphones), and
+// unlike the device and group ids they stay the same from one session to the next.
+async function deviceKey(input) {
   try {
     const devices = await navigator.mediaDevices.enumerateDevices();
-    const output = devices.find((device) => device.kind === "audiooutput" && device.deviceId === "default") || devices.find((device) => device.kind === "audiooutput");
-    return (output && output.groupId) || "";
+    const name = (kind, id) => {
+      const device = devices.find((item) => item.kind === kind && item.deviceId === id) || devices.find((item) => item.kind === kind);
+      return (device && device.label) || "";
+    };
+    return latencyKey(name("audioinput", input || "default"), name("audiooutput", "default"));
   } catch (_error) {
-    return "";
+    return latencyKey("", "");
   }
 }
 
@@ -267,7 +281,7 @@ export async function project(ctx) {
     if (!take && stem >= 0 && ctx.duration > 0) take = new Float32Array(Math.ceil(ctx.duration / PEAK) + 1).fill(-1);
     return take;
   };
-  const latency = () => (capture ? Number(settings.latency[capture.key]) || 0 : 0);
+  const latency = () => (capture ? Number(latencyOf(settings, capture.key)) || 0 : 0);
 
   function onBlock({ data: block }) {
     const peaks = takePeaks();
@@ -307,7 +321,7 @@ export async function project(ctx) {
       throw error;
     }
     openStreams++;
-    const output = await outputGroup();
+    const key = await deviceKey(settings.input);
     const track = stream.getAudioTracks()[0], got = (track && track.getSettings && track.getSettings()) || {};
     ctx.log("input_opened", { why, ms: Math.round(performance.now() - started), permission: await micPermission(),
       label: track ? track.label : null, device: (got.deviceId || "").slice(0, 8), rate: got.sampleRate || null,
@@ -325,7 +339,6 @@ export async function project(ctx) {
     sink.gain.value = 0;
     source.connect(node).connect(sink).connect(audio.destination);
     node.port.onmessage = onBlock;
-    const key = latencyKey(settings.input, output);
     measuredKey = key;
     showLatency();
     let closed = false;
@@ -463,12 +476,12 @@ export async function project(ctx) {
 
   function showStatus() {
     if (!capture) return;
-    status.textContent = settings.latency[capture.key] === undefined ? ctx.t("Latency not measured") : "";
+    status.textContent = latencyOf(settings, capture.key) === null ? ctx.t("Latency not measured") : "";
   }
 
   // The latency of the input and output in use (known after the first recording or measurement).
   function showLatency() {
-    const value = measuredKey && settings.latency[measuredKey];
+    const value = measuredKey && latencyOf(settings, measuredKey);
     measure.innerHTML = ICONS.latency;
     if (value) measure.append(`${ctx.formatDecimal(Math.round(value * 10000) / 10)} ms`);
     measure.title = ctx.t("Measure the delay of your input and output");
@@ -477,8 +490,8 @@ export async function project(ctx) {
       : ctx.t("Measure latency"));
   }
   showLatency();
-  outputGroup().then((output) => {  // the key before any recording: the chosen input and the system's output now
-    if (measuredKey === null && ctx.current) measuredKey = latencyKey(settings.input, output);
+  deviceKey(settings.input).then((key) => {  // the key before any recording: the chosen input and the system's output now
+    if (measuredKey === null && ctx.current) measuredKey = key;
     showLatency();
   });
   ctx.on(measure, "click", () => {
@@ -486,9 +499,11 @@ export async function project(ctx) {
     openTuner(ctx, {
       openInput: (onBlock) => openInput(onBlock, "tuner"),
       engineState,
-      known: measuredKey ? settings.latency[measuredKey] : null,
+      known: measuredKey ? latencyOf(settings, measuredKey) : null,
       save: (key, seconds) => {
-        settings.latency = { ...settings.latency, [key]: Math.round(seconds * 100000) / 100000 };
+        const value = Math.round(seconds * 100000) / 100000;
+        settings.latency = { ...settings.latency, [key]: value };
+        settings.lastLatency = value;
         ctx.saveSettings({ ...settings });
         showLatency();
       },
