@@ -281,16 +281,12 @@
 "Bar line brightness": "Lysstyrke på taktstrekene",
 "Invalid export kind": "Ugyldig eksporttype",
 "Latency in ms": "Forsinkelse i ms",
-"Mix to FLAC": "Miks til FLAC",
 "Not saved: {error}": "Ikke lagret: {error}",
-"Save the song with your take as one FLAC file": "Lagre sangen med opptaket ditt som én FLAC-fil",
-"Save the take": "Lagre opptaket",
-"Save your take as a FLAC file, from the start of the song": "Lagre opptaket ditt som en FLAC-fil fra starten av sangen",
 "Saved in Music/Exports: {name}": "Lagret i Music/Exports: {name}",
 "Saving…": "Lagrer…",
 "Set by hand · saved for this input and output": "Satt manuelt · lagret for denne inngangen og utgangen",
 "The export could not be saved": "Eksporten kunne ikke lagres",
 "The export is not a WAV file": "Eksporten er ikke en WAV-fil",
-"Save the raw take": "Lagre råopptaket",
-"Save only what you recorded as a FLAC file, without volume or effects": "Lagre bare det du tok opp som en FLAC-fil, uten volum eller effekter"
+"Save as FLAC": "Lagre som FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Lagre sangen med opptaket ditt og opptaket alene slik det ble tatt opp, som FLAC-filer"
 }

@@ -244,8 +244,6 @@
 "You": "Εσείς",
 "Record your input while the song plays": "Καταγράψτε την είσοδό σας ενώ παίζει το τραγούδι",
 "Record": "Καταγραφή",
-"Play your last take along with the song": "Αναπαραγωγή της τελευταίας λήψης μαζί με το τραγούδι",
-"Play your last take": "Αναπαραγωγή τελευταίας λήψης",
 "Practice with {stem}": "Πρακτική με {stem}",
 "Preparing…": "Προετοιμασία…",
 "The browser did not allow the audio input": "Το πρόγραμμα περιήγησης δεν επέτρεψε την είσοδο ήχου",
@@ -427,16 +425,12 @@
 "Bar line brightness": "Φωτεινότητα γραμμών μέτρου",
 "Invalid export kind": "Μη έγκυρος τύπος εξαγωγής",
 "Latency in ms": "Καθυστέρηση σε ms",
-"Mix to FLAC": "Μίξη σε FLAC",
 "Not saved: {error}": "Δεν αποθηκεύτηκε: {error}",
-"Save the song with your take as one FLAC file": "Αποθήκευση του τραγουδιού μαζί με τη λήψη σας σε ένα αρχείο FLAC",
-"Save the take": "Αποθήκευση λήψης",
-"Save your take as a FLAC file, from the start of the song": "Αποθήκευση της λήψης σας ως αρχείο FLAC από την αρχή του τραγουδιού",
 "Saved in Music/Exports: {name}": "Αποθηκεύτηκε στο Music/Exports: {name}",
 "Saving…": "Αποθήκευση…",
 "Set by hand · saved for this input and output": "Ορίστηκε χειροκίνητα · αποθηκεύτηκε για αυτή την είσοδο και έξοδο",
 "The export could not be saved": "Δεν ήταν δυνατή η αποθήκευση της εξαγωγής",
 "The export is not a WAV file": "Η εξαγωγή δεν είναι αρχείο WAV",
-"Save the raw take": "Αποθήκευση ακατέργαστης λήψης",
-"Save only what you recorded as a FLAC file, without volume or effects": "Αποθήκευση μόνο όσων ηχογραφήσατε ως αρχείο FLAC, χωρίς ένταση ή εφέ"
+"Save as FLAC": "Αποθήκευση ως FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Αποθήκευση του τραγουδιού με τη λήψη σας και μόνο της λήψης, όπως ηχογραφήθηκε, ως αρχεία FLAC"
 }

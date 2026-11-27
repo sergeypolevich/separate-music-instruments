@@ -285,16 +285,12 @@
 "Bar line brightness": "Svetlost taktnic",
 "Invalid export kind": "Neveljavna vrsta izvoza",
 "Latency in ms": "Zakasnitev v ms",
-"Mix to FLAC": "Miks v FLAC",
 "Not saved: {error}": "Ni shranjeno: {error}",
-"Save the song with your take as one FLAC file": "Shrani skladbo skupaj z vašim posnetkom v eno datoteko FLAC",
-"Save the take": "Shrani posnetek",
-"Save your take as a FLAC file, from the start of the song": "Shrani vaš posnetek kot datoteko FLAC od začetka skladbe",
 "Saved in Music/Exports: {name}": "Shranjeno v Music/Exports: {name}",
 "Saving…": "Shranjevanje…",
 "Set by hand · saved for this input and output": "Nastavljeno ročno · shranjeno za ta vhod in izhod",
 "The export could not be saved": "Izvoza ni bilo mogoče shraniti",
 "The export is not a WAV file": "Izvoz ni datoteka WAV",
-"Save the raw take": "Shrani surovi posnetek",
-"Save only what you recorded as a FLAC file, without volume or effects": "Shrani samo posneto kot datoteko FLAC, brez glasnosti in učinkov"
+"Save as FLAC": "Shrani kot FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Shrani pesem z vašim posnetkom in posebej samo posnetek, kot je bil posnet, kot datoteke FLAC"
 }

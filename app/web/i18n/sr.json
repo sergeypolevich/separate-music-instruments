@@ -283,16 +283,12 @@
 "Bar line brightness": "Осветљеност линија тактова",
 "Invalid export kind": "Неисправна врста извоза",
 "Latency in ms": "Кашњење у ms",
-"Mix to FLAC": "Микс у FLAC",
 "Not saved: {error}": "Није сачувано: {error}",
-"Save the song with your take as one FLAC file": "Сачувај песму заједно са вашим снимком у једну FLAC датотеку",
-"Save the take": "Сачувај снимак",
-"Save your take as a FLAC file, from the start of the song": "Сачувај ваш снимак као FLAC датотеку од почетка песме",
 "Saved in Music/Exports: {name}": "Сачувано у Music/Exports: {name}",
 "Saving…": "Чување…",
 "Set by hand · saved for this input and output": "Подешено ручно · сачувано за овај улаз и излаз",
 "The export could not be saved": "Извоз није могуће сачувати",
 "The export is not a WAV file": "Извоз није WAV датотека",
-"Save the raw take": "Сачувај сирови снимак",
-"Save only what you recorded as a FLAC file, without volume or effects": "Сачувај само снимљено као FLAC датотеку, без јачине звука и ефеката"
+"Save as FLAC": "Сачувај као FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Сачувај песму са вашим снимком и засебно само снимак какав је снимљен, као FLAC датотеке"
 }

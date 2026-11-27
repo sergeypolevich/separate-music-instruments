@@ -107,8 +107,9 @@ def _serve(web, state, wav=None):
 
         def do_POST(self):
             if "/exports?" in self.path:  # version 26: the rendered WAV, kept as the app would keep it
-                state.setdefault("exports", []).append((self.path.split("kind=")[1], self.rfile.read(int(self.headers.get("Content-Length", "0")))))
-                self._json({"name": f"Song — {state['exports'][-1][0]} 1.flac"})
+                query = self.path.split("?", 1)[1]
+                state.setdefault("exports", []).append((query, self.rfile.read(int(self.headers.get("Content-Length", "0")))))
+                self._json({"name": "Song — mix.flac" if "kind=mix" in query else "Song — raw take.flac", "number": 1})
                 return
             body = self._body()
             if self.path == "/api/v1/client-log":  # the page's log: kept apart from the requests
@@ -489,7 +490,8 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             assert you.locator('[data-control="eq"]').count() == 1 and you.locator('[data-control="gain"]').count() == 1
             # The row's own buttons are in its left side, on a line over the name, S, M and EQ; none over the waveform.
             left, heading = you.locator(".mixer-left").bounding_box(), you.locator(".mixer-heading").bounding_box()
-            for action in ("practice-record", "practice-listen", "practice-latency"):
+            assert you.locator('[data-action="practice-listen"]').count() == 0  # version 26: the take plays unless muted
+            for action in ("practice-record", "practice-latency"):
                 button = you.locator(f'.mixer-left [data-action="{action}"]').bounding_box()
                 assert left["x"] <= button["x"] and button["x"] + button["width"] <= left["x"] + left["width"] + 1, action
                 assert button["y"] + button["height"] <= heading["y"] + 1, action
@@ -779,35 +781,26 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             assert all(state["files"][run["file"]][:4] == b"RIFF" for run in take["runs"])
             page.reload(wait_until="load")
             page.locator(".project-tab").first.click()
-            listen = page.locator('[data-action="practice-listen"]')
-            page.wait_for_function("!document.querySelector('[data-action=\"practice-listen\"]').disabled")
+            page.wait_for_function("!document.querySelector('.practice-exports').hidden")
             page.evaluate("activeTransport.seek(1)")
             page.wait_for_function(YOU_BARS + " > 50")
-            listen.click()
-            assert listen.get_attribute("aria-pressed") == "true"
-            page.wait_for_function("activeTransport.stretching")  # on the song's clock to follow it
+            page.wait_for_function("activeTransport.stretching")  # a take plays along by itself, on the song's clock
             page.evaluate("document.activeElement.blur()")
             page.keyboard.press("Space")
             page.wait_for_function("activeTransport.currentTime > 2")
             page.keyboard.press("Space")
-            # Version 26: the take alone (its volume, here 50 %) and the mix as heard, rendered by the page and sent
-            # as a 16-bit stereo WAV of the whole song, and the take as recorded; «Mix», «Save the take» and «Save the
-            # raw take» in a row at the take waveform's top right.
-            save, mix = page.locator('[data-action="practice-save"]'), page.locator('[data-action="practice-mix"]')
-            raw = page.locator('[data-action="practice-raw"]')
-            corner, lane_box = raw.bounding_box(), page.locator(".practice-lane").bounding_box()
+            # Version 26: one button at the take waveform's top right saves the mix as heard (here the take at 50 % and
+            # through its EQ) and the take alone as recorded (100 %, no EQ) under one number, each rendered by the page
+            # and sent as a 16-bit stereo WAV of the whole song; the folder opens once, at the take.
+            lane_box = page.locator(".practice-lane").bounding_box()
+            assert page.locator(".practice-exports button").count() == 1
+            save = page.locator('[data-action="practice-save"]')
+            corner = save.bounding_box()
             assert abs(corner["x"] + corner["width"] - (lane_box["x"] + lane_box["width"])) <= 6 and abs(corner["y"] - lane_box["y"]) <= 6
-            for left, right in ((mix, save), (save, raw)):
-                assert left.bounding_box()["x"] + left.bounding_box()["width"] <= right.bounding_box()["x"]
-                assert abs(left.bounding_box()["y"] - corner["y"]) <= 1
-            assert save.get_attribute("aria-label") == "Save the take" and mix.get_attribute("aria-label") == "Mix to FLAC"
-            assert raw.get_attribute("aria-label") == "Save the raw take"
-            you_gain = page.locator('.plugin-track [data-control="gain"]')
-            you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            save.click()
-            page.wait_for_function("document.querySelector('.practice-status').textContent === 'Saved in Music/Exports: Song — take 1.flac'", timeout=30000)
-            # The take's EQ is in its export too (the chain's build): the low shelf moved over the take's 110 Hz and all
-            # the way down makes it much quieter.
+            assert save.get_attribute("aria-label") == "Save as FLAC"
+            page.locator('.plugin-track [data-control="gain"]').evaluate(
+                "el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            # the take's EQ: the low shelf moved over the take's 110 Hz and all the way down
             page.locator('.plugin-track [data-control="eq"]').click()
             graph = page.locator(".eq-graph")
             graph.wait_for()
@@ -819,33 +812,22 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             page.mouse.up()
             page.keyboard.press("Escape")
             save.click()
-            for _ in range(300):
-                if len(state["exports"]) == 2:
-                    break
-                page.wait_for_timeout(100)
-            assert len(state["exports"]) == 2
-            you_gain.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            mix.click()
-            page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('mix 1.flac')", timeout=30000)
-            you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            raw.click()  # the volume at 50 % and the EQ's cut are both left out
-            page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('raw 1.flac')", timeout=30000)
-            (take_kind, take_wav), (_, eq_wav), (mix_kind, mix_wav), (raw_kind, raw_wav) = state["exports"]
-            assert (take_kind, mix_kind, raw_kind) == ("take", "mix", "raw")
-            recorded = max(np.abs(np.frombuffer(state["files"][run["file"]][44:], "<i2")).max() for run in state["data"]["practice"]["takes"][0]["runs"])
-            first_run = min(run["from"] for run in state["data"]["practice"]["takes"][0]["runs"])
-            for body in (take_wav, mix_wav, raw_wav):
+            page.wait_for_function("document.querySelector('.practice-status').textContent === "
+                                   "'Saved in Music/Exports: Song — mix.flac, Song — raw take.flac'", timeout=60000)
+            (mix_query, mix_wav), (raw_query, raw_wav) = state["exports"]
+            assert ("kind=mix" in mix_query and "show=false" in mix_query and "number" not in mix_query)
+            assert ("kind=raw" in raw_query and "show=true" in raw_query and "number=1" in raw_query)
+            takes = state["data"]["practice"]["takes"][0]["runs"]
+            recorded = [np.frombuffer(state["files"][run["file"]][44:], "<i2").astype(np.float64) for run in takes]
+            first_run = min(run["from"] for run in takes)
+            for body in (mix_wav, raw_wav):
                 with wave.open(io.BytesIO(body)) as rendered:
                     assert (rendered.getnchannels(), rendered.getsampwidth(), rendered.getframerate()) == (2, 2, 44100)
                     assert abs(rendered.getnframes() / 44100 - 5) < 0.01  # the whole song
-            take_audio = np.frombuffer(take_wav[44:], "<i2").reshape(-1, 2)
-            assert np.abs(take_audio).max() == pytest.approx(recorded / 2, rel=0.1)  # as heard: at its 50 %
-            assert first_run > 0.5 and np.abs(take_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
-            rms = lambda audio: float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
-            assert rms(np.frombuffer(eq_wav[44:], "<i2")) < 0.5 * rms(take_audio)
-            raw_audio = np.frombuffer(raw_wav[44:], "<i2").reshape(-1, 2)
-            assert np.abs(raw_audio).max() == pytest.approx(recorded, rel=0.1)  # at 100 %, not the fader's 50 %
-            assert rms(raw_audio) == pytest.approx(2 * rms(take_audio), rel=0.1)  # nor through the EQ
+            raw_audio = np.frombuffer(raw_wav[44:], "<i2").reshape(-1, 2).astype(np.float64)
+            assert first_run > 0.5 and np.abs(raw_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
+            energy = sum(float(np.dot(run, run)) for run in recorded)
+            assert float(np.dot(raw_audio[:, 0], raw_audio[:, 0])) == pytest.approx(energy, rel=0.15)  # not at 50 %, nor the EQ
             mix_audio = np.frombuffer(mix_wav[44:], "<i2").reshape(-1, 2)
             assert np.abs(mix_audio[int(0.25 * 44100): int(0.4 * 44100)]).max() > 1000  # the stems' first pluck
             assert np.abs(mix_audio).max() <= 32767 * 0.999 + 1  # four stems and the take, lowered as a whole
@@ -951,7 +933,8 @@ def _song_grid(result, start, end):
 def test_practice_plays_the_last_take_in_time(start):
     """Version 24: a take that is the stem itself, heard back through «You», lines up with the stem to the sample
     (the output recorded once with only the stem, once with only the take, both mapped to song time), also when the
-    music starts later in the files (start_seconds)."""
+    music starts later in the files (start_seconds). Version 26: it plays like a stem, with no button to press, and
+    while recording is on it is neither heard nor drawn."""
     sync_playwright = pytest.importorskip("playwright.sync_api").sync_playwright
     stem = _plucks_wav()
     take, length = _stem_as_take(stem, start, 0.5, 4.5)
@@ -961,15 +944,14 @@ def test_practice_plays_the_last_take_in_time(start):
     server = _serve(ROOT / "web", state, stem)
     try:
         with sync_playwright() as playwright:
-            browser, launch_error = _launch_browser(playwright, ("--autoplay-policy=no-user-gesture-required",))
+            browser, launch_error = _launch_browser(playwright, ("--use-fake-ui-for-media-stream", "--use-fake-device-for-media-stream", "--autoplay-policy=no-user-gesture-required"))
             if browser is None:
                 pytest.skip(f"No browser: {launch_error}")
             page = browser.new_page(viewport={"width": 1365, "height": 900})
             page.add_init_script(OUTPUT_TAP)
             page.goto(f"http://127.0.0.1:{server.server_port}", wait_until="load")
             page.locator(".project-tab").first.click()
-            page.wait_for_function("document.querySelector('[data-action=\"practice-listen\"]') && !document.querySelector('[data-action=\"practice-listen\"]').disabled")
-            page.locator('[data-action="practice-listen"]').click()
+            page.wait_for_function("document.querySelector('.practice-exports') && !document.querySelector('.practice-exports').hidden")
             page.wait_for_function("activeTransport.stretching")
             mute_you = page.locator('[data-track="practice"] [data-control="mute"]')
             mute_bass = page.locator('.mixer-row[data-stem="bass"] [data-control="mute"]')
@@ -983,6 +965,17 @@ def test_practice_plays_the_last_take_in_time(start):
                 results.append(page.evaluate("window.__tap(2.5)"))
                 page.evaluate("activeTransport.pause()")
                 muted.click()
+            # Recording on: the last take is silent (only «You» could be heard here) and gone from the lane.
+            mute_bass.click()
+            page.wait_for_function(YOU_BARS + " > 50")
+            record = page.locator('[data-action="practice-record"]')
+            record.click()
+            page.wait_for_function(YOU_BARS + " === 0")
+            assert record.get_attribute("aria-pressed") == "true"
+            page.evaluate("activeTransport.seek(1)")
+            page.evaluate("activeTransport.play()")
+            recording = page.evaluate("window.__tap(1)")
+            page.evaluate("activeTransport.pause()")
             browser.close()
     finally:
         server.shutdown()
@@ -992,3 +985,5 @@ def test_practice_plays_the_last_take_in_time(start):
     lag = list(lags)[int(np.argmax(corr))] / rate * 1000
     assert np.dot(a, a) > 1 and abs(np.dot(b, b) / np.dot(a, a) - 1) < 0.1  # both were heard, as loud
     assert abs(lag) < 1, lag  # milliseconds
+    heard, _ = _song_grid(recording, 1.2, 1.9)
+    assert len(recording["blocks"]) > 100 and np.dot(heard, heard) < 1e-3 * np.dot(b, b)  # silent while recording

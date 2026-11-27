@@ -248,8 +248,6 @@
 "You": "Вы",
 "Record your input while the song plays": "Запішыце ўвод падчас прайгравання песні",
 "Record": "Запісаць",
-"Play your last take along with the song": "Праіграйце апошні запіс разам з песняй",
-"Play your last take": "Праіграйце апошні запіс",
 "Practice with {stem}": "Практыкаваць з {stem}",
 "Preparing…": "Падрыхтоўка…",
 "The browser did not allow the audio input": "Браўзер не дазволіў аўдыяувод",
@@ -431,16 +429,12 @@
 "Bar line brightness": "Яркасць ліній тактаў",
 "Invalid export kind": "Няправільны тып экспарту",
 "Latency in ms": "Затрымка ў мс",
-"Mix to FLAC": "Мікс у FLAC",
 "Not saved: {error}": "Не захавана: {error}",
-"Save the song with your take as one FLAC file": "Захаваць песню разам з вашым дублем у адзін файл FLAC",
-"Save the take": "Захаваць дубль",
-"Save your take as a FLAC file, from the start of the song": "Захаваць ваш дубль у файл FLAC ад пачатку песні",
 "Saved in Music/Exports: {name}": "Захавана ў Music/Exports: {name}",
 "Saving…": "Захаванне…",
 "Set by hand · saved for this input and output": "Зададзена ўручную · захавана для гэтага ўваходу і выхаду",
 "The export could not be saved": "Не ўдалося захаваць экспарт",
 "The export is not a WAV file": "Экспарт — не файл WAV",
-"Save the raw take": "Захаваць сыры дубль",
-"Save only what you recorded as a FLAC file, without volume or effects": "Захаваць толькі запісанае ў файл FLAC, без гучнасці і эфектаў"
+"Save as FLAC": "Захаваць у FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Захаваць песню з вашым дублем і асобна ваш дубль, як запісаны, у файлы FLAC"
 }

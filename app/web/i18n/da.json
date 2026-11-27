@@ -244,8 +244,6 @@
 "You": "Dig",
 "Record your input while the song plays": "Optag din input mens sangen spiller",
 "Record": "Optag",
-"Play your last take along with the song": "Afspil din seneste optagelse sammen med sangen",
-"Play your last take": "Afspil din seneste optagelse",
 "Practice with {stem}": "Øv med {stem}",
 "Preparing…": "Forbereder…",
 "The browser did not allow the audio input": "Browseren tillod ikke lydinput",
@@ -427,16 +425,12 @@
 "Bar line brightness": "Taktstregernes lysstyrke",
 "Invalid export kind": "Ugyldig eksporttype",
 "Latency in ms": "Latens i ms",
-"Mix to FLAC": "Mix til FLAC",
 "Not saved: {error}": "Ikke gemt: {error}",
-"Save the song with your take as one FLAC file": "Gem sangen med din optagelse som én FLAC-fil",
-"Save the take": "Gem optagelsen",
-"Save your take as a FLAC file, from the start of the song": "Gem din optagelse som en FLAC-fil fra sangens start",
 "Saved in Music/Exports: {name}": "Gemt i Music/Exports: {name}",
 "Saving…": "Gemmer…",
 "Set by hand · saved for this input and output": "Angivet manuelt · gemt for denne indgang og udgang",
 "The export could not be saved": "Eksporten kunne ikke gemmes",
 "The export is not a WAV file": "Eksporten er ikke en WAV-fil",
-"Save the raw take": "Gem den rå optagelse",
-"Save only what you recorded as a FLAC file, without volume or effects": "Gem kun det, du har optaget, som en FLAC-fil uden lydstyrke eller effekter"
+"Save as FLAC": "Gem som FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Gem sangen med din optagelse og din optagelse alene, som den blev optaget, som FLAC-filer"
 }

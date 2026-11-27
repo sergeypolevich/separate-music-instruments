@@ -246,8 +246,6 @@
 "You": "Tú",
 "Record your input while the song plays": "Graba tu entrada mientras suena la canción",
 "Record": "Grabar",
-"Play your last take along with the song": "Reproduce tu última toma junto con la canción",
-"Play your last take": "Reproducir última toma",
 "Practice with {stem}": "Practicar con {stem}",
 "Preparing…": "Preparando…",
 "The browser did not allow the audio input": "El navegador no permitió la entrada de audio",
@@ -429,16 +427,12 @@
 "Bar line brightness": "Brillo de las líneas de compás",
 "Invalid export kind": "Tipo de exportación no válido",
 "Latency in ms": "Latencia en ms",
-"Mix to FLAC": "Mezcla a FLAC",
 "Not saved: {error}": "No se guardó: {error}",
-"Save the song with your take as one FLAC file": "Guardar la canción con tu toma en un solo archivo FLAC",
-"Save the take": "Guardar la toma",
-"Save your take as a FLAC file, from the start of the song": "Guardar tu toma como archivo FLAC desde el inicio de la canción",
 "Saved in Music/Exports: {name}": "Guardado en Music/Exports: {name}",
 "Saving…": "Guardando…",
 "Set by hand · saved for this input and output": "Fijada a mano · guardada para esta entrada y salida",
 "The export could not be saved": "No se pudo guardar la exportación",
 "The export is not a WAV file": "La exportación no es un archivo WAV",
-"Save the raw take": "Guardar la toma sin procesar",
-"Save only what you recorded as a FLAC file, without volume or effects": "Guardar solo lo que grabaste como archivo FLAC, sin volumen ni efectos"
+"Save as FLAC": "Guardar como FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Guardar la canción con tu toma y, aparte, solo tu toma tal como la grabaste, como archivos FLAC"
 }

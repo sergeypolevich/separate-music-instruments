@@ -15,7 +15,7 @@ from typing import Annotated, Callable, Literal
 from urllib.parse import unquote
 from uuid import UUID
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.concurrency import run_in_threadpool
@@ -227,7 +227,8 @@ def waveform_data(path: Path, levels: int, start_seconds: float = 0.0) -> dict[s
 def reveal_file(path: Path) -> None:
     """Open the file's folder with the file selected, in Explorer or Finder, on the computer running the app."""
     if sys.platform == "win32":
-        command = ["explorer", f"/select,{path}"]
+        # one string: as a list, Python would quote "/select,<path>" whole and Explorer would open Documents instead
+        command = f'explorer /select,"{path}"'
     elif sys.platform == "darwin":
         command = ["open", "-R", str(path)]
     else:
@@ -611,9 +612,11 @@ def create_app(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post("/api/v1/projects/{project_id}/exports")
-    async def save_export(project_id: UUID, kind: Literal["mix", "take", "raw"], request: Request) -> dict[str, str]:
-        """Version 26: the body is a WAV the page rendered (the mix or the take as heard, or the take as recorded); it is kept as FLAC in
-        Music/Exports/ under the project's name and its folder opens with the file selected."""
+    async def save_export(project_id: UUID, kind: Literal["mix", "raw"], request: Request,
+                          number: Annotated[int | None, Query(ge=1, le=100000)] = None, show: bool = True) -> dict[str, str | int]:
+        """Version 26: the body is a WAV the page rendered (the mix as heard, or the take as recorded); it is kept as
+        FLAC in Music/Exports/ under the project's name (a take with its mix's `number`) and, unless `show` is
+        false, its folder opens with the file selected."""
         project = repository.get_project(project_id, _OWNER_ID)
         if project is None:
             raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
@@ -632,7 +635,7 @@ def create_app(
                         raise too_large
                     upload.write(chunk)
             title = project.name or project.title or project.input_value
-            path = await run_in_threadpool(storage.save_export, partial, title, kind)
+            path, number = await run_in_threadpool(storage.save_export, partial, title, kind, number)
         except AdapterError as exc:
             if exc.category is not FailureCategory.INVALID_INPUT:
                 raise
@@ -640,8 +643,9 @@ def create_app(
         finally:
             partial.unlink(missing_ok=True)
         logger.info("Export saved", extra={"event": "export_saved", "ClientID": _OWNER_ID, "kind": kind, "bytes": path.stat().st_size})
-        reveal(path)
-        return {"name": path.name}
+        if show:
+            reveal(path)
+        return {"name": path.name, "number": number}
 
     def upgrade_state(project, job) -> dict[str, object]:
         """«Improve quality»: whether the project already has the best model, how long the upgrade takes

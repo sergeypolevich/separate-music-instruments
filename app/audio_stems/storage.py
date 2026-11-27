@@ -538,11 +538,12 @@ class LocalMediaStorage:
                 report["unused_bytes"] += size
         return report
 
-    def save_export(self, wav: Path, title: str, kind: str) -> Path:
-        """A mix or take the page rendered (a WAV file) as 16-bit FLAC in Exports/: «<title> — mix.flac»,
-        «<title> — take 1.flac», «<title> — raw take.flac» (only what was recorded); a file already there is never
-        overwritten, the next number is used."""
-        if kind not in ("mix", "take", "raw"):
+    def save_export(self, wav: Path, title: str, kind: str, number: int | None = None) -> tuple[Path, int]:
+        """A mix or a take as recorded, rendered by the page (a WAV file), as 16-bit FLAC in Exports/: «<title> —
+        mix.flac» and «<title> — raw take.flac», then «… mix 2.flac» and «… raw take 2.flac»: a mix takes the first
+        number free for both, its take is given that number. A file already there is never overwritten, the next
+        number is used. Returns the file and its number (1: none in the name)."""
+        if kind not in ("mix", "raw"):
             raise AdapterError("Invalid export kind", FailureCategory.INVALID_INPUT)
         try:
             info = soundfile.info(str(wav))
@@ -550,10 +551,13 @@ class LocalMediaStorage:
             raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT) from exc
         if info.format != "WAV" or info.channels not in (1, 2) or not 8000 <= info.samplerate <= 192000 or info.frames < 1:
             raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT)
-        base = safe_filename(f"{title} — {'raw take' if kind == 'raw' else kind}")
-        number = 1 if kind == "take" else None
-        while (target := self.exports_root / f"{base if number is None else f'{base} {number}'}.flac").exists():
-            number = (number or 1) + 1
+        def named(what: str, at: int) -> Path:
+            base = safe_filename(f"{title} — {what}")
+            return self.exports_root / f"{base if at == 1 else f'{base} {at}'}.flac"
+        number = number or 1
+        while named("raw take", number).exists() or (kind == "mix" and named("mix", number).exists()):
+            number += 1
+        target = named("mix" if kind == "mix" else "raw take", number)
         partial = target.with_name(target.name + ".part")
         try:
             self.exports_root.mkdir(parents=True, exist_ok=True)
@@ -568,7 +572,7 @@ class LocalMediaStorage:
             if isinstance(exc, OSError) and is_disk_full(exc):
                 raise disk_full_error() from exc
             raise AdapterError("The export could not be saved", FailureCategory.TRANSIENT) from exc
-        return target
+        return target, number
 
     def clean_unused(self, keys_in_use: set[str]) -> int:
         """Delete files no project uses and all temporary output, then empty folders; return bytes freed.

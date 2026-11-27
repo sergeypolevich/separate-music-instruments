@@ -5,11 +5,11 @@ Play your part along with the song and record yourself. Your waveform runs under
 ## How to use
 
 1. Press the target button in the row of the part you play (before S and M). Mute that part with M if you want to replace it.
-2. A row **You** appears right under it. Its buttons, on the right of its left side: record, listen to your last take, and the latency.
+2. A row **You** appears right under it. Its buttons, on the right of its left side: record and the latency.
 3. Measure the latency once (see below).
-4. Press record, then ▶, and play. Pausing, or pressing record again, ends the take.
-5. The headphones button plays your last take along with the song.
-6. Once there is a take, three buttons sit in the top right corner of its waveform: **Mix to FLAC** saves the song with your take as you hear it now, **Save the take** saves your take alone from the start of the song, **Save the raw take** saves only what you recorded, at full volume and without EQ. All three go to `Music/Exports` in the Audio Stems folder, and the folder opens with the file selected.
+4. Press record, then ▶, and play. Pausing, or pressing record again, ends the take. While record is on, your last take is not heard and not drawn: the lane shows only what you record now.
+5. Your last take plays along with the song like any part; M on the **You** row mutes it.
+6. Once there is a take, the button in the top right corner of its waveform saves two FLAC files to `Music/Exports` in the Audio Stems folder: the song with your take as you hear it now, and only what you recorded (full volume, no EQ, in time with the song). The folder opens with the file selected.
 
 Choose the audio input in Settings → Plugins → Practice.
 

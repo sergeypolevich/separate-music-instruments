@@ -281,16 +281,12 @@
 "Bar line brightness": "Ndriçimi i vijave të masave",
 "Invalid export kind": "Lloj eksporti i pavlefshëm",
 "Latency in ms": "Vonesa në ms",
-"Mix to FLAC": "Miksim në FLAC",
 "Not saved: {error}": "Nuk u ruajt: {error}",
-"Save the song with your take as one FLAC file": "Ruaj këngën bashkë me regjistrimin tënd në një skedar FLAC",
-"Save the take": "Ruaj regjistrimin",
-"Save your take as a FLAC file, from the start of the song": "Ruaj regjistrimin tënd si skedar FLAC nga fillimi i këngës",
 "Saved in Music/Exports: {name}": "U ruajt në Music/Exports: {name}",
 "Saving…": "Po ruhet…",
 "Set by hand · saved for this input and output": "Caktuar me dorë · ruajtur për këtë hyrje dhe dalje",
 "The export could not be saved": "Eksporti nuk mund të ruhej",
 "The export is not a WAV file": "Eksporti nuk është skedar WAV",
-"Save the raw take": "Ruaj regjistrimin e papërpunuar",
-"Save only what you recorded as a FLAC file, without volume or effects": "Ruaj vetëm atë që regjistrove si skedar FLAC, pa volum dhe efekte"
+"Save as FLAC": "Ruaj si FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Ruaj këngën me regjistrimin tënd dhe veçmas vetëm regjistrimin siç u regjistrua, si skedarë FLAC"
 }

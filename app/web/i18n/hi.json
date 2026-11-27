@@ -244,8 +244,6 @@
 "You": "आप",
 "Record your input while the song plays": "गाना बजते समय अपनी इनपुट रिकॉर्ड करें",
 "Record": "रिकॉर्ड",
-"Play your last take along with the song": "अपनी अंतिम रिकॉर्डिंग को गाने के साथ चलाएँ",
-"Play your last take": "अपनी अंतिम रिकॉर्डिंग चलाएँ",
 "Practice with {stem}": "{stem} के साथ अभ्यास",
 "Preparing…": "तैयार हो रहा है…",
 "The browser did not allow the audio input": "ब्राउज़र ने ऑडियो इनपुट की अनुमति नहीं दी",
@@ -427,16 +425,12 @@
 "Bar line brightness": "बार लाइनों की चमक",
 "Invalid export kind": "अमान्य निर्यात प्रकार",
 "Latency in ms": "विलंब ms में",
-"Mix to FLAC": "FLAC में मिक्स",
 "Not saved: {error}": "सहेजा नहीं गया: {error}",
-"Save the song with your take as one FLAC file": "गाने को आपके टेक के साथ एक FLAC फ़ाइल में सहेजें",
-"Save the take": "टेक सहेजें",
-"Save your take as a FLAC file, from the start of the song": "अपने टेक को गाने की शुरुआत से FLAC फ़ाइल के रूप में सहेजें",
 "Saved in Music/Exports: {name}": "Music/Exports में सहेजा गया: {name}",
 "Saving…": "सहेजा जा रहा है…",
 "Set by hand · saved for this input and output": "हाथ से सेट किया गया · इस इनपुट और आउटपुट के लिए सहेजा गया",
 "The export could not be saved": "निर्यात सहेजा नहीं जा सका",
 "The export is not a WAV file": "निर्यात WAV फ़ाइल नहीं है",
-"Save the raw take": "कच्चा टेक सहेजें",
-"Save only what you recorded as a FLAC file, without volume or effects": "केवल रिकॉर्ड किया गया हिस्सा FLAC फ़ाइल के रूप में सहेजें, बिना वॉल्यूम या इफ़ेक्ट के"
+"Save as FLAC": "FLAC के रूप में सहेजें",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "गाना आपके टेक के साथ, और अलग से केवल आपका टेक जैसा रिकॉर्ड हुआ, FLAC फ़ाइलों के रूप में सहेजें"
 }

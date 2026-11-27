@@ -336,16 +336,12 @@
 "Bar line brightness": "小节线亮度",
 "Invalid export kind": "无效的导出类型",
 "Latency in ms": "延迟（毫秒）",
-"Mix to FLAC": "混音为 FLAC",
 "Not saved: {error}": "未保存：{error}",
-"Save the song with your take as one FLAC file": "将歌曲与你的录音一起保存为一个 FLAC 文件",
-"Save the take": "保存录音",
-"Save your take as a FLAC file, from the start of the song": "将你的录音从歌曲开头保存为 FLAC 文件",
 "Saved in Music/Exports: {name}": "已保存到 Music/Exports：{name}",
 "Saving…": "正在保存…",
 "Set by hand · saved for this input and output": "手动设置 · 已为此输入和输出保存",
 "The export could not be saved": "无法保存导出",
 "The export is not a WAV file": "导出的不是 WAV 文件",
-"Save the raw take": "保存原始录音",
-"Save only what you recorded as a FLAC file, without volume or effects": "仅将录制内容保存为 FLAC 文件，不含音量和效果"
+"Save as FLAC": "保存为 FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "将歌曲连同你的录音、以及单独的原始录音保存为 FLAC 文件"
 }

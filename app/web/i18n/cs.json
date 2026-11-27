@@ -248,8 +248,6 @@
 "You": "Vy",
 "Record your input while the song plays": "Nahrávejte vstup během přehrávání skladby",
 "Record": "Nahrát",
-"Play your last take along with the song": "Přehrát poslední nahrávku spolu se skladbou",
-"Play your last take": "Přehrát poslední nahrávku",
 "Practice with {stem}": "Cvičit s {stem}",
 "Preparing…": "Připravuje se…",
 "The browser did not allow the audio input": "Prohlížeč nepovolil audio vstup",
@@ -431,16 +429,12 @@
 "Bar line brightness": "Jas taktových čar",
 "Invalid export kind": "Neplatný druh exportu",
 "Latency in ms": "Latence v ms",
-"Mix to FLAC": "Mix do FLAC",
 "Not saved: {error}": "Neuloženo: {error}",
-"Save the song with your take as one FLAC file": "Uložit skladbu s vaším záznamem do jednoho souboru FLAC",
-"Save the take": "Uložit záznam",
-"Save your take as a FLAC file, from the start of the song": "Uložit váš záznam jako soubor FLAC od začátku skladby",
 "Saved in Music/Exports: {name}": "Uloženo do Music/Exports: {name}",
 "Saving…": "Ukládání…",
 "Set by hand · saved for this input and output": "Nastaveno ručně · uloženo pro tento vstup a výstup",
 "The export could not be saved": "Export se nepodařilo uložit",
 "The export is not a WAV file": "Export není soubor WAV",
-"Save the raw take": "Uložit surový záznam",
-"Save only what you recorded as a FLAC file, without volume or effects": "Uložit jen nahrané jako soubor FLAC, bez hlasitosti a efektů"
+"Save as FLAC": "Uložit jako FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Uložit skladbu s vaším záznamem a zvlášť jen záznam, jak byl nahrán, jako soubory FLAC"
 }

@@ -248,8 +248,6 @@
 "You": "Вы",
 "Record your input while the song plays": "Запишите ввод во время воспроизведения песни",
 "Record": "Запись",
-"Play your last take along with the song": "Воспроизвести последний дубль вместе с песней",
-"Play your last take": "Воспроизвести последний дубль",
 "Practice with {stem}": "Практика с {stem}",
 "Preparing…": "Подготовка…",
 "The browser did not allow the audio input": "Браузер не разрешил доступ к аудио входу",
@@ -431,16 +429,12 @@
 "Bar line brightness": "Яркость линий тактов",
 "Invalid export kind": "Неверный тип экспорта",
 "Latency in ms": "Задержка в мс",
-"Mix to FLAC": "Микс в FLAC",
 "Not saved: {error}": "Не сохранено: {error}",
-"Save the song with your take as one FLAC file": "Сохранить песню вместе с вашим дублем в один файл FLAC",
-"Save the take": "Сохранить дубль",
-"Save your take as a FLAC file, from the start of the song": "Сохранить ваш дубль в файл FLAC от начала песни",
 "Saved in Music/Exports: {name}": "Сохранено в Music/Exports: {name}",
 "Saving…": "Сохранение…",
 "Set by hand · saved for this input and output": "Задано вручную · сохранено для этого входа и выхода",
 "The export could not be saved": "Не удалось сохранить экспорт",
 "The export is not a WAV file": "Экспорт — не файл WAV",
-"Save the raw take": "Сохранить сырой дубль",
-"Save only what you recorded as a FLAC file, without volume or effects": "Сохранить только записанное в файл FLAC, без громкости и эффектов"
+"Save as FLAC": "Сохранить в FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Сохранить песню с вашим дублем и отдельно только дубль, как записан, в файлы FLAC"
 }

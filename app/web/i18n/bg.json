@@ -244,8 +244,6 @@
 "You": "Вие",
 "Record your input while the song plays": "Запишете входа си, докато песента се възпроизвежда",
 "Record": "Запис",
-"Play your last take along with the song": "Прослушайте последното си записване заедно с песента",
-"Play your last take": "Прослушайте последното записване",
 "Practice with {stem}": "Практикувайте с {stem}",
 "Preparing…": "Подготовка…",
 "The browser did not allow the audio input": "Браузърът не разреши аудио входа",
@@ -427,16 +425,12 @@
 "Bar line brightness": "Яркост на тактовите линии",
 "Invalid export kind": "Невалиден вид експорт",
 "Latency in ms": "Закъснение в ms",
-"Mix to FLAC": "Микс във FLAC",
 "Not saved: {error}": "Не е запазено: {error}",
-"Save the song with your take as one FLAC file": "Запазване на песента заедно с вашия запис в един FLAC файл",
-"Save the take": "Запазване на записа",
-"Save your take as a FLAC file, from the start of the song": "Запазване на вашия запис във FLAC файл от началото на песента",
 "Saved in Music/Exports: {name}": "Запазено в Music/Exports: {name}",
 "Saving…": "Запазване…",
 "Set by hand · saved for this input and output": "Зададено ръчно · запазено за този вход и изход",
 "The export could not be saved": "Експортът не можа да бъде запазен",
 "The export is not a WAV file": "Експортът не е WAV файл",
-"Save the raw take": "Запази суровия запис",
-"Save only what you recorded as a FLAC file, without volume or effects": "Запази само записаното като FLAC файл, без сила на звука и ефекти"
+"Save as FLAC": "Запази като FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Запази песента с вашия запис и отделно само записа, както е записан, като FLAC файлове"
 }

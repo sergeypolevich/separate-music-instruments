@@ -246,8 +246,6 @@
 "You": "Vi",
 "Record your input while the song plays": "Snimite svoj unos dok pjesma svira",
 "Record": "Snimaj",
-"Play your last take along with the song": "Svirajte posljednji snimak uz pjesmu",
-"Play your last take": "Sviraj posljednji snimak",
 "Practice with {stem}": "Vježbaj s {stem}",
 "Preparing…": "Pripremanje…",
 "The browser did not allow the audio input": "Preglednik nije dopustio audio ulaz",
@@ -429,16 +427,12 @@
 "Bar line brightness": "Svjetlina linija taktova",
 "Invalid export kind": "Neispravna vrsta izvoza",
 "Latency in ms": "Kašnjenje u ms",
-"Mix to FLAC": "Miks u FLAC",
 "Not saved: {error}": "Nije spremljeno: {error}",
-"Save the song with your take as one FLAC file": "Spremi pjesmu zajedno s vašom snimkom u jednu FLAC datoteku",
-"Save the take": "Spremi snimku",
-"Save your take as a FLAC file, from the start of the song": "Spremi vašu snimku kao FLAC datoteku od početka pjesme",
 "Saved in Music/Exports: {name}": "Spremljeno u Music/Exports: {name}",
 "Saving…": "Spremanje…",
 "Set by hand · saved for this input and output": "Postavljeno ručno · spremljeno za ovaj ulaz i izlaz",
 "The export could not be saved": "Izvoz nije moguće spremiti",
 "The export is not a WAV file": "Izvoz nije WAV datoteka",
-"Save the raw take": "Spremi sirovu snimku",
-"Save only what you recorded as a FLAC file, without volume or effects": "Spremi samo ono što ste snimili kao FLAC datoteku, bez glasnoće i efekata"
+"Save as FLAC": "Spremi kao FLAC",
+"Save the song with your take, and your take alone as recorded, as FLAC files": "Spremi pjesmu s vašom snimkom i zasebno samo snimku kako je snimljena, kao FLAC datoteke"
 }
