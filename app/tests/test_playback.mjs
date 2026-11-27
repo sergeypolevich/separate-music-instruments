@@ -674,3 +674,15 @@ test("in a loop the metronome schedules the loop's first beats before the jump b
   metronome.update(0.95);  // the beat at 1.0 in 0.05 s
   assert.deepEqual(context.started.map((t) => +(t - 10).toFixed(3)), [0, 0, 0.05, 0.05]);
 });
+
+test("an export is one 16-bit WAV, lowered as a whole only when it would clip (version 26)", async () => {
+  const { exportGain, wavFile } = await import("../web/playback.mjs");
+  assert.equal(exportGain([Float32Array.from([0.2, -0.5]), Float32Array.from([0.9, 0])]), 1);
+  assert.equal(exportGain([Float32Array.from([0.5, -2]), Float32Array.from([1.5, 0])]), 0.999 / 2);
+  const bytes = wavFile([Float32Array.from([0.5, -1]), Float32Array.from([0, 2])], 44100, 0.5);
+  const view = new DataView(bytes), text = (at) => String.fromCharCode(...new Uint8Array(bytes, at, 4));
+  assert.deepEqual([text(0), text(8), text(12), text(36)], ["RIFF", "WAVE", "fmt ", "data"]);
+  assert.deepEqual([view.getUint16(22, true), view.getUint32(24, true), view.getUint16(34, true), view.getUint32(40, true)], [2, 44100, 16, 8]);
+  // frames interleaved: left, right; scaled by the gain
+  assert.deepEqual([0, 1, 2, 3].map((i) => view.getInt16(44 + i * 2, true)), [Math.round(0.25 * 32767), 0, Math.round(-0.5 * 32767), 32767]);
+});

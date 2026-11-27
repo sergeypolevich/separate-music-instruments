@@ -224,6 +224,20 @@ def waveform_data(path: Path, levels: int, start_seconds: float = 0.0) -> dict[s
     }
 
 
+def reveal_file(path: Path) -> None:
+    """Open the file's folder with the file selected, in Explorer or Finder, on the computer running the app."""
+    if sys.platform == "win32":
+        command = ["explorer", f"/select,{path}"]
+    elif sys.platform == "darwin":
+        command = ["open", "-R", str(path)]
+    else:
+        command = ["xdg-open", str(path.parent)]
+    try:
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except OSError:
+        logger.warning("Export folder could not be opened", extra={"event": "export_reveal_failed"})
+
+
 def create_app(
     *,
     repository: SqliteMetadataStore,
@@ -235,6 +249,7 @@ def create_app(
     start_analysis: Callable[[], None] | None = None,
     exit_process: Callable[[int], None] = os._exit,
     send_report: Callable[[dict[str, str]], None] = analytics.send_report,
+    reveal: Callable[[Path], None] = reveal_file,
 ) -> FastAPI:
     """Create an API instance using injected local infrastructure."""
     source_adapter = source_adapter or YouTubeSourceAdapter(settings.allowed_source_hosts)
@@ -594,6 +609,39 @@ def create_app(
         plugin_file_path(plugin_id, project_id, name)
         storage.delete_plugin_file(plugin_id, project_id, name)
         return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+    @app.post("/api/v1/projects/{project_id}/exports")
+    async def save_export(project_id: UUID, kind: Literal["mix", "take"], request: Request) -> dict[str, str]:
+        """Version 26: the body is a WAV the page rendered (the mix or the take as heard); it is kept as FLAC in
+        Music/Exports/ under the project's name and its folder opens with the file selected."""
+        project = repository.get_project(project_id, _OWNER_ID)
+        if project is None:
+            raise HTTPException(status_code=404, detail={"code": "not_found", "message": "Project not found"})
+        limit = settings.upload_limit_mb * 2**20
+        too_large = HTTPException(status_code=413, detail={
+            "code": "file_too_large", "message": "The file is larger than {limit} MB".format(limit=settings.upload_limit_mb)})
+        if int(request.headers.get("content-length") or 0) > limit:
+            raise too_large
+        partial = storage.new_upload_path()
+        try:
+            received = 0
+            with partial.open("wb") as upload:
+                async for chunk in request.stream():
+                    received += len(chunk)
+                    if received > limit:
+                        raise too_large
+                    upload.write(chunk)
+            title = project.name or project.title or project.input_value
+            path = await run_in_threadpool(storage.save_export, partial, title, kind)
+        except AdapterError as exc:
+            if exc.category is not FailureCategory.INVALID_INPUT:
+                raise
+            raise HTTPException(status_code=415, detail={"code": "unsupported_file", "message": "The export is not a WAV file"}) from exc
+        finally:
+            partial.unlink(missing_ok=True)
+        logger.info("Export saved", extra={"event": "export_saved", "ClientID": _OWNER_ID, "kind": kind, "bytes": path.stat().st_size})
+        reveal(path)
+        return {"name": path.name}
 
     def upgrade_state(project, job) -> dict[str, object]:
         """«Improve quality»: whether the project already has the best model, how long the upgrade takes

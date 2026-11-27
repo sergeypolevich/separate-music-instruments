@@ -1162,7 +1162,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
   }
 
   try {
-    const { BufferEngine, MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, snapLoop, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt } = await import("./playback.mjs");
+    const { BufferEngine, MixerSession, SynchronizedTransport, Metronome, PlayheadClock, StretchEngine, countInPlan, snapLoop, formatBpm, metronomeGain, rhythmFound, snapFaderPercent, tempoAt, exportGain, wavFile } = await import("./playback.mjs");
     const projectId = selectedProjectId;
     if (setupId !== playbackSetupId) return;
     const tracks = stems.map((asset) => {
@@ -1980,6 +1980,57 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       });
       playheadLayer.style.gridRow = `1 / span ${line}`;
     };
+    // Version 26: the mix as heard now, rendered (not played) at 100 % speed from 0:00 to the end and kept as FLAC in
+    // Music/Exports/ (the folder opens on the computer): every stem through its volume and S/M, a plugin's effect
+    // (rebuilt by the chain's build(context); one without it is left out) and the master; a plugin's track `track`
+    // sounds `parts` ([{from, to, samples}] in song seconds). kind "take": that track alone, its volume and effect.
+    // One gain keeps the peak under 0 dBFS. Returns the saved file's name.
+    const exportMix = async ({ kind, track, parts = [] }) => {
+      const rate = audioContext.sampleRate, alone = kind === "take";
+      const offline = new OfflineAudioContext(2, Math.max(1, Math.ceil(duration * rate)), rate);
+      const out = offline.createGain();
+      out.gain.value = alone ? 1 : Number(master.value) / 100;
+      out.connect(offline.destination);
+      const into = (index) => {
+        const gain = offline.createGain();
+        gain.gain.value = alone ? mixer.gains[index] : mixer.gainNodes[index].gain.value;
+        const effect = effects[index] && effects[index].build ? effects[index].build(offline) : null;
+        if (effect) {
+          gain.connect(effect.input);
+          effect.output.connect(out);
+        } else gain.connect(out);
+        return gain;
+      };
+      if (!alone) {
+        const buffers = await (exactLoading || Promise.all(tracks.map(async (audio) => {
+          const response = await fetch(audio.currentSrc || audio.src);
+          return audioContext.decodeAudioData(await response.arrayBuffer());
+        })));
+        buffers.forEach((buffer, index) => {
+          const source = offline.createBufferSource();
+          source.buffer = buffer;
+          source.connect(into(index));
+          source.start(0);
+        });
+      }
+      if (parts.length) {
+        const input = into(track);
+        for (const part of parts) {
+          if (!(part.to > part.from) || !part.samples.length) continue;
+          const buffer = offline.createBuffer(1, part.samples.length, Math.round(part.samples.length / (part.to - part.from)));
+          buffer.copyToChannel(part.samples, 0);
+          const source = offline.createBufferSource();
+          source.buffer = buffer;
+          source.connect(input);
+          source.start(Math.max(0, part.from), Math.max(0, -part.from));
+        }
+      }
+      const rendered = await offline.startRendering();
+      const channels = [rendered.getChannelData(0), rendered.getChannelData(1)];
+      const result = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/exports?kind=${alone ? "take" : "mix"}`, {
+        method: "POST", body: wavFile(channels, rate, exportGain(channels)), headers: { "Content-Type": "audio/wav" } });
+      return result.name;
+    };
     const trackListeners = new Set();
     // A plugin's track (version 24): a mixer row under stem `after` with the stems' controls; its sound goes into
     // `input`, then its volume, S and M, a plugin's effect (EQ) and the master. Hotkeys select stems only.
@@ -2108,6 +2159,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
           speedWrap.dataset.engine = transport.stretching ? "stretch" : "stream";
         },
         songTimeAt: (time) => transport.songTimeAt(time),
+        exportMix,
         current: () => setupId === playbackSetupId,
       });
     }
@@ -2829,6 +2881,8 @@ function pluginContext(id, permissions, host) {
         return host.precise();
       },
       songTimeAt: (time) => host.songTimeAt(time),
+      // the mix or the plugin's track alone as heard, saved as FLAC in Music/Exports/ (version 26): its file name
+      exportMix: (options) => host.exportMix(options),
     });
   }
   if (permissions.includes("analysis")) {

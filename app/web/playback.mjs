@@ -58,6 +58,32 @@ export class MixerSession {
   }
 }
 
+// An export's channels as a 16-bit WAV file, all scaled by one gain: the peak stays under 0 dBFS (version 26).
+export function exportGain(channels) {
+  let peak = 0;
+  for (const channel of channels) for (let i = 0; i < channel.length; i++) peak = Math.max(peak, Math.abs(channel[i]));
+  return peak > 0.999 ? 0.999 / peak : 1;
+}
+
+export function wavFile(channels, rate, gain = 1) {
+  const frames = channels[0].length, size = frames * channels.length * 2;
+  const bytes = new ArrayBuffer(44 + size), view = new DataView(bytes);
+  const text = (at, value) => [...value].forEach((char, i) => view.setUint8(at + i, char.charCodeAt(0)));
+  text(0, "RIFF"); view.setUint32(4, 36 + size, true); text(8, "WAVE"); text(12, "fmt ");
+  view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, channels.length, true);
+  view.setUint32(24, rate, true); view.setUint32(28, rate * channels.length * 2, true);
+  view.setUint16(32, channels.length * 2, true); view.setUint16(34, 16, true);
+  text(36, "data"); view.setUint32(40, size, true);
+  let at = 44;
+  for (let i = 0; i < frames; i++) {
+    for (const channel of channels) {
+      view.setInt16(at, Math.round(Math.max(-1, Math.min(1, channel[i] * gain)) * 32767), true);
+      at += 2;
+    }
+  }
+  return bytes;
+}
+
 export function snapFaderPercent(percent) {
   const value = Number(percent);
   if (!Number.isFinite(value)) return 0;

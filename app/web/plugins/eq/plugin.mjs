@@ -62,7 +62,18 @@ export function project(ctx) {
         filter.gain.value = bands[band].gain;
         filter.Q.value = bands[band].q;
       });
-      ctx.setEffect(index, { input: filters[index][0], output: filters[index][filters[index].length - 1] });
+      const shot = bands.map((band) => ({ ...band }));  // for an export (version 26): the same filters in its context
+      const build = (context) => {
+        const made = shot.map((band) => Object.assign(context.createBiquadFilter(), { type: band.type }));
+        made.forEach((filter, at) => {
+          filter.frequency.value = shot[at].frequency;
+          filter.gain.value = shot[at].gain;
+          filter.Q.value = shot[at].q;
+        });
+        made.reduce((previous, next) => (previous.connect(next), next));
+        return { input: made[0], output: made[made.length - 1] };
+      };
+      ctx.setEffect(index, { input: filters[index][0], output: filters[index][filters[index].length - 1], build });
     }
     buttons[index].setAttribute("aria-pressed", String(!flat(bands) && !off[index]));
   };

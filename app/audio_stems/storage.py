@@ -85,6 +85,8 @@ class LocalMediaStorage:
         self._index_path = self.root / ".audio-stems" / "audio_stems.models.json"
         # Files a plugin keeps for a project (version 24, the practice plugin's takes): Plugins/<plugin>/<project>/.
         self.plugins_root = self.root / "Plugins"
+        # The user's own exports (version 26): a mix or a take as FLAC; no project owns them, nothing here deletes them.
+        self.exports_root = self.root / "Exports"
 
     def _read_index(self) -> dict[str, str]:
         if not self._index_path.exists():
@@ -528,13 +530,44 @@ class LocalMediaStorage:
             size = path.stat().st_size
             if path.is_relative_to(self.temp_root):
                 report["temp_bytes"] += size
-            elif path in protected:
+            elif path in protected or path.is_relative_to(self.exports_root):
                 continue
             elif path.is_relative_to(self.plugins_root) or path.relative_to(self.root).as_posix() in keys_in_use:
                 report["projects_bytes"] += size
             else:
                 report["unused_bytes"] += size
         return report
+
+    def save_export(self, wav: Path, title: str, kind: str) -> Path:
+        """A mix or take the page rendered (a WAV file) as 16-bit FLAC in Exports/: «<title> — mix.flac»,
+        «<title> — take 1.flac»; a file already there is never overwritten, the next number is used."""
+        if kind not in ("mix", "take"):
+            raise AdapterError("Invalid export kind", FailureCategory.INVALID_INPUT)
+        try:
+            info = soundfile.info(str(wav))
+        except RuntimeError as exc:  # libsndfile's error for a file it cannot read
+            raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT) from exc
+        if info.format != "WAV" or info.channels not in (1, 2) or not 8000 <= info.samplerate <= 192000 or info.frames < 1:
+            raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT)
+        base = safe_filename(f"{title} — {kind}")
+        number = 1 if kind == "take" else None
+        while (target := self.exports_root / f"{base if number is None else f'{base} {number}'}.flac").exists():
+            number = (number or 1) + 1
+        partial = target.with_name(target.name + ".part")
+        try:
+            self.exports_root.mkdir(parents=True, exist_ok=True)
+            with soundfile.SoundFile(str(wav)) as source, soundfile.SoundFile(
+                partial, "w", source.samplerate, source.channels, "PCM_16", format="FLAC", compression_level=0.5
+            ) as output:
+                for block in source.blocks(_BLOCK_FRAMES, dtype="float32"):
+                    output.write(block)
+            os.replace(partial, target)
+        except (OSError, RuntimeError) as exc:
+            partial.unlink(missing_ok=True)
+            if isinstance(exc, OSError) and is_disk_full(exc):
+                raise disk_full_error() from exc
+            raise AdapterError("The export could not be saved", FailureCategory.TRANSIENT) from exc
+        return target
 
     def clean_unused(self, keys_in_use: set[str]) -> int:
         """Delete files no project uses and all temporary output, then empty folders; return bytes freed.
@@ -543,7 +576,7 @@ class LocalMediaStorage:
         freed = 0
         for path in list(self._files()):
             # shortcut: plugin files are never "unused" here, they go with their project or plugin (delete_plugin_files).
-            if path in protected or path.is_relative_to(self.plugins_root) or (
+            if path in protected or path.is_relative_to(self.plugins_root) or path.is_relative_to(self.exports_root) or (
                 not path.is_relative_to(self.temp_root) and path.relative_to(self.root).as_posix() in keys_in_use
             ):
                 continue
