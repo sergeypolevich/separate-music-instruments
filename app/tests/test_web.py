@@ -66,7 +66,7 @@ def test_api_serves_v3_screen_bundle_and_keeps_updates_contract(tmp_path):
     assert 'gain.dataset.control = "gain"' in script.text
     assert 'mute.dataset.control = "mute"' in script.text
     assert 'solo.dataset.control = "solo"' in script.text
-    assert 'gain.max = "150"' in script.text
+    assert 'gain.max = "200"' in script.text
     assert 'gain.value = "100"' in script.text
     assert "AudioContext" in script.text
     assert "showModal()" in script.text

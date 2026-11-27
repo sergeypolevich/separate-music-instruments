@@ -252,10 +252,10 @@ def test_live_full_desktop_browser_flow(tmp_path):
                     assert gain.input_value() == "0"
                     page.mouse.click(gain_box["x"] + gain_box["width"] - 1, gain_box["y"] + gain_box["height"] / 2)
                     page.wait_for_function(
-                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 1.5",
+                        "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) === 2",
                         arg=index,
                     )
-                    assert gain.input_value() == "150"
+                    assert gain.input_value() == "200"
                     mute = mutes.nth(index)
                     mute.click()
                     page.wait_for_function(
@@ -271,7 +271,7 @@ def test_live_full_desktop_browser_flow(tmp_path):
                         "index => Number(document.querySelectorAll('#playback-panel audio')[index].dataset.effectiveGain) > 0",
                         arg=index,
                     )
-                    assert gain.input_value() == "150"
+                    assert gain.input_value() == "200"
                 solos.nth(0).click()
                 solos.nth(1).click()
                 print("Solo controls after selection:", solos.evaluate_all(

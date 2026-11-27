@@ -26,7 +26,7 @@ export class MixerSession {
   setGain(index, gain) {
     this.assertIndex(index);
     const value = Number(gain);
-    this.gains[index] = Number.isFinite(value) ? Math.min(1.5, Math.max(0, value)) : 0;
+    this.gains[index] = Number.isFinite(value) ? Math.min(2, Math.max(0, value)) : 0;
     this.apply();
   }
 
@@ -61,7 +61,7 @@ export class MixerSession {
 export function snapFaderPercent(percent) {
   const value = Number(percent);
   if (!Number.isFinite(value)) return 0;
-  const clamped = Math.min(150, Math.max(0, value));
+  const clamped = Math.min(200, Math.max(0, value));
   return clamped >= 95 && clamped <= 105 ? 100 : clamped;
 }
 

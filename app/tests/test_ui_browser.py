@@ -606,7 +606,7 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             fader_geometry = page.locator(".mixer-row .mixer-fader").first.evaluate("""el => {
                 const input = el.querySelector('input'), r = input.getBoundingClientRect(), f = el.getBoundingClientRect();
                 const mark = getComputedStyle(el, '::before');
-                return {thumb100: r.left + 6 + (r.width - 12) * 100 / 150, mark: f.left + parseFloat(mark.left) + 0.5,
+                return {thumb100: r.left + 6 + (r.width - 12) * 100 / 200, mark: f.left + parseFloat(mark.left) + 0.5,
                         markWidth: mark.width, markHeight: mark.height, markColor: mark.backgroundColor,
                         trackColor: getComputedStyle(document.documentElement).getPropertyValue('--line').trim(),
                         border: getComputedStyle(input).borderTopWidth, value: input.value};
@@ -728,20 +728,27 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             for key, index in (("KeyD", 1), ("KeyB", 2), ("KeyG", 3), ("KeyP", 4), ("KeyO", 5), ("KeyV", 0)):
                 page.keyboard.press(key)
                 assert page.evaluate(selected)[index] == "true", key
-            # + and − (=/- and the numpad) change the selected track's volume by 10 %, within 0-150 %.
+            # + and − (=/- and the numpad) change the selected track's volume by 10 %, within 0-200 % (version 26).
             vocal_gain = page.locator('[data-control="gain"]').first
-            assert vocal_gain.input_value() == "100"
+            assert vocal_gain.input_value() == "100" and vocal_gain.get_attribute("max") == "200"
             for key, expected in (("Equal", "110"), ("NumpadAdd", "120"), ("Equal", "130"), ("Equal", "140"),
-                                  ("Equal", "150"), ("NumpadAdd", "150"), ("Minus", "140"), ("NumpadSubtract", "130")):
+                                  ("Equal", "150"), ("NumpadAdd", "160"), ("Minus", "150"), ("NumpadSubtract", "140")):
                 page.keyboard.press(key)
                 assert vocal_gain.input_value() == expected, key
+            for _ in range(7):
+                page.keyboard.press("Equal")
+            assert vocal_gain.input_value() == "200"
+            assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 2
+            for _ in range(7):
+                page.keyboard.press("Minus")
+            assert vocal_gain.input_value() == "130"
             page.keyboard.press("Control+Equal")  # browser zoom: left alone
             assert vocal_gain.input_value() == "130"
             for _ in range(3):
                 page.keyboard.press("Minus")
             assert vocal_gain.input_value() == "100"
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1
-            # The master volume: in the header over the mixer column, where ▶ ⏮ were; 0-100 % for the whole mix,
+            # The master volume: in the header over the mixer column, where ▶ ⏮ were; 0-200 % for the whole mix,
             # remembered for the project; not a stem row. ▶ ▶4 ⏮ moved right, before the title.
             master_row = page.locator("#detail-controls .mixer-master")
             # A speaker icon, no word (the stems are named in English); the fader carries the name.
@@ -769,9 +776,9 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             assert page.evaluate("localStorage.getItem('audio-stems-master-volume:project-0')") == "40"
             assert page.evaluate("Number(document.querySelector('#playback-panel audio').dataset.effectiveGain)") == 1  # stems untouched
             master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
-            # ↑ and ↓ change the master volume by 5 %, within 0-100 %, remembered; the selected track stays.
+            # ↑ and ↓ change the master volume by 5 %, within 0-200 %, remembered; the selected track stays.
             before = page.evaluate(selected)
-            for key, expected in (("ArrowUp", "100"), ("ArrowDown", "95"), ("ArrowDown", "90"), ("ArrowUp", "95")):
+            for key, expected in (("ArrowUp", "105"), ("ArrowDown", "100"), ("ArrowDown", "95"), ("ArrowDown", "90"), ("ArrowUp", "95")):
                 page.keyboard.press(key)
                 assert master.input_value() == expected, key
             assert page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "0.95"
@@ -779,6 +786,16 @@ def test_v3_layout_search_navigation_and_mixer_in_browser(viewport):
             for _ in range(25):
                 page.keyboard.press("ArrowDown")
             assert master.input_value() == "0" and page.evaluate(selected) == before
+            master.evaluate("el => { el.value = '190'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            for _ in range(4):
+                page.keyboard.press("ArrowUp")
+            assert master.input_value() == "200" and page.evaluate("document.querySelector('#playback-panel').dataset.masterGain") == "2"
+            # Version 26: the master's 100 % mark is in the middle, as the stems' (where the thumb stands at 100).
+            master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            master_mark = page.locator(".master-fader").evaluate("""el => {
+                const r = el.querySelector('input').getBoundingClientRect(), f = el.getBoundingClientRect(), mark = getComputedStyle(el, '::before');
+                return [r.left + 6 + (r.width - 12) / 2, f.left + parseFloat(mark.left) + 0.5, mark.display]; }""")
+            assert abs(master_mark[0] - master_mark[1]) <= 1 and master_mark[2] != "none"
             master.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             # A clicked control keeps focus, but the next key never draws a focus ring around it.
             ring = "() => getComputedStyle(document.activeElement).outlineStyle"

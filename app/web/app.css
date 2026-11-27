@@ -205,7 +205,7 @@ h1, h2, h3, p { margin-top: 0; }
 /* The metronome is an icon: a square button, filled with the accent when on (like a pressed S or M). */
 .footer-toggle.metronome-toggle { min-width: 0; width: 42px; justify-content: center; padding: 0; }
 .footer-toggle.metronome-toggle[aria-pressed="true"]:not([data-analyzing]) { border-color: var(--accent); background: var(--accent); color: var(--accent-ink); }
-/* Two classes: a single one loses to the later .mixer-fader mark (100 of 150). */
+/* Two classes: a single one loses to the later .mixer-fader mark (100 of 200). */
 .mixer-fader.footer-fader { --mark: 50 / 100; width: min(200px, 40vw); }
 /* «Improve quality» sits midway between the metronome and the speed: equal free space on both sides. */
 .footer-upgrade { margin-inline: auto; }
@@ -272,20 +272,19 @@ h1, h2, h3, p { margin-top: 0; }
 .mixer-row[data-silenced="true"] .waveform-preview { opacity: .2; }
 /* Borderless sliders (volume and accent hue): 4px track, 12px thumb. The thumb centre travels from
    6px to width-6px, so a mark for value v of max sits at 6px + (width - 12px) * v / max. The mark
-   is the track colour and as tall as the thumb: volume marks 100 of 150, accent marks the default hue. */
+   is the track colour and as tall as the thumb: volume marks 100 of 200, accent marks the default hue. */
 .mixer-fader, .accent-slider { position: relative; display: flex; align-items: center; }
 .mixer-fader::before, .accent-slider::before { position: absolute; top: 50%; left: calc(6px + (100% - 12px) * var(--mark)); width: 1px; height: 12px; background: var(--line); transform: translateY(-50%); pointer-events: none; content: ""; }
-.mixer-fader { --mark: 100 / 150; }
+.mixer-fader { --mark: 100 / 200; }
 .accent-slider { --mark: 197 / 360; width: min(320px, 100%); }
 .mixer-fader input, .accent-slider input { position: relative; z-index: 1; width: 100%; min-width: 0; height: 16px; margin: 0; border: 0; background: transparent; cursor: pointer; appearance: none; -webkit-appearance: none; }
 .accent-slider input { --fill: 0%; }
-.mixer-fader input::-webkit-slider-runnable-track, .accent-slider input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 66.67%), var(--line) var(--fill, 66.67%)); }
+.mixer-fader input::-webkit-slider-runnable-track, .accent-slider input::-webkit-slider-runnable-track { height: 4px; border: 0; border-radius: 2px; background: linear-gradient(to right, var(--accent) var(--fill, 50%), var(--line) var(--fill, 50%)); }
 .mixer-fader input::-webkit-slider-thumb, .accent-slider input::-webkit-slider-thumb { width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--accent); -webkit-appearance: none; appearance: none; }
 .mixer-fader input::-moz-range-track, .accent-slider input::-moz-range-track { height: 4px; border: 0; border-radius: 2px; background: var(--line); }
 .mixer-fader input::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--accent); }
 .mixer-fader input::-moz-range-thumb, .accent-slider input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--accent); }
 .mixer-master { flex: 1; }
-.mixer-fader.master-fader::before { display: none; }  /* no 100 % mark: 100 is the end of this fader */
 .mixer-waveform { position: relative; min-width: 0; display: flex; align-items: center; overflow: hidden; border-radius: 4px; background: var(--waveform-bg); }
 .playhead-layer { position: relative; z-index: 2; grid-column: 2; grid-row: 1 / span 6; cursor: pointer; touch-action: pan-y; }
 /* A line from the top of the first waveform to the bottom of the last; app.js sets its width (one screen pixel)

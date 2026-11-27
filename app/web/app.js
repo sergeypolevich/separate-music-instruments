@@ -1470,7 +1470,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       if (transport.inLoop(timeAt(event))) transport.setLoop(null, transport.currentTime);
     });
 
-    // A mixer row's left side: the name, S and M, the volume (0-150 %); for the stems and the plugins' tracks.
+    // A mixer row's left side: the name, S and M, the volume (0-200 %, 100 in the middle); for the stems and the plugins' tracks.
     const mixerLeft = (index, label, icon) => {
       const left = document.createElement("div");
       left.className = "mixer-left";
@@ -1511,11 +1511,11 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       const gain = document.createElement("input");
       gain.type = "range";
       gain.min = "0";
-      gain.max = "150";
+      gain.max = "200";
       gain.step = "1";
       gain.value = "100";
-      // Filled part of the custom track, as a share of the 0-150 % range.
-      const showFill = () => gain.style.setProperty("--fill", `${(Number(gain.value) / 150) * 100}%`);
+      // Filled part of the custom track, as a share of the 0-200 % range.
+      const showFill = () => gain.style.setProperty("--fill", `${Number(gain.value) / 2}%`);
       showFill();
       gain.dataset.control = "gain";
       gain.tabIndex = -1; // volume is mouse-only; arrow keys belong to the global hotkeys
@@ -1569,7 +1569,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     const master = document.createElement("input");
     master.type = "range";
     master.min = "0";
-    master.max = "100";
+    master.max = "200";
     master.step = "1";
     master.dataset.control = "master-volume";
     master.tabIndex = -1;
@@ -1580,7 +1580,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     master.value = savedMaster;
     const applyMaster = () => {
       masterGain.gain.value = Number(master.value) / 100;
-      master.style.setProperty("--fill", `${master.value}%`);
+      master.style.setProperty("--fill", `${Number(master.value) / 2}%`);
       playbackPanel.dataset.masterGain = String(Number(master.value) / 100);  // the AudioParam is float32
     };
     applyMaster();
@@ -2054,12 +2054,12 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       },
       press: (control) => mixerRowElements[selectedStem].querySelector(`[data-control="${control}"]`).click(),
       toStartAndPause: () => reset.click(),
-      nudgeGain: (step) => {  // through the slider's own input handler: the same 0-150 % range and 100 % snap
+      nudgeGain: (step) => {  // through the slider's own input handler: the same 0-200 % range and 100 % snap
         const gain = mixerRowElements[selectedStem].querySelector('[data-control="gain"]');
         gain.value = String(Number(gain.value) + step);
         gain.dispatchEvent(new Event("input"));
       },
-      nudgeMaster: (step) => {  // the slider clamps to 0-100 % and its input handler stores the value
+      nudgeMaster: (step) => {  // the slider clamps to 0-200 % and its input handler stores the value
         master.value = String(Number(master.value) + step);
         master.dispatchEvent(new Event("input"));
       },

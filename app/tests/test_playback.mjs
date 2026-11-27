@@ -109,7 +109,7 @@ test("a rejected play pauses every track and reports the failure", async () => {
   assert.ok(tracks.every((track) => track.paused));
 });
 
-test("mixer gain is independent and supports 0 through 150 percent", () => {
+test("mixer gain is independent and supports 0 through 200 percent", () => {
   const nodes = makeGainNodes();
   const mixer = new MixerSession(nodes);
   mixer.setGain(0, 0.35);
@@ -118,9 +118,9 @@ test("mixer gain is independent and supports 0 through 150 percent", () => {
   assert.equal(nodes[1].gain.value, 1.5);
   assert.equal(nodes[2].gain.value, 1);
   mixer.setGain(2, -1);
-  mixer.setGain(3, 2);
+  mixer.setGain(3, 2.5);
   assert.equal(nodes[2].gain.value, 0);
-  assert.equal(nodes[3].gain.value, 1.5);
+  assert.equal(nodes[3].gain.value, 2);
 });
 
 test("mute, multiple solo, and clearing solo compose with each track gain", () => {
@@ -182,6 +182,8 @@ test("fader snaps to 100 percent only inside the inclusive 95 to 105 percent ban
   assert.equal(snapFaderPercent(105), 100);
   assert.equal(snapFaderPercent(106), 106);
   assert.equal(snapFaderPercent(150), 150);
+  assert.equal(snapFaderPercent(200), 200);
+  assert.equal(snapFaderPercent(230), 200);
 });
 
 test("four-stem projects mix and play like six-stem ones", async () => {
