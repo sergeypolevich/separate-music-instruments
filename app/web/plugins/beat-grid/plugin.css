@@ -2,6 +2,6 @@
 .beat-grid { position: absolute; inset: var(--row-pad) 0; overflow: hidden; }
 /* The whole song's lines, as wide as the zoom makes the song, moved under the view. */
 .beat-track { position: absolute; top: 0; bottom: 0; left: 0; will-change: transform; }
-/* The accent at 70 % for the bar starts, the other beats half as strong. */
-.beat-line { position: absolute; top: 0; bottom: 0; width: var(--line, 1px); background: color-mix(in srgb, var(--accent) 35%, transparent); }
-.beat-line.strong { background: color-mix(in srgb, var(--accent) 70%, transparent); }
+/* The accent at the set brightness for the bar starts (35 % by default, 70 % before version 26), the other beats at 20/35 of it. */
+.beat-line { position: absolute; top: 0; bottom: 0; width: var(--line, 1px); background: color-mix(in srgb, var(--accent) var(--beat-alpha, 20%), transparent); }
+.beat-line.strong { background: color-mix(in srgb, var(--accent) var(--bar-alpha, 35%), transparent); }

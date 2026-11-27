@@ -3,7 +3,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { zoomAround, panBy, followPlayhead, MIN_SECONDS } from "../web/plugins/zoom/plugin.mjs";
-import { gridLines, GAP } from "../web/plugins/beat-grid/plugin.mjs";
+import { gridLines, GAP, BAR_GAP, look as gridLook } from "../web/plugins/beat-grid/plugin.mjs";
 import { trimmed } from "../web/plugins/trim/plugin.mjs";
 import { addPeaks, choice as practiceChoice, latencyKey, latencyOf } from "../web/plugins/practice/plugin.mjs";
 import { findClick, settle } from "../web/plugins/practice/tuner.mjs";
@@ -44,17 +44,28 @@ test("the grid shows the pale beats only when there is room for them", () => {
   assert.equal(wide.length, 41);
   assert.equal(wide.filter((line) => line.strong).length, 11);
   const narrow = gridLines(beats, downbeats, { start: 0, end: 20 }, 20 * 2 * (GAP - 1));
-  assert.ok(narrow.every((line) => line.strong) && narrow.length === 11);
-  // Zoomed out, bar starts thin out like the beats: every 2nd bar, then every 4th, then none.
-  const bars = (beatPixels) => gridLines(beats, downbeats, { start: 0, end: 20 }, 40 * beatPixels).map((line) => line.x * 20);
-  assert.deepEqual(bars(GAP / 4 + 0.5), beats.filter((_v, i) => i % 4 === 0));
-  assert.deepEqual(bars(GAP / 8 + 0.1), beats.filter((_v, i) => i % 8 === 0));
-  assert.deepEqual(bars(GAP / 16 + 0.1), beats.filter((_v, i) => i % 16 === 0));
-  assert.deepEqual(bars(GAP / 16 - 0.1), []);
+  assert.ok(narrow.every((line) => line.strong) && narrow.length === 6);  // 44 px a bar: every 2nd bar
+  // Zoomed out, bar starts thin out: every bar, every 2nd, then every 4th, then none, each from BAR_GAP pixels
+  // apart (48, version 26); the pale beats keep GAP (12).
+  assert.equal(BAR_GAP, 48);
+  const bars = (beatPixels) => gridLines(beats, downbeats, { start: 0, end: 20 }, 40 * beatPixels).filter((line) => line.strong).map((line) => line.x * 20);
+  assert.deepEqual(bars(BAR_GAP / 4 + 0.5), beats.filter((_v, i) => i % 4 === 0));
+  assert.deepEqual(bars(BAR_GAP / 4 - 0.5), beats.filter((_v, i) => i % 8 === 0));  // 11.5 px a beat: 46 px a bar
+  assert.deepEqual(bars(BAR_GAP / 8 + 0.1), beats.filter((_v, i) => i % 8 === 0));
+  assert.deepEqual(bars(BAR_GAP / 16 + 0.1), beats.filter((_v, i) => i % 16 === 0));
+  assert.deepEqual(bars(BAR_GAP / 16 - 0.1), []);
   // The same bars stay in a later view (counted from the song's first bar).
-  assert.deepEqual(gridLines(beats, downbeats, { start: 3, end: 20 }, 17 * 2 * (GAP / 8 + 0.1)).map((line) => line.x * 17 + 3), [4, 8, 12, 16, 20]);
+  assert.deepEqual(gridLines(beats, downbeats, { start: 3, end: 20 }, 17 * 2 * (BAR_GAP / 8 + 0.1)).map((line) => line.x * 17 + 3), [4, 8, 12, 16, 20]);
   const zoomed = gridLines(beats, [], { start: 5, end: 7 }, 500);  // no bar starts: every fourth beat
   assert.deepEqual(zoomed.map((line) => [line.x, line.strong]), [[0, false], [0.25, false], [0.5, true], [0.75, false], [1, false]]);
+});
+
+test("the grid's brightness: bar lines 35 % by default, the pale beats at 20/35 of it, within 0-100 %", () => {
+  assert.deepEqual(gridLook({}), { brightness: 35, beats: 20 });
+  assert.deepEqual(gridLook({ brightness: 70 }), { brightness: 70, beats: 40 });
+  assert.deepEqual(gridLook({ brightness: 50 }), { brightness: 50, beats: 28.6 });
+  assert.deepEqual(gridLook({ brightness: 300 }), { brightness: 100, beats: 57.1 });
+  assert.deepEqual(gridLook({ brightness: "x" }), { brightness: 35, beats: 20 });
 });
 
 test("a trim cuts at the playhead and never leaves less than a second", () => {

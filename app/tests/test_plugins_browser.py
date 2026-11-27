@@ -2,6 +2,7 @@
 import io
 import json
 import math
+import re
 import shutil
 import threading
 import wave
@@ -331,7 +332,27 @@ def test_plugins_from_the_store_on_a_project(tmp_path):
             page.locator('a[data-screen="settings"]').click()
             assert page.locator("#plugins-summary").is_hidden()
             # Only the plugins that are on and have settings; the others are only in the store.
-            assert page.locator(".installed-plugin h3").all_text_contents() == ["Chords"]
+            assert page.locator(".installed-plugin h3").all_text_contents() == ["Beat grid", "Chords"]
+            # Version 26: the grid's bar lines 35 % opaque by default, the pale beats 20 %; one slider sets the bar
+            # lines (0-100 % in 5 % steps), the pale ones follow at 20/35 of it, in the open project at once.
+            alpha = """(() => [...document.querySelectorAll('.beat-line.strong, .beat-line:not(.strong)')].slice(0, 99)
+              .reduce((seen, el) => { seen[el.classList.contains('strong') ? 'bar' : 'beat'] = getComputedStyle(el).backgroundColor; return seen; }, {}))()"""
+            opacity = lambda color: float(re.search(r"[/,]\s*([\d.]+)\)$", color).group(1))
+            colors = page.evaluate(alpha)
+            assert (opacity(colors["bar"]), opacity(colors["beat"])) == (pytest.approx(0.35, abs=0.005), pytest.approx(0.2, abs=0.005))
+            grid_settings = page.locator('.installed-plugin[data-plugin="beat-grid"] .plugin-settings')
+            brightness = grid_settings.locator('[data-setting="brightness"]')
+            assert (brightness.get_attribute("min"), brightness.get_attribute("max"), brightness.get_attribute("step"), brightness.input_value()) == ("0", "100", "5", "35")
+            assert brightness.get_attribute("aria-label") == "Bar line brightness" and grid_settings.locator("output").text_content() == "35 %"
+            brightness.evaluate("(el) => { el.value = '70'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            assert grid_settings.locator("output").text_content() == "70 %"
+            colors = page.evaluate(alpha)
+            assert (opacity(colors["bar"]), opacity(colors["beat"])) == (pytest.approx(0.7, abs=0.005), pytest.approx(0.4, abs=0.005))
+            for _ in range(40):
+                if state["installed"]["beat-grid"].get("settings"):
+                    break
+                page.wait_for_timeout(50)
+            assert state["installed"]["beat-grid"]["settings"] == {"brightness": 70}
             chords_settings = page.locator('.installed-plugin[data-plugin="chords"] .plugin-settings')
             slider = chords_settings.locator('[data-setting="size"]')
             assert (slider.get_attribute("min"), slider.get_attribute("max")) == ("5.5", "33")
