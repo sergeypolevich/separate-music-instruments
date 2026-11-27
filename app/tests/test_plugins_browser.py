@@ -106,6 +106,10 @@ def _serve(web, state, wav=None):
             self._json(self._plugin(plugin_id))
 
         def do_POST(self):
+            if "/exports?" in self.path:  # version 26: the rendered WAV, kept as the app would keep it
+                state.setdefault("exports", []).append((self.path.split("kind=")[1], self.rfile.read(int(self.headers.get("Content-Length", "0")))))
+                self._json({"name": f"Song — {state['exports'][-1][0]} 1.flac"})
+                return
             body = self._body()
             if self.path == "/api/v1/client-log":  # the page's log: kept apart from the requests
                 state.setdefault("log", []).extend(body["events"])
@@ -467,6 +471,7 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             page.goto(base, wait_until="load")
             page.locator(".project-tab").first.click()
             page.wait_for_function("activeTransport && activeTransport.duration > 0")
+            page.wait_for_function("document.querySelectorAll('.practice-target').length === 4")  # after the plugin's data loads
             targets = page.locator(".practice-target")
             assert targets.count() == 4 and page.locator(".practice-lane").is_hidden()
             assert targets.nth(2).get_attribute("aria-label") == "Practice with Bass"
@@ -490,7 +495,7 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
                 assert button["y"] + button["height"] <= heading["y"] + 1, action
             # ...aligned to the right, flush with the end of the line under them
             assert abs(button["x"] + button["width"] - (heading["x"] + heading["width"])) <= 2
-            assert lane.locator("button").count() == 0
+            assert lane.locator("button:visible").count() == 0  # the export buttons show once there is a take
             you.locator('[data-control="solo"]').click()  # S on «You»: the stems are silenced, like any solo
             assert page.locator('.mixer-row[data-stem="bass"]').get_attribute("data-silenced") == "true"
             you.locator('[data-control="solo"]').click()
@@ -784,6 +789,34 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             page.keyboard.press("Space")
             page.wait_for_function("activeTransport.currentTime > 2")
             page.keyboard.press("Space")
+            # Version 26: the take alone (its volume, here 50 %) and the mix as heard, rendered by the page and sent
+            # as a 16-bit stereo WAV of the whole song; «Mix» and «Save the take» at the take waveform's top right.
+            save, mix = page.locator('[data-action="practice-save"]'), page.locator('[data-action="practice-mix"]')
+            corner, lane_box = save.bounding_box(), page.locator(".practice-lane").bounding_box()
+            assert abs(corner["x"] + corner["width"] - (lane_box["x"] + lane_box["width"])) <= 6 and abs(corner["y"] - lane_box["y"]) <= 6
+            assert mix.bounding_box()["x"] + mix.bounding_box()["width"] <= corner["x"] and abs(mix.bounding_box()["y"] - corner["y"]) <= 1
+            assert save.get_attribute("aria-label") == "Save the take" and mix.get_attribute("aria-label") == "Mix to FLAC"
+            you_gain = page.locator('.plugin-track [data-control="gain"]')
+            you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            save.click()
+            page.wait_for_function("document.querySelector('.practice-status').textContent === 'Saved in Music/Exports: Song — take 1.flac'", timeout=30000)
+            you_gain.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            mix.click()
+            page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('mix 1.flac')", timeout=30000)
+            (take_kind, take_wav), (mix_kind, mix_wav) = state["exports"]
+            assert (take_kind, mix_kind) == ("take", "mix")
+            recorded = max(np.abs(np.frombuffer(state["files"][run["file"]][44:], "<i2")).max() for run in state["data"]["practice"]["takes"][0]["runs"])
+            first_run = state["data"]["practice"]["takes"][0]["runs"][0]["from"]
+            for body in (take_wav, mix_wav):
+                with wave.open(io.BytesIO(body)) as rendered:
+                    assert (rendered.getnchannels(), rendered.getsampwidth(), rendered.getframerate()) == (2, 2, 44100)
+                    assert abs(rendered.getnframes() / 44100 - 5) < 0.01  # the whole song
+            take_audio = np.frombuffer(take_wav[44:], "<i2").reshape(-1, 2)
+            assert np.abs(take_audio).max() == pytest.approx(recorded / 2, rel=0.1)  # as heard: at its 50 %
+            assert np.abs(take_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
+            mix_audio = np.frombuffer(mix_wav[44:], "<i2").reshape(-1, 2)
+            assert np.abs(mix_audio[int(0.25 * 44100): int(0.4 * 44100)]).max() > 1000  # the stems' first pluck
+            assert np.abs(mix_audio).max() <= 32767 * 0.999 + 1  # four stems and the take, lowered as a whole
             # Version 26: the latency set by hand in 1 ms steps is saved at once and moves the take with it.
             measured = state["installed"]["practice"]["settings"]["lastLatency"]
             starts = [run["from"] for run in state["data"]["practice"]["takes"][0]["runs"]]

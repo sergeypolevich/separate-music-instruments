@@ -106,6 +106,8 @@ const ICONS = {
   record: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>',
   listen: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>',
   latency: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></svg>',
+  save: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5"/></svg>',
+  mix: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="7"/><circle cx="15" cy="15" r="7"/></svg>',
 };
 const captureModules = new WeakMap();  // AudioContext → the worklet module, added once
 let openStreams = 0;  // inputs this plugin holds open now: a second one on the same device may fail
@@ -203,6 +205,29 @@ export async function project(ctx) {
   measure.type = "button";
   measure.className = "practice-record practice-latency";
   measure.dataset.action = "practice-latency";
+  // Version 26: the song with the take as heard, and the take alone, saved as FLAC in Music/Exports/: two buttons in
+  // the take's waveform's top right corner, once there is a take (a fourth button over the name would not fit).
+  const corner = lane.appendChild(document.createElement("div"));
+  corner.className = "practice-exports";
+  const mix = corner.appendChild(document.createElement("button"));
+  mix.type = "button";
+  mix.className = "practice-record";
+  mix.dataset.action = "practice-mix";
+  mix.innerHTML = ICONS.mix;
+  mix.title = ctx.t("Save the song with your take as one FLAC file");
+  mix.setAttribute("aria-label", ctx.t("Mix to FLAC"));
+  const keep = corner.appendChild(document.createElement("button"));
+  keep.type = "button";
+  keep.className = "practice-record";
+  keep.dataset.action = "practice-save";
+  keep.innerHTML = ICONS.save;
+  keep.title = ctx.t("Save your take as a FLAC file, from the start of the song");
+  keep.setAttribute("aria-label", ctx.t("Save the take"));
+  const haveTake = (has) => {
+    listen.disabled = !has;
+    corner.hidden = !has;
+  };
+  haveTake(false);
   const status = lane.appendChild(document.createElement("span"));  // over the waveform, only while it says something
   status.className = "practice-status";
   status.setAttribute("aria-live", "polite");
@@ -250,7 +275,7 @@ export async function project(ctx) {
     runs = [];
     lastRuns = [];
     stopPlayer();
-    listen.disabled = true;
+    haveTake(false);
     buttons.forEach((button, at) => button.setAttribute("aria-pressed", String(at === index)));
     track.place(index);
     ctx.setFollowLead(index >= 0 ? 0.6 : null);  // the take behind the playhead stays in sight while zoomed
@@ -273,7 +298,7 @@ export async function project(ctx) {
       if (!ctx.current || stem !== index || lastRuns.length) return;  // another stem, or a newer take recorded meanwhile
       lastRuns = loaded;
       takeLatency = Number.isFinite(last.latency) ? last.latency : settings.lastLatency || 0;  // before version 26: the last one
-      listen.disabled = false;
+      haveTake(true);
     } catch (error) {
       ctx.log("take_load_failed", { message: String((error && error.message) || error) }, "warning");  // a file removed by hand
     }
@@ -410,7 +435,7 @@ export async function project(ctx) {
     lastRuns = recorded.map((run) => ({ from: run.from, to: run.to, samples: samplesOf(run) }));
     takeLatency = recordedLatency;
     shownRuns = lastRuns;
-    listen.disabled = false;
+    haveTake(true);
     saveTake(lastRuns, ctx.stems[chosen].name);
   }
   let wasPlaying = false;
@@ -532,6 +557,29 @@ export async function project(ctx) {
       },
     });
   });
+
+  // The take alone or the whole mix rendered by the app and kept as FLAC; what happened shows over the lane.
+  async function exportTake(kind, button) {
+    if (!lastRuns.length || button.disabled) return;
+    button.disabled = true;
+    const say = (text) => {
+      status.textContent = text;
+      window.setTimeout(() => { if (status.textContent === text) status.textContent = ""; }, 8000);
+    };
+    status.textContent = ctx.t("Saving…");
+    try {
+      const name = await ctx.exportMix({ kind, track: track.index, parts: lastRuns });
+      ctx.log("exported", { kind, runs: lastRuns.length });
+      if (ctx.current) say(ctx.t("Saved in Music/Exports: {name}", { name }));
+    } catch (error) {
+      ctx.log("export_failed", { kind, message: String((error && error.message) || error) }, "error");
+      if (ctx.current) say(ctx.t("Not saved: {error}", { error: (error && error.message) || error }));
+    } finally {
+      button.disabled = false;
+    }
+  }
+  ctx.on(keep, "click", () => exportTake("take", keep));
+  ctx.on(mix, "click", () => exportTake("mix", mix));
 
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 
