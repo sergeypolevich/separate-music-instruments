@@ -4,7 +4,8 @@
 // The stems play through the decoded engine while practising, so a captured frame's AudioContext time maps to the
 // song second heard then (ctx.songTimeAt); the input is placed earlier by the measured latency (the latency tuner).
 
-export const PEAK = 0.001;  // the take's peaks: one a millisecond of song, drawn one column a screen pixel
+export const PEAK = 0.001;  // the take's peaks: one a millisecond of song
+export const COLUMN = 4;  // screen pixels a drawn column of the take (version 26: one a pixel was too busy)
 
 // A latency per input and output name; lastLatency, the last measured or set, for a pair never measured.
 export function choice(settings = {}) {
@@ -535,7 +536,7 @@ export async function project(ctx) {
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 
   // Drawing: one frame per screen refresh while the row shows, on the stems' time scale (zoom, range, playhead and
-  // beat lines come from the host and the other plugins): the loudest millisecond under each screen pixel.
+  // beat lines come from the host and the other plugins): the loudest millisecond under each COLUMN screen pixels.
   const context2d = canvas.getContext("2d");
   let frame = 0;
   const color = (name) => getComputedStyle(lane).getPropertyValue(name).trim();
@@ -560,11 +561,12 @@ export async function project(ctx) {
     if (canvas.width !== width || canvas.height !== height) { canvas.width = width; canvas.height = height; }
     context2d.clearRect(0, 0, width, height);
     context2d.fillStyle = color("--warn");
-    const mid = height / 2, room = mid * 0.9, columns = columnPeaks(peaks, PEAK, view, width);
-    for (let x = 0; x < width; x++) {
+    const count = Math.ceil(width / COLUMN), shown = { start: view.start, end: view.start + (view.end - view.start) * (count * COLUMN) / width };
+    const mid = height / 2, room = mid * 0.9, columns = columnPeaks(peaks, PEAK, shown, count);
+    for (let x = 0; x < count; x++) {
       if (columns[x] < 0) continue;
       const size = Math.max(0.5, Math.min(1, columns[x] / takeMax) * room);
-      context2d.fillRect(x, mid - size, 1, size * 2);
+      context2d.fillRect(x * COLUMN, mid - size, COLUMN, size * 2);
     }
   }
   frame = requestAnimationFrame(draw);

@@ -419,6 +419,12 @@ YOU_BARS = """(() => { const c = document.querySelector('.practice-lane canvas')
   for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - %d) < 12 && Math.abs(d[i + 1] - %d) < 12 && Math.abs(d[i + 2] - %d) < 12) n++;
   return n; })()""" % WARN
 
+YOU_COLUMNS = """(() => { const c = document.querySelector('.practice-lane canvas'), g = c.getContext('2d');
+  const d = g.getImageData(0, 0, c.width, c.height).data, top = {};
+  for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - %d) < 12 && Math.abs(d[i + 1] - %d) < 12 && Math.abs(d[i + 2] - %d) < 12) {
+    const x = (i / 4) %% c.width; if (!(x in top)) top[x] = Math.floor(i / 4 / c.width); }
+  return top; })()""" % WARN
+
 
 @pytest.mark.browser
 def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
@@ -480,6 +486,9 @@ def test_practice_records_the_input_under_the_chosen_stem(tmp_path):
             page.evaluate("document.activeElement.blur()")
             page.keyboard.press("Space")
             page.wait_for_function(YOU_BARS + " > 50", timeout=15000)  # the fake input's beeps, drawn under the stem
+            # Version 26: drawn in columns 4 screen pixels wide, from a multiple of 4, a quarter of the detail.
+            top = {int(x): y for x, y in page.evaluate(YOU_COLUMNS).items()}
+            assert len(top) > 8 and all(top.get(x - x % 4 + k) == y for x, y in top.items() for k in range(4)), sorted(top.items())[:40]
             page.keyboard.press("Space")
             page.locator('[data-action="practice-record"]').click()
             assert page.locator('[data-action="practice-record"]').get_attribute("aria-pressed") == "false"
