@@ -438,5 +438,7 @@
 "Saving…": "Spremanje…",
 "Set by hand · saved for this input and output": "Postavljeno ručno · spremljeno za ovaj ulaz i izlaz",
 "The export could not be saved": "Izvoz nije moguće spremiti",
-"The export is not a WAV file": "Izvoz nije WAV datoteka"
+"The export is not a WAV file": "Izvoz nije WAV datoteka",
+"Save the raw take": "Spremi sirovu snimku",
+"Save only what you recorded as a FLAC file, without volume or effects": "Spremi samo ono što ste snimili kao FLAC datoteku, bez glasnoće i efekata"
 }

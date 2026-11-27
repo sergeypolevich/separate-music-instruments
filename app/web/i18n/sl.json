@@ -294,5 +294,7 @@
 "Saving…": "Shranjevanje…",
 "Set by hand · saved for this input and output": "Nastavljeno ročno · shranjeno za ta vhod in izhod",
 "The export could not be saved": "Izvoza ni bilo mogoče shraniti",
-"The export is not a WAV file": "Izvoz ni datoteka WAV"
+"The export is not a WAV file": "Izvoz ni datoteka WAV",
+"Save the raw take": "Shrani surovi posnetek",
+"Save only what you recorded as a FLAC file, without volume or effects": "Shrani samo posneto kot datoteko FLAC, brez glasnosti in učinkov"
 }

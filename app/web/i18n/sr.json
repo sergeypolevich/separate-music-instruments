@@ -292,5 +292,7 @@
 "Saving…": "Чување…",
 "Set by hand · saved for this input and output": "Подешено ручно · сачувано за овај улаз и излаз",
 "The export could not be saved": "Извоз није могуће сачувати",
-"The export is not a WAV file": "Извоз није WAV датотека"
+"The export is not a WAV file": "Извоз није WAV датотека",
+"Save the raw take": "Сачувај сирови снимак",
+"Save only what you recorded as a FLAC file, without volume or effects": "Сачувај само снимљено као FLAC датотеку, без јачине звука и ефеката"
 }

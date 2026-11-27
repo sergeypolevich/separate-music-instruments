@@ -791,12 +791,17 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             page.wait_for_function("activeTransport.currentTime > 2")
             page.keyboard.press("Space")
             # Version 26: the take alone (its volume, here 50 %) and the mix as heard, rendered by the page and sent
-            # as a 16-bit stereo WAV of the whole song; «Mix» and «Save the take» at the take waveform's top right.
+            # as a 16-bit stereo WAV of the whole song, and the take as recorded; «Mix», «Save the take» and «Save the
+            # raw take» in a row at the take waveform's top right.
             save, mix = page.locator('[data-action="practice-save"]'), page.locator('[data-action="practice-mix"]')
-            corner, lane_box = save.bounding_box(), page.locator(".practice-lane").bounding_box()
+            raw = page.locator('[data-action="practice-raw"]')
+            corner, lane_box = raw.bounding_box(), page.locator(".practice-lane").bounding_box()
             assert abs(corner["x"] + corner["width"] - (lane_box["x"] + lane_box["width"])) <= 6 and abs(corner["y"] - lane_box["y"]) <= 6
-            assert mix.bounding_box()["x"] + mix.bounding_box()["width"] <= corner["x"] and abs(mix.bounding_box()["y"] - corner["y"]) <= 1
+            for left, right in ((mix, save), (save, raw)):
+                assert left.bounding_box()["x"] + left.bounding_box()["width"] <= right.bounding_box()["x"]
+                assert abs(left.bounding_box()["y"] - corner["y"]) <= 1
             assert save.get_attribute("aria-label") == "Save the take" and mix.get_attribute("aria-label") == "Mix to FLAC"
+            assert raw.get_attribute("aria-label") == "Save the raw take"
             you_gain = page.locator('.plugin-track [data-control="gain"]')
             you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             save.click()
@@ -822,11 +827,14 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             you_gain.evaluate("el => { el.value = '100'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
             mix.click()
             page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('mix 1.flac')", timeout=30000)
-            (take_kind, take_wav), (_, eq_wav), (mix_kind, mix_wav) = state["exports"]
-            assert (take_kind, mix_kind) == ("take", "mix")
+            you_gain.evaluate("el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); }")
+            raw.click()  # the volume at 50 % and the EQ's cut are both left out
+            page.wait_for_function("document.querySelector('.practice-status').textContent.endsWith('raw 1.flac')", timeout=30000)
+            (take_kind, take_wav), (_, eq_wav), (mix_kind, mix_wav), (raw_kind, raw_wav) = state["exports"]
+            assert (take_kind, mix_kind, raw_kind) == ("take", "mix", "raw")
             recorded = max(np.abs(np.frombuffer(state["files"][run["file"]][44:], "<i2")).max() for run in state["data"]["practice"]["takes"][0]["runs"])
             first_run = min(run["from"] for run in state["data"]["practice"]["takes"][0]["runs"])
-            for body in (take_wav, mix_wav):
+            for body in (take_wav, mix_wav, raw_wav):
                 with wave.open(io.BytesIO(body)) as rendered:
                     assert (rendered.getnchannels(), rendered.getsampwidth(), rendered.getframerate()) == (2, 2, 44100)
                     assert abs(rendered.getnframes() / 44100 - 5) < 0.01  # the whole song
@@ -835,6 +843,9 @@ def test_practice_keeps_a_take_and_plays_it_after_reload(tmp_path):
             assert first_run > 0.5 and np.abs(take_audio[: int(first_run * 44100) - 50]).max() == 0  # silence before the take
             rms = lambda audio: float(np.sqrt(np.mean(audio.astype(np.float64) ** 2)))
             assert rms(np.frombuffer(eq_wav[44:], "<i2")) < 0.5 * rms(take_audio)
+            raw_audio = np.frombuffer(raw_wav[44:], "<i2").reshape(-1, 2)
+            assert np.abs(raw_audio).max() == pytest.approx(recorded, rel=0.1)  # at 100 %, not the fader's 50 %
+            assert rms(raw_audio) == pytest.approx(2 * rms(take_audio), rel=0.1)  # nor through the EQ
             mix_audio = np.frombuffer(mix_wav[44:], "<i2").reshape(-1, 2)
             assert np.abs(mix_audio[int(0.25 * 44100): int(0.4 * 44100)]).max() > 1000  # the stems' first pluck
             assert np.abs(mix_audio).max() <= 32767 * 0.999 + 1  # four stems and the take, lowered as a whole

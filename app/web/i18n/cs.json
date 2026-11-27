@@ -440,5 +440,7 @@
 "Saving…": "Ukládání…",
 "Set by hand · saved for this input and output": "Nastaveno ručně · uloženo pro tento vstup a výstup",
 "The export could not be saved": "Export se nepodařilo uložit",
-"The export is not a WAV file": "Export není soubor WAV"
+"The export is not a WAV file": "Export není soubor WAV",
+"Save the raw take": "Uložit surový záznam",
+"Save only what you recorded as a FLAC file, without volume or effects": "Uložit jen nahrané jako soubor FLAC, bez hlasitosti a efektů"
 }

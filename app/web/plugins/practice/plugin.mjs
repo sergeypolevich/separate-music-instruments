@@ -106,6 +106,7 @@ const ICONS = {
   record: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="6" fill="currentColor"/></svg>',
   listen: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 14h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a9 9 0 0 1 18 0v7a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>',
   latency: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10 2h4M12 14l3-3"/><circle cx="12" cy="14" r="8"/></svg>',
+  raw: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 10v3M6 6v11M10 3v18M14 8v7M18 5v13M22 10v3"/></svg>',
   save: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M12 15V3M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5"/></svg>',
   mix: '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="9" cy="9" r="7"/><circle cx="15" cy="15" r="7"/></svg>',
 };
@@ -205,7 +206,8 @@ export async function project(ctx) {
   measure.type = "button";
   measure.className = "practice-record practice-latency";
   measure.dataset.action = "practice-latency";
-  // Version 26: the song with the take as heard, and the take alone, saved as FLAC in Music/Exports/: two buttons in
+  // Version 26: the song with the take as heard, the take alone, and the take as recorded (no volume or effect),
+  // saved as FLAC in Music/Exports/: three buttons in
   // the take's waveform's top right corner, once there is a take (a fourth button over the name would not fit).
   const corner = lane.appendChild(document.createElement("div"));
   corner.className = "practice-exports";
@@ -223,6 +225,13 @@ export async function project(ctx) {
   keep.innerHTML = ICONS.save;
   keep.title = ctx.t("Save your take as a FLAC file, from the start of the song");
   keep.setAttribute("aria-label", ctx.t("Save the take"));
+  const raw = corner.appendChild(document.createElement("button"));
+  raw.type = "button";
+  raw.className = "practice-record";
+  raw.dataset.action = "practice-raw";
+  raw.innerHTML = ICONS.raw;
+  raw.title = ctx.t("Save only what you recorded as a FLAC file, without volume or effects");
+  raw.setAttribute("aria-label", ctx.t("Save the raw take"));
   const haveTake = (has) => {
     listen.disabled = !has;
     corner.hidden = !has;
@@ -580,6 +589,7 @@ export async function project(ctx) {
   }
   ctx.on(keep, "click", () => exportTake("take", keep));
   ctx.on(mix, "click", () => exportTake("mix", mix));
+  ctx.on(raw, "click", () => exportTake("raw", raw));
 
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 

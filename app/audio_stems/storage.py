@@ -540,8 +540,9 @@ class LocalMediaStorage:
 
     def save_export(self, wav: Path, title: str, kind: str) -> Path:
         """A mix or take the page rendered (a WAV file) as 16-bit FLAC in Exports/: «<title> — mix.flac»,
-        «<title> — take 1.flac»; a file already there is never overwritten, the next number is used."""
-        if kind not in ("mix", "take"):
+        «<title> — take 1.flac», «<title> — raw take.flac» (only what was recorded); a file already there is never
+        overwritten, the next number is used."""
+        if kind not in ("mix", "take", "raw"):
             raise AdapterError("Invalid export kind", FailureCategory.INVALID_INPUT)
         try:
             info = soundfile.info(str(wav))
@@ -549,7 +550,7 @@ class LocalMediaStorage:
             raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT) from exc
         if info.format != "WAV" or info.channels not in (1, 2) or not 8000 <= info.samplerate <= 192000 or info.frames < 1:
             raise AdapterError("The export is not a WAV file", FailureCategory.INVALID_INPUT)
-        base = safe_filename(f"{title} — {kind}")
+        base = safe_filename(f"{title} — {'raw take' if kind == 'raw' else kind}")
         number = 1 if kind == "take" else None
         while (target := self.exports_root / f"{base if number is None else f'{base} {number}'}.flac").exists():
             number = (number or 1) + 1

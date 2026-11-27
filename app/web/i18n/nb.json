@@ -290,5 +290,7 @@
 "Saving…": "Lagrer…",
 "Set by hand · saved for this input and output": "Satt manuelt · lagret for denne inngangen og utgangen",
 "The export could not be saved": "Eksporten kunne ikke lagres",
-"The export is not a WAV file": "Eksporten er ikke en WAV-fil"
+"The export is not a WAV file": "Eksporten er ikke en WAV-fil",
+"Save the raw take": "Lagre råopptaket",
+"Save only what you recorded as a FLAC file, without volume or effects": "Lagre bare det du tok opp som en FLAC-fil, uten volum eller effekter"
 }

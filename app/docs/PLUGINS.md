@@ -107,7 +107,7 @@ song second heard at an AudioContext time (`null` while paused, before the last 
 keeps the result as 16-bit FLAC in `Music/Exports/` (the folder opens with the file selected, on the computer running
 the app); it resolves the file's name. `parts` (`[{from, to, samples}]`, song seconds and a mono Float32Array) is the
 sound of the plugin's track `track`. `kind: "mix"`: every stem and that track as heard now (volumes, S/M, effects, the
-master); `kind: "take"`: that track alone through its volume and effect. A file that would clip is lowered as a whole.
+master); `kind: "take"`: that track alone through its volume and effect; `kind: "raw"`: that track alone at 100 % without its effect. A file that would clip is lowered as a whole.
 
 A manifest's `"storage_mb"` (version 24, at most 1000) gives the plugin files of its own per project: `ctx.files.list()`
 resolves `{files: [{name, bytes}], limit_bytes}`, `load(name)` an ArrayBuffer, `save(name, body)` stores (refused over the

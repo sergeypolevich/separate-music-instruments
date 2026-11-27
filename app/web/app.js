@@ -1983,18 +1983,19 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
     // Version 26: the mix as heard now, rendered (not played) at 100 % speed from 0:00 to the end and kept as FLAC in
     // Music/Exports/ (the folder opens on the computer): every stem through its volume and S/M, a plugin's effect
     // (rebuilt by the chain's build(context); one without it is left out) and the master; a plugin's track `track`
-    // sounds `parts` ([{from, to, samples}] in song seconds). kind "take": that track alone, its volume and effect.
+    // sounds `parts` ([{from, to, samples}] in song seconds). kind "take": that track alone, its volume and effect;
+    // "raw": that track alone as recorded, at 100 % and without its effect.
     // One gain keeps the peak under 0 dBFS. Returns the saved file's name.
     const exportMix = async ({ kind, track, parts = [] }) => {
-      const rate = audioContext.sampleRate, alone = kind === "take";
+      const rate = audioContext.sampleRate, alone = kind !== "mix", raw = kind === "raw";
       const offline = new OfflineAudioContext(2, Math.max(1, Math.ceil(duration * rate)), rate);
       const out = offline.createGain();
       out.gain.value = alone ? 1 : Number(master.value) / 100;
       out.connect(offline.destination);
       const into = (index) => {
         const gain = offline.createGain();
-        gain.gain.value = alone ? mixer.gains[index] : mixer.gainNodes[index].gain.value;
-        const effect = effects[index] && effects[index].build ? effects[index].build(offline) : null;
+        gain.gain.value = raw ? 1 : alone ? mixer.gains[index] : mixer.gainNodes[index].gain.value;
+        const effect = !raw && effects[index] && effects[index].build ? effects[index].build(offline) : null;
         if (effect) {
           gain.connect(effect.input);
           effect.output.connect(out);
@@ -2027,7 +2028,7 @@ async function setupProjectPlayback(assets, setupId, startOffset = 0, project = 
       }
       const rendered = await offline.startRendering();
       const channels = [rendered.getChannelData(0), rendered.getChannelData(1)];
-      const result = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/exports?kind=${alone ? "take" : "mix"}`, {
+      const result = await requestJson(`/api/v1/projects/${encodeURIComponent(projectId)}/exports?kind=${raw ? "raw" : alone ? "take" : "mix"}`, {
         method: "POST", body: wavFile(channels, rate, exportGain(channels)), headers: { "Content-Type": "audio/wav" } });
       return result.name;
     };

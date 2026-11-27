@@ -345,5 +345,7 @@
 "Saving…": "正在保存…",
 "Set by hand · saved for this input and output": "手动设置 · 已为此输入和输出保存",
 "The export could not be saved": "无法保存导出",
-"The export is not a WAV file": "导出的不是 WAV 文件"
+"The export is not a WAV file": "导出的不是 WAV 文件",
+"Save the raw take": "保存原始录音",
+"Save only what you recorded as a FLAC file, without volume or effects": "仅将录制内容保存为 FLAC 文件，不含音量和效果"
 }

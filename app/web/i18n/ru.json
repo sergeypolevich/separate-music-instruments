@@ -440,5 +440,7 @@
 "Saving…": "Сохранение…",
 "Set by hand · saved for this input and output": "Задано вручную · сохранено для этого входа и выхода",
 "The export could not be saved": "Не удалось сохранить экспорт",
-"The export is not a WAV file": "Экспорт — не файл WAV"
+"The export is not a WAV file": "Экспорт — не файл WAV",
+"Save the raw take": "Сохранить сырой дубль",
+"Save only what you recorded as a FLAC file, without volume or effects": "Сохранить только записанное в файл FLAC, без громкости и эффектов"
 }

@@ -438,5 +438,7 @@
 "Saving…": "שומר…",
 "Set by hand · saved for this input and output": "נקבע ידנית · נשמר עבור הכניסה והיציאה האלה",
 "The export could not be saved": "לא ניתן היה לשמור את הייצוא",
-"The export is not a WAV file": "הייצוא אינו קובץ WAV"
+"The export is not a WAV file": "הייצוא אינו קובץ WAV",
+"Save the raw take": "שמירת ההקלטה הגולמית",
+"Save only what you recorded as a FLAC file, without volume or effects": "שמירת מה שהקלטת בלבד כקובץ FLAC, ללא עוצמה או אפקטים"
 }

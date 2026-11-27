@@ -436,5 +436,7 @@
 "Saving…": "Gemmer…",
 "Set by hand · saved for this input and output": "Angivet manuelt · gemt for denne indgang og udgang",
 "The export could not be saved": "Eksporten kunne ikke gemmes",
-"The export is not a WAV file": "Eksporten er ikke en WAV-fil"
+"The export is not a WAV file": "Eksporten er ikke en WAV-fil",
+"Save the raw take": "Gem den rå optagelse",
+"Save only what you recorded as a FLAC file, without volume or effects": "Gem kun det, du har optaget, som en FLAC-fil uden lydstyrke eller effekter"
 }

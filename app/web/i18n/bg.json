@@ -436,5 +436,7 @@
 "Saving…": "Запазване…",
 "Set by hand · saved for this input and output": "Зададено ръчно · запазено за този вход и изход",
 "The export could not be saved": "Експортът не можа да бъде запазен",
-"The export is not a WAV file": "Експортът не е WAV файл"
+"The export is not a WAV file": "Експортът не е WAV файл",
+"Save the raw take": "Запази суровия запис",
+"Save only what you recorded as a FLAC file, without volume or effects": "Запази само записаното като FLAC файл, без сила на звука и ефекти"
 }

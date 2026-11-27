@@ -438,5 +438,7 @@
 "Saving…": "S'està desant…",
 "Set by hand · saved for this input and output": "Fixada a mà · desada per a aquesta entrada i sortida",
 "The export could not be saved": "No s'ha pogut desar l'exportació",
-"The export is not a WAV file": "L'exportació no és un fitxer WAV"
+"The export is not a WAV file": "L'exportació no és un fitxer WAV",
+"Save the raw take": "Desa la presa sense processar",
+"Save only what you recorded as a FLAC file, without volume or effects": "Desa només el que has enregistrat com a fitxer FLAC, sense volum ni efectes"
 }

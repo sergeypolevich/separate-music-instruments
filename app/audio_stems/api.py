@@ -611,8 +611,8 @@ def create_app(
         return Response(status_code=status.HTTP_204_NO_CONTENT)
 
     @app.post("/api/v1/projects/{project_id}/exports")
-    async def save_export(project_id: UUID, kind: Literal["mix", "take"], request: Request) -> dict[str, str]:
-        """Version 26: the body is a WAV the page rendered (the mix or the take as heard); it is kept as FLAC in
+    async def save_export(project_id: UUID, kind: Literal["mix", "take", "raw"], request: Request) -> dict[str, str]:
+        """Version 26: the body is a WAV the page rendered (the mix or the take as heard, or the take as recorded); it is kept as FLAC in
         Music/Exports/ under the project's name and its folder opens with the file selected."""
         project = repository.get_project(project_id, _OWNER_ID)
         if project is None:

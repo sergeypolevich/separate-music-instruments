@@ -290,5 +290,7 @@
 "Saving…": "Opslaan…",
 "Set by hand · saved for this input and output": "Handmatig ingesteld · opgeslagen voor deze in- en uitgang",
 "The export could not be saved": "De export kon niet worden opgeslagen",
-"The export is not a WAV file": "De export is geen WAV-bestand"
+"The export is not a WAV file": "De export is geen WAV-bestand",
+"Save the raw take": "Ruwe opname opslaan",
+"Save only what you recorded as a FLAC file, without volume or effects": "Alleen wat je hebt opgenomen opslaan als FLAC-bestand, zonder volume of effecten"
 }

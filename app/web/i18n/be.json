@@ -440,5 +440,7 @@
 "Saving…": "Захаванне…",
 "Set by hand · saved for this input and output": "Зададзена ўручную · захавана для гэтага ўваходу і выхаду",
 "The export could not be saved": "Не ўдалося захаваць экспарт",
-"The export is not a WAV file": "Экспарт — не файл WAV"
+"The export is not a WAV file": "Экспарт — не файл WAV",
+"Save the raw take": "Захаваць сыры дубль",
+"Save only what you recorded as a FLAC file, without volume or effects": "Захаваць толькі запісанае ў файл FLAC, без гучнасці і эфектаў"
 }

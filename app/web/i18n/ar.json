@@ -444,5 +444,7 @@
 "Saving…": "جارٍ الحفظ…",
 "Set by hand · saved for this input and output": "ضُبط يدويًا · حُفظ لهذا الدخل والخرج",
 "The export could not be saved": "تعذّر حفظ التصدير",
-"The export is not a WAV file": "التصدير ليس ملف WAV"
+"The export is not a WAV file": "التصدير ليس ملف WAV",
+"Save the raw take": "حفظ التسجيل الخام",
+"Save only what you recorded as a FLAC file, without volume or effects": "حفظ ما سجلته فقط كملف FLAC، دون مستوى الصوت أو المؤثرات"
 }

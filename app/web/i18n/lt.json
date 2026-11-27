@@ -294,5 +294,7 @@
 "Saving…": "Saugoma…",
 "Set by hand · saved for this input and output": "Nustatyta rankiniu būdu · išsaugota šiam įėjimui ir išėjimui",
 "The export could not be saved": "Eksporto nepavyko išsaugoti",
-"The export is not a WAV file": "Eksportas nėra WAV failas"
+"The export is not a WAV file": "Eksportas nėra WAV failas",
+"Save the raw take": "Išsaugoti neapdorotą įrašą",
+"Save only what you recorded as a FLAC file, without volume or effects": "Išsaugoti tik tai, ką įrašėte, kaip FLAC failą, be garsumo ir efektų"
 }

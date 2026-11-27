@@ -438,5 +438,7 @@
 "Saving…": "Guardando…",
 "Set by hand · saved for this input and output": "Fijada a mano · guardada para esta entrada y salida",
 "The export could not be saved": "No se pudo guardar la exportación",
-"The export is not a WAV file": "La exportación no es un archivo WAV"
+"The export is not a WAV file": "La exportación no es un archivo WAV",
+"Save the raw take": "Guardar la toma sin procesar",
+"Save only what you recorded as a FLAC file, without volume or effects": "Guardar solo lo que grabaste como archivo FLAC, sin volumen ni efectos"
 }

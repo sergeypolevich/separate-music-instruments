@@ -40,11 +40,12 @@ def test_a_mix_and_takes_are_kept_as_flac_never_overwritten_and_their_folder_ope
     client, project_id, music = build(tmp_path, opened)
     body, samples = wav()
     names = []
-    for kind in ("mix", "mix", "take", "take"):
+    for kind in ("mix", "mix", "take", "take", "raw", "raw"):
         response = client.request("POST", f"/api/v1/projects/{project_id}/exports?kind={kind}", content=body)
         assert response.status_code == 200, response.text
         names.append(response.json()["name"])
-    assert names == ["My Song — mix.flac", "My Song — mix 2.flac", "My Song — take 1.flac", "My Song — take 2.flac"]
+    assert names == ["My Song — mix.flac", "My Song — mix 2.flac", "My Song — take 1.flac", "My Song — take 2.flac",
+                     "My Song — raw take.flac", "My Song — raw take 2.flac"]
     assert opened == [music.resolve() / "Exports" / name for name in names]
     saved, rate = soundfile.read(opened[0], dtype="float32")
     info = soundfile.info(str(opened[0]))

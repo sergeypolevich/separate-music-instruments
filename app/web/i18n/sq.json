@@ -290,5 +290,7 @@
 "Saving…": "Po ruhet…",
 "Set by hand · saved for this input and output": "Caktuar me dorë · ruajtur për këtë hyrje dhe dalje",
 "The export could not be saved": "Eksporti nuk mund të ruhej",
-"The export is not a WAV file": "Eksporti nuk është skedar WAV"
+"The export is not a WAV file": "Eksporti nuk është skedar WAV",
+"Save the raw take": "Ruaj regjistrimin e papërpunuar",
+"Save only what you recorded as a FLAC file, without volume or effects": "Ruaj vetëm atë që regjistrove si skedar FLAC, pa volum dhe efekte"
 }

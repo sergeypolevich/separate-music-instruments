@@ -436,5 +436,7 @@
 "Saving…": "सहेजा जा रहा है…",
 "Set by hand · saved for this input and output": "हाथ से सेट किया गया · इस इनपुट और आउटपुट के लिए सहेजा गया",
 "The export could not be saved": "निर्यात सहेजा नहीं जा सका",
-"The export is not a WAV file": "निर्यात WAV फ़ाइल नहीं है"
+"The export is not a WAV file": "निर्यात WAV फ़ाइल नहीं है",
+"Save the raw take": "कच्चा टेक सहेजें",
+"Save only what you recorded as a FLAC file, without volume or effects": "केवल रिकॉर्ड किया गया हिस्सा FLAC फ़ाइल के रूप में सहेजें, बिना वॉल्यूम या इफ़ेक्ट के"
 }

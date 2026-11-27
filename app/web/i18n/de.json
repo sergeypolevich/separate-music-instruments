@@ -436,5 +436,7 @@
 "Saving…": "Wird gespeichert…",
 "Set by hand · saved for this input and output": "Von Hand eingestellt · für diesen Ein- und Ausgang gespeichert",
 "The export could not be saved": "Der Export konnte nicht gespeichert werden",
-"The export is not a WAV file": "Der Export ist keine WAV-Datei"
+"The export is not a WAV file": "Der Export ist keine WAV-Datei",
+"Save the raw take": "Rohe Aufnahme speichern",
+"Save only what you recorded as a FLAC file, without volume or effects": "Nur das Aufgenommene als FLAC-Datei speichern, ohne Lautstärke und Effekte"
 }

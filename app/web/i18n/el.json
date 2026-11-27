@@ -436,5 +436,7 @@
 "Saving…": "Αποθήκευση…",
 "Set by hand · saved for this input and output": "Ορίστηκε χειροκίνητα · αποθηκεύτηκε για αυτή την είσοδο και έξοδο",
 "The export could not be saved": "Δεν ήταν δυνατή η αποθήκευση της εξαγωγής",
-"The export is not a WAV file": "Η εξαγωγή δεν είναι αρχείο WAV"
+"The export is not a WAV file": "Η εξαγωγή δεν είναι αρχείο WAV",
+"Save the raw take": "Αποθήκευση ακατέργαστης λήψης",
+"Save only what you recorded as a FLAC file, without volume or effects": "Αποθήκευση μόνο όσων ηχογραφήσατε ως αρχείο FLAC, χωρίς ένταση ή εφέ"
 }
