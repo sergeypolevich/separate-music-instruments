@@ -5,7 +5,7 @@
 // song second heard then (ctx.songTimeAt); the input is placed earlier by the measured latency (the latency tuner).
 
 export const PEAK = 0.001;  // the take's peaks: one a millisecond of song
-export const COLUMN = 2;  // screen pixels a drawn column of the take (version 26: one was too busy, four too coarse)
+export const COLUMN = 2;  // screen pixels between points of the take's outline (version 26: bars of 1 or 4 looked busy or coarse)
 
 // A latency per input and output name; lastLatency, the last measured or set, for a pair never measured.
 export function choice(settings = {}) {
@@ -40,6 +40,31 @@ export function columnPeaks(peaks, step, view, width) {
     for (let i = from; i < to; i++) if (peaks[i] > out[x]) out[x] = peaks[i];
   }
   return out;
+}
+
+// The take's outline: a filled shape, symmetric around `mid`, through one point every `step` pixels (columns[x] its
+// height), smooth between them by quadratic curves through the midpoints; a column with nothing heard (-1) breaks it.
+export function outline(context2d, columns, step, mid, size) {
+  let run = [];
+  const close = () => {
+    if (!run.length) return;
+    const half = (i) => size(run[i][1]);
+    context2d.beginPath();
+    context2d.moveTo(run[0][0], mid - half(0));
+    for (let i = 1; i < run.length; i++) context2d.quadraticCurveTo(run[i - 1][0], mid - half(i - 1), (run[i - 1][0] + run[i][0]) / 2, mid - (half(i - 1) + half(i)) / 2);
+    const end = run.length - 1;
+    context2d.lineTo(run[end][0], mid - half(end));
+    context2d.lineTo(run[end][0], mid + half(end));
+    for (let i = end; i > 0; i--) context2d.quadraticCurveTo(run[i][0], mid + half(i), (run[i][0] + run[i - 1][0]) / 2, mid + (half(i) + half(i - 1)) / 2);
+    context2d.lineTo(run[0][0], mid + half(0));
+    context2d.fill();
+    run = [];
+  };
+  for (let x = 0; x < columns.length; x++) {
+    if (columns[x] < 0) close();
+    else run.push([x * step + step / 2, columns[x]]);
+  }
+  close();
 }
 
 // A block of input heard from song second `from` to `to` raises the peaks of the buckets it covers (-1: nothing yet).
@@ -571,7 +596,7 @@ export async function project(ctx) {
   ctx.on(record, "click", () => (record.getAttribute("aria-pressed") === "true" ? stopRecording() : startRecording()));
 
   // Drawing: one frame per screen refresh while the row shows, on the stems' time scale (zoom, range, playhead and
-  // beat lines come from the host and the other plugins): the loudest millisecond under each COLUMN screen pixels.
+  // beat lines come from the host and the other plugins): an outline through the loudest millisecond under each COLUMN pixels.
   const context2d = canvas.getContext("2d");
   let frame = 0;
   const color = (name) => getComputedStyle(lane).getPropertyValue(name).trim();
@@ -598,11 +623,7 @@ export async function project(ctx) {
     context2d.fillStyle = color("--warn");
     const count = Math.ceil(width / COLUMN), shown = { start: view.start, end: view.start + (view.end - view.start) * (count * COLUMN) / width };
     const mid = height / 2, room = mid * 0.9, columns = columnPeaks(peaks, PEAK, shown, count);
-    for (let x = 0; x < count; x++) {
-      if (columns[x] < 0) continue;
-      const size = Math.max(0.5, Math.min(1, columns[x] / takeMax) * room);
-      context2d.fillRect(x * COLUMN, mid - size, COLUMN, size * 2);
-    }
+    outline(context2d, columns, COLUMN, mid, (peak) => Math.max(0.5, Math.min(1, peak / takeMax) * room));
   }
   frame = requestAnimationFrame(draw);
 
